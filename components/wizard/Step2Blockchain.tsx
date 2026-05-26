@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { useWizardStore } from "@/lib/store";
+import { useT } from "@/lib/i18n/context";
 import { buildPayload } from "@/lib/validation";
 import { TARGET_CHAIN_ID } from "@/lib/wagmi";
 import { bscscanTxUrl, cn, shortHash, ipfsToHttp } from "@/lib/utils";
@@ -28,16 +29,6 @@ interface StepStatus {
   state: "pending" | "active" | "done" | "error";
 }
 
-const STEPS_TEMPLATE: Omit<StepStatus, "state">[] = [
-  { key: "validate", label: "Валідація даних паспорта" },
-  { key: "hash", label: "Обчислення SHA-256 payload-у" },
-  { key: "duplicate", label: "Перевірка унікальності" },
-  { key: "ipfs", label: "Пінінг JSON у IPFS (Pinata)" },
-  { key: "tx-prepare", label: "Підготовка транзакції" },
-  { key: "tx-broadcast", label: "Відправка в BNB Chain" },
-  { key: "tx-confirmed", label: "Підтвердження блоку" },
-];
-
 export function Step2Blockchain() {
   const state = useWizardStore();
   const prev = useWizardStore((s) => s.prev);
@@ -45,6 +36,17 @@ export function Step2Blockchain() {
   const setMintResult = useWizardStore((s) => s.setMintResult);
   const existingResult = useWizardStore((s) => s.mintResult);
   const { address } = useAccount();
+  const t = useT();
+
+  const STEPS_TEMPLATE: Omit<StepStatus, "state">[] = [
+    { key: "validate", label: t.step2.stepValidate },
+    { key: "hash", label: t.step2.stepHash },
+    { key: "duplicate", label: t.step2.stepDuplicate },
+    { key: "ipfs", label: t.step2.stepIpfs },
+    { key: "tx-prepare", label: t.step2.stepTxPrepare },
+    { key: "tx-broadcast", label: t.step2.stepTxBroadcast },
+    { key: "tx-confirmed", label: t.step2.stepTxConfirmed },
+  ];
 
   const [phase, setPhase] = useState<Phase>(existingResult ? "done" : "idle");
   const [steps, setSteps] = useState<StepStatus[]>(
@@ -75,13 +77,9 @@ export function Step2Blockchain() {
       const res = await fetch("/api/mint", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          payload,
-          recipient: address ?? null,
-        }),
+        body: JSON.stringify({ payload, recipient: address ?? null }),
       });
 
-      // Simulate progressive UI even though /api/mint is one round-trip
       await delay(300);
       updateStep("hash", "done");
       updateStep("duplicate", "active");
@@ -109,18 +107,20 @@ export function Step2Blockchain() {
       setResult(mint);
       setMintResult(mint);
       setPhase("done");
-      toast.success("Паспорт випущено", {
-        description: `Token #${mint.tokenId} мінтнуто в блоці ${mint.blockNumber}`,
+      toast.success(t.step2.toastSuccess, {
+        description: t.step2.toastSuccessDesc
+          .replace("{id}", String(mint.tokenId))
+          .replace("{block}", String(mint.blockNumber)),
       });
     } catch (e) {
       console.error(e);
-      const msg = e instanceof Error ? e.message : "Помилка мінту";
+      const msg = e instanceof Error ? e.message : t.step2.errorTitle;
       setErrorMsg(msg);
       setPhase("error");
       setSteps((prevSteps) =>
         prevSteps.map((st) => (st.state === "active" ? { ...st, state: "error" } : st)),
       );
-      toast.error("Не вдалося випустити паспорт", { description: msg });
+      toast.error(t.step2.toastError, { description: msg });
       startedRef.current = false;
     }
   }
@@ -136,10 +136,8 @@ export function Step2Blockchain() {
     <div className="space-y-5 fade-in">
       <Card>
         <CardHeader>
-          <CardTitle>Запис паспорта в блокчейн</CardTitle>
-          <CardDescription>
-            Дані хешуються (SHA-256), JSON пінінгується в IPFS, і випускається ERC-721 NFT у BNB Chain.
-          </CardDescription>
+          <CardTitle>{t.step2.cardTitle}</CardTitle>
+          <CardDescription>{t.step2.cardDesc}</CardDescription>
         </CardHeader>
         <CardContent>
           <ol className="space-y-3">
@@ -182,10 +180,10 @@ export function Step2Blockchain() {
 
           {phase === "error" && errorMsg && (
             <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-4">
-              <p className="text-sm font-medium text-rose-900">Помилка мінту</p>
+              <p className="text-sm font-medium text-rose-900">{t.step2.errorTitle}</p>
               <p className="text-xs text-rose-800 mt-1 break-all">{errorMsg}</p>
               <Button variant="danger" size="sm" className="mt-3" onClick={runMint}>
-                Спробувати ще раз
+                {t.step2.retry}
               </Button>
             </div>
           )}
@@ -197,9 +195,9 @@ export function Step2Blockchain() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-brand-700" />
-              Паспорт випущено
+              {t.step2.resultTitle}
             </CardTitle>
-            <CardDescription>Запис закріплено на BNB Chain · необоротно</CardDescription>
+            <CardDescription>{t.step2.resultDesc}</CardDescription>
           </CardHeader>
           <CardContent>
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -212,12 +210,7 @@ export function Step2Blockchain() {
               />
               <Field label="Block" value={String(result.blockNumber)} mono />
               <Field label="Gas used" value={result.gasUsed} mono />
-              <Field
-                label="Payload SHA-256"
-                value={shortHash(result.payloadHash, 8, 8)}
-                mono
-                full
-              />
+              <Field label="Payload SHA-256" value={shortHash(result.payloadHash, 8, 8)} mono full />
               <Field
                 label="IPFS URI"
                 value={result.ipfsUri}
@@ -235,7 +228,7 @@ export function Step2Blockchain() {
 
       <div className="flex items-center justify-between gap-4">
         <Button variant="ghost" leadingIcon={<ArrowLeft className="h-4 w-4" />} onClick={prev}>
-          Назад
+          {t.step2.back}
         </Button>
         <Button
           disabled={phase !== "done"}
@@ -243,7 +236,7 @@ export function Step2Blockchain() {
           size="lg"
           trailingIcon={<ArrowRight className="h-4 w-4" />}
         >
-          Переглянути сертифікат
+          {t.step2.next}
         </Button>
       </div>
     </div>

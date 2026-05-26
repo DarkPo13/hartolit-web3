@@ -9,12 +9,14 @@ import { Input } from "@/components/ui/Input";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { DiiaBlock } from "@/components/diia/DiiaBlock";
 import { useWizardStore } from "@/lib/store";
+import { useT } from "@/lib/i18n/context";
 import { chemicalSchema, type ChemicalFormValues } from "@/lib/schemas";
 import type { FileRef, DiiaSignatureRef } from "@/types/passport";
 
 export function ChemicalBlock() {
   const chemical = useWizardStore((s) => s.chemical);
   const setChemical = useWizardStore((s) => s.setChemical);
+  const t = useT();
 
   const {
     register,
@@ -46,64 +48,60 @@ export function ChemicalBlock() {
   const signature = chemical.supplierSignature;
 
   return (
-    <BlockCard
-      number="04"
-      title="Хімія та постачальник"
-      hint="Препарат, доза, документ закупівлі + КЕП постачальника"
-    >
+    <BlockCard number="04" title={t.chemical.blockTitle} hint={t.chemical.blockHint}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Input
-          label="Назва препарату"
-          placeholder="Раундап Макс"
+          label={t.chemical.nameLabel}
+          placeholder={t.chemical.namePlaceholder}
           leadingIcon={<FlaskConical className="h-4 w-4" />}
           error={errors.chemical?.message}
           {...register("chemical")}
         />
         <Input
-          label="Діюча речовина"
-          placeholder="Гліфосат, 450 г/л"
+          label={t.chemical.activeLabel}
+          placeholder={t.chemical.activePlaceholder}
           error={errors.chemicalActive?.message}
           {...register("chemicalActive")}
         />
         <Input
-          label="Доза (л/га або кг/га)"
+          label={t.chemical.doseLabel}
           type="number"
           step="0.01"
-          placeholder="3.0"
+          placeholder={t.chemical.dosePlaceholder}
           error={errors.dose?.message}
           {...register("dose")}
         />
         <Input
-          label="Робочий об'єм (л/га)"
+          label={t.chemical.volumeLabel}
           type="number"
           step="0.01"
-          placeholder="50"
+          placeholder={t.chemical.volumePlaceholder}
           error={errors.workingVolume?.message}
           {...register("workingVolume")}
         />
         <Input
-          label="Виробник"
-          placeholder="Bayer CropScience"
+          label={t.chemical.manufacturerLabel}
+          placeholder={t.chemical.manufacturerPlaceholder}
           leadingIcon={<Building2 className="h-4 w-4" />}
           error={errors.manufacturer?.message}
           {...register("manufacturer")}
         />
         <Input
-          label="№ реєстрації (Укрпестицид)"
-          placeholder="А.02.07-12345"
+          label={t.chemical.regLabel}
+          placeholder={t.chemical.regPlaceholder}
           leadingIcon={<Hash className="h-4 w-4" />}
           error={errors.regNumber?.message}
           {...register("regNumber")}
         />
         <Input
-          label="Постачальник"
-          placeholder="ТОВ «Агро-Хіміст»"
+          label={t.chemical.supplierLabel}
+          placeholder={t.chemical.supplierPlaceholder}
           error={errors.supplierName?.message}
           {...register("supplierName")}
         />
         <Input
-          label="ЄДРПОУ постачальника"
-          placeholder="12345678"
+          label={t.chemical.supplierEdrpouLabel}
+          placeholder={t.chemical.supplierEdrpouPlaceholder}
           error={errors.supplierEdrpou?.message}
           {...register("supplierEdrpou")}
         />
@@ -111,8 +109,8 @@ export function ChemicalBlock() {
 
       <div className="mt-5 space-y-4">
         <FileUpload
-          label="Документ закупівлі"
-          hint="Накладна, рахунок-фактура або акт (PDF / зображення)"
+          label={t.chemical.docLabel}
+          hint={t.chemical.docHint}
           accept=".pdf,.jpg,.jpeg,.png"
           value={fileRef}
           onChange={(f: FileRef | null) =>
@@ -129,7 +127,7 @@ export function ChemicalBlock() {
           signature={signature}
           onSigned={(sig: DiiaSignatureRef) => setChemical({ supplierSignature: sig })}
           disabled={!fileRef}
-          disabledReason={!fileRef ? "Спочатку завантажте документ закупівлі" : undefined}
+          disabledReason={!fileRef ? t.diia.supplierPending : undefined}
         />
       </div>
     </BlockCard>

@@ -7,6 +7,7 @@ import type {
   ChemicalBlockData,
   MintResult,
 } from "@/types/passport";
+import { MOCK_FARMER, MOCK_TREATMENT, MOCK_METEO, MOCK_CHEMICAL } from "@/lib/mock-data";
 
 export type WizardStep = 1 | 2 | 3;
 
@@ -28,6 +29,9 @@ interface WizardState {
   setChemical: (data: Partial<ChemicalBlockData>) => void;
   setMintResult: (result: MintResult) => void;
 
+  mockVersion: number;
+  fillMockData: () => void;
+
   reset: () => void;
 }
 
@@ -38,6 +42,7 @@ const initialState = {
   meteo: {},
   chemical: {},
   mintResult: null,
+  mockVersion: 0,
 };
 
 export const useWizardStore = create<WizardState>()(
@@ -58,6 +63,14 @@ export const useWizardStore = create<WizardState>()(
       setMeteo: (data) => set((s) => ({ meteo: { ...s.meteo, ...data } })),
       setChemical: (data) => set((s) => ({ chemical: { ...s.chemical, ...data } })),
       setMintResult: (mintResult) => set({ mintResult }),
+      fillMockData: () =>
+        set((s) => ({
+          farmer: MOCK_FARMER,
+          treatment: MOCK_TREATMENT,
+          meteo: MOCK_METEO,
+          chemical: MOCK_CHEMICAL,
+          mockVersion: s.mockVersion + 1,
+        })),
       reset: () => set(initialState),
     }),
     {

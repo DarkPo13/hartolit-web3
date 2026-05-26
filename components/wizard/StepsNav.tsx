@@ -3,19 +3,21 @@
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWizardStore, type WizardStep } from "@/lib/store";
-
-const STEPS: Array<{ id: WizardStep; title: string; subtitle: string }> = [
-  { id: 1, title: "Дані обробки", subtitle: "Поле, дрон, метео, хімія" },
-  { id: 2, title: "Блокчейн", subtitle: "IPFS + on-chain mint" },
-  { id: 3, title: "Сертифікат", subtitle: "NFT-сертифікат + QR" },
-];
+import { useT } from "@/lib/i18n/context";
 
 export function StepsNav() {
   const step = useWizardStore((s) => s.step);
   const setStep = useWizardStore((s) => s.setStep);
+  const t = useT();
+
+  const STEPS: Array<{ id: WizardStep; title: string; subtitle: string }> = [
+    { id: 1, title: t.nav.step1Title, subtitle: t.nav.step1Sub },
+    { id: 2, title: t.nav.step2Title, subtitle: t.nav.step2Sub },
+    { id: 3, title: t.nav.step3Title, subtitle: t.nav.step3Sub },
+  ];
 
   return (
-    <nav aria-label="Прогрес створення паспорта" className="w-full">
+    <nav aria-label={t.nav.aria} className="w-full">
       <ol className="flex items-center gap-2 md:gap-4">
         {STEPS.map((s, i) => {
           const isDone = step > s.id;

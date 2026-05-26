@@ -3,6 +3,7 @@
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/context";
 
 interface SignatureSummaryProps {
   pilotSigned: boolean;
@@ -11,6 +12,7 @@ interface SignatureSummaryProps {
 }
 
 export function SignatureSummary({ pilotSigned, supplierSigned, className }: SignatureSummaryProps) {
+  const t = useT();
   const both = pilotSigned && supplierSigned;
   return (
     <div
@@ -28,23 +30,16 @@ export function SignatureSummary({ pilotSigned, supplierSigned, className }: Sig
         ) : (
           <AlertCircle className="h-5 w-5 text-amber-700 flex-shrink-0" />
         )}
-        <p
-          className={cn(
-            "text-sm font-medium",
-            both ? "text-brand-900" : "text-amber-900",
-          )}
-        >
-          {both
-            ? "Усі КЕП-підписи отримано — готово до мінту"
-            : "Необхідні обидва КЕП-підписи (пілот + постачальник)"}
+        <p className={cn("text-sm font-medium", both ? "text-brand-900" : "text-amber-900")}>
+          {both ? t.sigSummary.allSigned : t.sigSummary.needBoth}
         </p>
       </div>
       <div className="mt-3 flex gap-2 flex-wrap">
         <Badge tone={pilotSigned ? "success" : "warning"}>
-          Пілот: {pilotSigned ? "підписано" : "очікується"}
+          {pilotSigned ? t.sigSummary.pilotSigned : t.sigSummary.pilotPending}
         </Badge>
         <Badge tone={supplierSigned ? "success" : "warning"}>
-          Постачальник: {supplierSigned ? "підписано" : "очікується"}
+          {supplierSigned ? t.sigSummary.supplierSigned : t.sigSummary.supplierPending}
         </Badge>
       </div>
     </div>

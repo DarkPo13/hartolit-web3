@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { DiiaBlock } from "@/components/diia/DiiaBlock";
 import { useWizardStore } from "@/lib/store";
+import { useT } from "@/lib/i18n/context";
 import { parseMeteoFile } from "@/lib/meteo-parser";
 import type { FileRef, MeteoData, DiiaSignatureRef } from "@/types/passport";
 import { toast } from "sonner";
@@ -15,6 +16,7 @@ export function MeteoBlock() {
   const meteo = useWizardStore((s) => s.meteo);
   const setMeteo = useWizardStore((s) => s.setMeteo);
   const treatment = useWizardStore((s) => s.treatment);
+  const t = useT();
 
   const [parsing, setParsing] = useState(false);
   const fileRef = meteo.meteoFile;
@@ -27,7 +29,7 @@ export function MeteoBlock() {
       const res = await parseMeteoFile(file);
       if (res.ok && res.data) {
         setMeteo({ meteoData: res.data });
-        toast.success("Метео-дані розпізнано", {
+        toast.success(t.meteo.fileLabel, {
           description: `T:${res.data.temperatureCelsius}°C · H:${res.data.humidityPercent}% · W:${res.data.windSpeedMps} м/с`,
         });
       } else {
@@ -57,26 +59,22 @@ export function MeteoBlock() {
   }
 
   return (
-    <BlockCard
-      number="03"
-      title="Метео-дані"
-      hint="Файл метеостанції + КЕП-підпис пілота"
-    >
+    <BlockCard number="03" title={t.meteo.blockTitle} hint={t.meteo.blockHint}>
       <div className="space-y-4">
         <FileUpload
-          label="Файл метеостанції"
-          hint="JSON / CSV / TXT — автоматично розпізнаємо. PDF/XML — введіть вручну."
+          label={t.meteo.fileLabel}
+          hint={t.meteo.fileHint}
           accept=".json,.csv,.txt,.pdf,.xml"
           value={fileRef}
           onChange={handleFileChange}
           onRawFile={handleRawFile}
         />
 
-        {parsing && <p className="text-xs text-ink-muted">Парсимо файл…</p>}
+        {parsing && <p className="text-xs text-ink-muted">{t.meteo.parsing}</p>}
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Input
-            label="Темп., °C"
+            label={t.meteo.tempLabel}
             type="number"
             step="0.1"
             value={data?.temperatureCelsius ?? ""}
@@ -84,7 +82,7 @@ export function MeteoBlock() {
             leadingIcon={<Thermometer className="h-4 w-4" />}
           />
           <Input
-            label="Вологість, %"
+            label={t.meteo.humidityLabel}
             type="number"
             step="0.1"
             value={data?.humidityPercent ?? ""}
@@ -92,7 +90,7 @@ export function MeteoBlock() {
             leadingIcon={<Droplets className="h-4 w-4" />}
           />
           <Input
-            label="Вітер, м/с"
+            label={t.meteo.windLabel}
             type="number"
             step="0.1"
             value={data?.windSpeedMps ?? ""}
@@ -100,7 +98,7 @@ export function MeteoBlock() {
             leadingIcon={<Wind className="h-4 w-4" />}
           />
           <Input
-            label="Опади, мм"
+            label={t.meteo.rainLabel}
             type="number"
             step="0.1"
             value={data?.rainfallMm ?? ""}
@@ -117,7 +115,7 @@ export function MeteoBlock() {
           signature={signature}
           onSigned={(sig: DiiaSignatureRef) => setMeteo({ pilotSignature: sig })}
           disabled={!fileRef}
-          disabledReason={!fileRef ? "Спочатку завантажте файл метео-даних" : undefined}
+          disabledReason={!fileRef ? t.diia.pilotPending : undefined}
         />
       </div>
     </BlockCard>

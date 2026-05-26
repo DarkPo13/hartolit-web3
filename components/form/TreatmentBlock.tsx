@@ -9,10 +9,17 @@ import { Input, Textarea } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { treatmentSchema, TREATMENT_TYPE_OPTIONS, type TreatmentFormValues } from "@/lib/schemas";
 import { useWizardStore } from "@/lib/store";
+import { useT } from "@/lib/i18n/context";
 
 export function TreatmentBlock() {
   const treatment = useWizardStore((s) => s.treatment);
   const setTreatment = useWizardStore((s) => s.setTreatment);
+  const t = useT();
+
+  const treatmentTypeOptions = TREATMENT_TYPE_OPTIONS.map((opt) => ({
+    value: opt.value,
+    label: t.treatmentTypes[opt.value as keyof typeof t.treatmentTypes] ?? opt.label,
+  }));
 
   const {
     register,
@@ -42,7 +49,7 @@ export function TreatmentBlock() {
   }, [watch, setTreatment]);
 
   return (
-    <BlockCard number="02" title="Обробка та дрон" hint="Що, коли і чим оброблено">
+    <BlockCard number="02" title={t.treatment.blockTitle} hint={t.treatment.blockHint}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
           <Controller
@@ -50,61 +57,61 @@ export function TreatmentBlock() {
             name="treatmentType"
             render={({ field }) => (
               <Select
-                label="Тип обробки"
-                placeholder="Виберіть тип"
+                label={t.treatment.typeLabel}
+                placeholder={t.treatment.typePlaceholder}
                 value={field.value}
                 onValueChange={field.onChange}
-                options={[...TREATMENT_TYPE_OPTIONS]}
+                options={treatmentTypeOptions}
                 error={errors.treatmentType?.message}
               />
             )}
           />
         </div>
         <Input
-          label="Дата обробки"
+          label={t.treatment.dateLabel}
           type="date"
           leadingIcon={<Calendar className="h-4 w-4" />}
           error={errors.treatmentDate?.message}
           {...register("treatmentDate")}
         />
         <Input
-          label="Час початку"
+          label={t.treatment.timeLabel}
           type="time"
           leadingIcon={<Clock className="h-4 w-4" />}
           error={errors.treatmentTime?.message}
           {...register("treatmentTime")}
         />
         <Input
-          label="Модель дрона"
-          placeholder="DJI Agras T40"
+          label={t.treatment.modelLabel}
+          placeholder={t.treatment.modelPlaceholder}
           leadingIcon={<Plane className="h-4 w-4" />}
           error={errors.droneModel?.message}
           {...register("droneModel")}
         />
         <Input
-          label="Серійний номер"
-          placeholder="1ZNDH4G00BA00P"
+          label={t.treatment.serialLabel}
+          placeholder={t.treatment.serialPlaceholder}
           error={errors.droneSerial?.message}
           {...register("droneSerial")}
         />
         <Input
-          label="Оператор (ПІБ)"
-          placeholder="Петренко Іван Олегович"
+          label={t.treatment.operatorLabel}
+          placeholder={t.treatment.operatorPlaceholder}
           error={errors.operator?.message}
           {...register("operator")}
         />
         <Input
-          label="Ліцензія DARS"
-          placeholder="A2-UA-2024-001234"
+          label={t.treatment.certLabel}
+          placeholder={t.treatment.certPlaceholder}
           leadingIcon={<ShieldCheck className="h-4 w-4" />}
           error={errors.pilotCert?.message}
-          hint="Категорія A2/A3"
+          hint={t.treatment.certHint}
           {...register("pilotCert")}
         />
         <div className="md:col-span-2">
           <Textarea
-            label="Примітки оператора"
-            placeholder="Опційно: умови польоту, особливості ділянки…"
+            label={t.treatment.notesLabel}
+            placeholder={t.treatment.notesPlaceholder}
             error={errors.notes?.message}
             {...register("notes")}
           />

@@ -9,11 +9,13 @@ import { ChemicalBlock } from "@/components/form/ChemicalBlock";
 import { SignatureSummary } from "@/components/form/SignatureSummary";
 import { useWizardStore } from "@/lib/store";
 import { isStep1Complete } from "@/lib/validation";
+import { useT } from "@/lib/i18n/context";
 
 export function Step1Form() {
   const state = useWizardStore();
   const next = useWizardStore((s) => s.next);
   const { complete, missing } = isStep1Complete(state);
+  const t = useT();
 
   return (
     <div className="space-y-5 fade-in">
@@ -30,9 +32,11 @@ export function Step1Form() {
       <div className="sticky bottom-4 z-10 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface/95 backdrop-blur p-4 shadow-lifted">
         <div className="text-xs text-ink-muted">
           {complete ? (
-            <span className="text-brand-700 font-medium">Усе заповнено — можна переходити до мінту</span>
+            <span className="text-brand-700 font-medium">{t.step1.allFilled}</span>
           ) : (
-            <span>Не заповнено: {missing.join(", ")}</span>
+            <span>
+              {t.step1.notFilled} {missing.map((k) => t.missing[k]).join(", ")}
+            </span>
           )}
         </div>
         <Button
@@ -41,7 +45,7 @@ export function Step1Form() {
           size="lg"
           trailingIcon={<ArrowRight className="h-4 w-4" />}
         >
-          Перейти до блокчейну
+          {t.step1.toBlockchain}
         </Button>
       </div>
     </div>

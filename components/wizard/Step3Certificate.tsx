@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { useWizardStore } from "@/lib/store";
+import { useT } from "@/lib/i18n/context";
 import {
   bscscanTokenUrl,
   bscscanTxUrl,
@@ -28,6 +29,7 @@ export function Step3Certificate() {
   const prev = useWizardStore((s) => s.prev);
   const reset = useWizardStore((s) => s.reset);
   const result = state.mintResult;
+  const t = useT();
 
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const certRef = useRef<HTMLDivElement>(null);
@@ -47,9 +49,9 @@ export function Step3Certificate() {
     return (
       <div className="space-y-4 fade-in">
         <Card className="p-8 text-center">
-          <p className="text-ink-muted">Сертифікат буде доступний після випуску NFT.</p>
+          <p className="text-ink-muted">{t.step3.noResult}</p>
           <Button variant="ghost" className="mt-4" onClick={prev}>
-            Повернутися до мінту
+            {t.step3.backToMint}
           </Button>
         </Card>
       </div>
@@ -61,7 +63,7 @@ export function Step3Certificate() {
   return (
     <div className="space-y-5 fade-in">
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
-        <h2 className="text-lg font-semibold text-ink">Цифровий паспорт</h2>
+        <h2 className="text-lg font-semibold text-ink">{t.step3.title}</h2>
         <div className="flex gap-2">
           <Button
             variant="secondary"
@@ -69,7 +71,7 @@ export function Step3Certificate() {
             onClick={() => window.print()}
             leadingIcon={<Printer className="h-4 w-4" />}
           >
-            Друк
+            {t.step3.print}
           </Button>
           <Button
             variant="secondary"
@@ -77,26 +79,25 @@ export function Step3Certificate() {
             onClick={() => downloadHtmlCertificate(certRef.current)}
             leadingIcon={<Download className="h-4 w-4" />}
           >
-            HTML
+            {t.step3.html}
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
-              if (confirm("Очистити форму і створити новий паспорт?")) {
+              if (confirm(t.step3.confirmReset)) {
                 reset();
                 window.scrollTo({ top: 0, behavior: "smooth" });
               }
             }}
             leadingIcon={<RotateCcw className="h-4 w-4" />}
           >
-            Новий
+            {t.step3.newPassport}
           </Button>
         </div>
       </div>
 
       <Card ref={certRef} className="overflow-hidden">
-        {/* Certificate header — formal */}
         <div className="bg-gradient-to-br from-brand-800 via-brand-700 to-brand-900 p-8 text-white">
           <div className="flex items-start justify-between gap-6">
             <div>
@@ -113,8 +114,9 @@ export function Step3Certificate() {
                 Hartolit Digital Field Passport
               </h1>
               <p className="mt-1 text-sm text-brand-100">
-                Сертифікат № <span className="hash-mono font-semibold">HFP-{result.tokenId}</span>{" "}
-                · виданий {issuedAt}
+                {t.step3.certNumber}{" "}
+                <span className="hash-mono font-semibold">HFP-{result.tokenId}</span>{" "}
+                · {t.step3.issuedAt} {issuedAt}
               </p>
             </div>
             <div className="rounded-lg bg-white/10 p-2 backdrop-blur-sm">
@@ -127,42 +129,41 @@ export function Step3Certificate() {
           </div>
         </div>
 
-        {/* Body */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8">
-          <Section title="Фермер та поле">
-            <Row label="Фермер" value={state.farmer.farmerName} />
-            <Row label="ЄДРПОУ/ІПН" value={state.farmer.farmerId} mono />
-            <Row label="Культура" value={state.farmer.crop} />
-            <Row label="Площа" value={`${state.farmer.fieldArea ?? "—"} га`} />
-            <Row label="GPS" value={state.farmer.gpsCoords} mono />
+          <Section title={t.step3.sectionFarmer}>
+            <Row label={t.step3.lFarmer} value={state.farmer.farmerName} />
+            <Row label={t.step3.lId} value={state.farmer.farmerId} mono />
+            <Row label={t.step3.lCrop} value={state.farmer.crop} />
+            <Row label={t.step3.lArea} value={`${state.farmer.fieldArea ?? "—"} ha`} />
+            <Row label={t.step3.lGps} value={state.farmer.gpsCoords} mono />
             {state.farmer.cadastralNumber && (
-              <Row label="Кадастр" value={state.farmer.cadastralNumber} mono />
+              <Row label={t.step3.lCadastral} value={state.farmer.cadastralNumber} mono />
             )}
           </Section>
 
-          <Section title="Обробка">
-            <Row label="Тип" value={state.treatment.treatmentType} />
+          <Section title={t.step3.sectionTreatment}>
+            <Row label={t.step3.lType} value={state.treatment.treatmentType} />
             <Row
-              label="Дата і час"
+              label={t.step3.lDateTime}
               value={`${state.treatment.treatmentDate} ${state.treatment.treatmentTime}`}
             />
             <Row
-              label="Дрон"
+              label={t.step3.lDrone}
               value={`${state.treatment.droneModel} · ${state.treatment.droneSerial}`}
               mono
             />
-            <Row label="Оператор" value={state.treatment.operator} />
-            <Row label="Ліцензія DARS" value={state.treatment.pilotCert} mono />
+            <Row label={t.step3.lOperator} value={state.treatment.operator} />
+            <Row label={t.step3.lDarsCert} value={state.treatment.pilotCert} mono />
           </Section>
 
-          <Section title="Метео">
-            <Row label="Температура" value={`${state.meteo.meteoData?.temperatureCelsius ?? "—"} °C`} />
-            <Row label="Вологість" value={`${state.meteo.meteoData?.humidityPercent ?? "—"} %`} />
-            <Row label="Вітер" value={`${state.meteo.meteoData?.windSpeedMps ?? "—"} м/с`} />
-            <Row label="Опади" value={`${state.meteo.meteoData?.rainfallMm ?? "—"} мм`} />
+          <Section title={t.step3.sectionMeteo}>
+            <Row label={t.step3.lTemp} value={`${state.meteo.meteoData?.temperatureCelsius ?? "—"} °C`} />
+            <Row label={t.step3.lHumidity} value={`${state.meteo.meteoData?.humidityPercent ?? "—"} %`} />
+            <Row label={t.step3.lWind} value={`${state.meteo.meteoData?.windSpeedMps ?? "—"} m/s`} />
+            <Row label={t.step3.lRain} value={`${state.meteo.meteoData?.rainfallMm ?? "—"} mm`} />
             {state.meteo.pilotSignature && (
               <Row
-                label="КЕП пілота"
+                label={t.step3.lPilotKep}
                 value={`${state.meteo.pilotSignature.keyId} · ${shortHash(state.meteo.pilotSignature.sha256, 6, 6)}`}
                 mono
                 badge="success"
@@ -170,20 +171,20 @@ export function Step3Certificate() {
             )}
           </Section>
 
-          <Section title="Хімія">
-            <Row label="Препарат" value={state.chemical.chemical} />
-            <Row label="Діюча речовина" value={state.chemical.chemicalActive} />
-            <Row label="Доза" value={`${state.chemical.dose} (на га)`} />
-            <Row label="Робочий об'єм" value={`${state.chemical.workingVolume} л/га`} />
-            <Row label="Виробник" value={state.chemical.manufacturer} />
-            <Row label="№ реєстрації" value={state.chemical.regNumber} mono />
+          <Section title={t.step3.sectionChemical}>
+            <Row label={t.step3.lChemical} value={state.chemical.chemical} />
+            <Row label={t.step3.lActive} value={state.chemical.chemicalActive} />
+            <Row label={t.step3.lDose} value={`${state.chemical.dose} (ha)`} />
+            <Row label={t.step3.lWorkingVol} value={`${state.chemical.workingVolume} L/ha`} />
+            <Row label={t.step3.lManufacturer} value={state.chemical.manufacturer} />
+            <Row label={t.step3.lRegNumber} value={state.chemical.regNumber} mono />
             <Row
-              label="Постачальник"
-              value={`${state.chemical.supplierName} (ЄДРПОУ ${state.chemical.supplierEdrpou})`}
+              label={t.step3.lSupplier}
+              value={`${state.chemical.supplierName} (EDRPOU ${state.chemical.supplierEdrpou})`}
             />
             {state.chemical.supplierSignature && (
               <Row
-                label="КЕП постачальника"
+                label={t.step3.lSupplierKep}
                 value={`${state.chemical.supplierSignature.keyId} · ${shortHash(state.chemical.supplierSignature.sha256, 6, 6)}`}
                 mono
                 badge="success"
@@ -192,10 +193,9 @@ export function Step3Certificate() {
           </Section>
         </div>
 
-        {/* Blockchain footer */}
         <div className="border-t border-border bg-surface-2/40 p-8">
           <h3 className="text-sm font-semibold uppercase tracking-wider text-ink-muted mb-3">
-            On-chain proof
+            {t.step3.chainProof}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
             <KV label="Token ID" value={`#${result.tokenId}`} mono />
@@ -207,17 +207,12 @@ export function Step3Certificate() {
             />
             <KV label="Block" value={String(result.blockNumber)} mono />
             <KV
-              label="Контракт"
+              label={t.step3.lManufacturer}
               value={shortHash(result.contractAddress, 8, 8)}
               mono
               href={bscscanTokenUrl(result.chainId, result.contractAddress, result.tokenId)}
             />
-            <KV
-              label="Payload SHA-256"
-              value={shortHash(result.payloadHash, 12, 12)}
-              mono
-              full
-            />
+            <KV label="Payload SHA-256" value={shortHash(result.payloadHash, 12, 12)} mono full />
             <KV
               label="IPFS URI"
               value={result.ipfsUri}
@@ -228,17 +223,16 @@ export function Step3Certificate() {
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
             <ShieldCheck className="h-4 w-4 text-brand-700" />
-            Документ підписано двома КЕП-сертифікатами через Дія та закріплено на BNB Chain.
-            Будь-яка зміна даних змінить SHA-256 та зробить підпис недійсним.
+            {t.step3.disclaimer}
           </div>
         </div>
       </Card>
 
       <div className="flex items-center justify-between gap-4 no-print">
         <Button variant="ghost" leadingIcon={<ArrowLeft className="h-4 w-4" />} onClick={prev}>
-          Назад
+          {t.step3.back}
         </Button>
-        <Badge tone="brand">Готово</Badge>
+        <Badge tone="brand">{t.step3.done}</Badge>
       </div>
     </div>
   );

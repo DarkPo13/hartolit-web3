@@ -8,11 +8,18 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { farmerSchema, CROP_OPTIONS, type FarmerFormValues } from "@/lib/schemas";
 import { useWizardStore } from "@/lib/store";
+import { useT } from "@/lib/i18n/context";
 import { useEffect } from "react";
 
 export function FarmerBlock() {
   const farmer = useWizardStore((s) => s.farmer);
   const setFarmer = useWizardStore((s) => s.setFarmer);
+  const t = useT();
+
+  const cropOptions = CROP_OPTIONS.map((opt) => ({
+    value: opt.value,
+    label: t.crops[opt.value as keyof typeof t.crops] ?? opt.label,
+  }));
 
   const {
     register,
@@ -32,7 +39,6 @@ export function FarmerBlock() {
     },
   });
 
-  // Persist values to the store as they change (debounced via React)
   useEffect(() => {
     const subscription = watch((values) => {
       setFarmer(values as Partial<FarmerFormValues>);
@@ -41,45 +47,45 @@ export function FarmerBlock() {
   }, [watch, setFarmer]);
 
   return (
-    <BlockCard number="01" title="Фермер та поле" hint="Хто, де, що вирощує">
+    <BlockCard number="01" title={t.farmer.blockTitle} hint={t.farmer.blockHint}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
           <Input
-            label="Назва ФГ або ПІБ фермера"
-            placeholder="ТОВ «Степ-Агро»"
+            label={t.farmer.nameLabel}
+            placeholder={t.farmer.namePlaceholder}
             leadingIcon={<Sprout className="h-4 w-4" />}
             error={errors.farmerName?.message}
             {...register("farmerName")}
           />
         </div>
         <Input
-          label="ЄДРПОУ / ІПН"
+          label={t.farmer.idLabel}
           placeholder="12345678"
           leadingIcon={<Hash className="h-4 w-4" />}
           error={errors.farmerId?.message}
           {...register("farmerId")}
         />
         <Input
-          label="Площа поля (га)"
+          label={t.farmer.areaLabel}
           type="number"
           step="0.01"
-          placeholder="56.2"
+          placeholder={t.farmer.areaPlaceholder}
           error={errors.fieldArea?.message}
           {...register("fieldArea")}
         />
         <Input
-          label="GPS координати"
+          label={t.farmer.gpsLabel}
           placeholder="49.5826, 34.5544"
           leadingIcon={<MapPin className="h-4 w-4" />}
           error={errors.gpsCoords?.message}
-          hint="Центроїд поля у форматі lat, lng"
+          hint={t.farmer.gpsHint}
           {...register("gpsCoords")}
         />
         <Input
-          label="Кадастровий номер"
+          label={t.farmer.cadastralLabel}
           placeholder="5322487800:01:001:0042"
           error={errors.cadastralNumber?.message}
-          hint="Опційно"
+          hint={t.farmer.cadastralHint}
           {...register("cadastralNumber")}
         />
         <div className="md:col-span-2">
@@ -88,11 +94,11 @@ export function FarmerBlock() {
             name="crop"
             render={({ field }) => (
               <Select
-                label="Культура"
-                placeholder="Виберіть культуру"
+                label={t.farmer.cropLabel}
+                placeholder={t.farmer.cropPlaceholder}
                 value={field.value}
                 onValueChange={field.onChange}
-                options={[...CROP_OPTIONS]}
+                options={cropOptions}
                 error={errors.crop?.message}
               />
             )}

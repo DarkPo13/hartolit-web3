@@ -12,6 +12,15 @@ import type {
   FieldPassportPayload,
 } from "@/types/passport";
 
+export type MissingKey =
+  | "farmer"
+  | "treatment"
+  | "meteoData"
+  | "pilotSignature"
+  | "chemical"
+  | "chemFile"
+  | "supplierSignature";
+
 interface WizardLikeState {
   farmer: Partial<FarmerBlockData>;
   treatment: Partial<TreatmentBlockData>;
@@ -21,31 +30,27 @@ interface WizardLikeState {
 
 export interface Step1Status {
   complete: boolean;
-  missing: string[];
+  missing: MissingKey[];
 }
 
 export function isStep1Complete(state: WizardLikeState): Step1Status {
-  const missing: string[] = [];
+  const missing: MissingKey[] = [];
 
-  if (!farmerSchema.safeParse(state.farmer).success) missing.push("дані фермера");
-  if (!treatmentSchema.safeParse(state.treatment).success) missing.push("обробка");
+  if (!farmerSchema.safeParse(state.farmer).success) missing.push("farmer");
+  if (!treatmentSchema.safeParse(state.treatment).success) missing.push("treatment");
   if (
     !state.meteo.meteoFile ||
     !meteoDataSchema.safeParse(state.meteo.meteoData).success
   )
-    missing.push("метео-файл та дані");
-  if (!state.meteo.pilotSignature) missing.push("КЕП пілота");
-  if (!chemicalSchema.safeParse(state.chemical).success) missing.push("хімія");
-  if (!state.chemical.chemFile) missing.push("документ закупівлі");
-  if (!state.chemical.supplierSignature) missing.push("КЕП постачальника");
+    missing.push("meteoData");
+  if (!state.meteo.pilotSignature) missing.push("pilotSignature");
+  if (!chemicalSchema.safeParse(state.chemical).success) missing.push("chemical");
+  if (!state.chemical.chemFile) missing.push("chemFile");
+  if (!state.chemical.supplierSignature) missing.push("supplierSignature");
 
   return { complete: missing.length === 0, missing };
 }
 
-/**
- * Build the final, validated payload that will be hashed + pinned + minted.
- * Throws if any required field is missing.
- */
 export function buildPayload(state: WizardLikeState): FieldPassportPayload {
   const farmer = farmerSchema.parse(state.farmer);
   const treatment = treatmentSchema.parse(state.treatment);

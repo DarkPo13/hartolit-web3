@@ -4,6 +4,7 @@ import * as React from "react";
 import { UploadCloud, FileText, X, Loader2, CheckCircle2 } from "lucide-react";
 import { cn, formatBytes, shortHash } from "@/lib/utils";
 import { sha256File } from "@/lib/hash";
+import { useT } from "@/lib/i18n/context";
 import type { FileRef } from "@/types/passport";
 
 interface FileUploadProps {
@@ -37,6 +38,7 @@ export function FileUpload({
     value ? "done" : "idle",
   );
   const [localError, setLocalError] = React.useState<string | null>(null);
+  const t = useT();
 
   React.useEffect(() => {
     setProgress(value ? "done" : "idle");
@@ -49,7 +51,7 @@ export function FileUpload({
     if (!file) return;
 
     if (file.size > maxSize) {
-      setLocalError(`Файл занадто великий (макс ${formatBytes(maxSize)})`);
+      setLocalError(t.upload.tooLarge.replace("{size}", formatBytes(maxSize)));
       setProgress("error");
       return;
     }
@@ -83,7 +85,7 @@ export function FileUpload({
       setProgress("done");
     } catch (e) {
       console.error(e);
-      setLocalError(e instanceof Error ? e.message : "Помилка завантаження");
+      setLocalError(e instanceof Error ? e.message : t.upload.errorFallback);
       setProgress("error");
     }
   }
@@ -123,7 +125,7 @@ export function FileUpload({
               onClick={clear}
               disabled={disabled}
               className="flex-shrink-0 text-ink-subtle hover:text-danger transition-colors"
-              aria-label="Видалити файл"
+              aria-label={t.upload.removeAria}
             >
               <X className="h-4 w-4" />
             </button>
@@ -163,14 +165,15 @@ export function FileUpload({
             <>
               <Loader2 className="h-6 w-6 text-brand-600 animate-spin" />
               <p className="text-sm text-ink">
-                {progress === "hashing" ? "Обчислюємо SHA-256…" : "Завантажуємо файл…"}
+                {progress === "hashing" ? t.upload.computing : t.upload.uploading}
               </p>
             </>
           ) : (
             <>
               <UploadCloud className="h-6 w-6 text-ink-subtle" />
               <p className="text-sm text-ink">
-                <span className="font-medium text-brand-700">Натисніть або перетягніть</span> файл
+                <span className="font-medium text-brand-700">{t.upload.dropClick}</span>
+                {t.upload.dropSuffix}
               </p>
               {hint && <p className="text-xs text-ink-subtle">{hint}</p>}
             </>

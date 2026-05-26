@@ -52,6 +52,9 @@ contracts/cache/
 contracts/broadcast/
 contracts/lib/
 
+# Docs (local-only; exported assets, PDFs, screenshots)
+/docs/
+
 # Misc
 .DS_Store
 *.pem

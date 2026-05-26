@@ -5,6 +5,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Smartphone, X, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/context";
 import type { DiiaSignerRole, DiiaSignResponse, DiiaVerifyResponse } from "@/types/diia";
 
 interface DiiaModalProps {
@@ -31,6 +32,7 @@ export function DiiaModal({
   const [phase, setPhase] = React.useState<"init" | "awaiting" | "signed" | "error">("init");
   const [session, setSession] = React.useState<DiiaSignResponse | null>(null);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
+  const t = useT();
 
   React.useEffect(() => {
     if (!open) {
@@ -60,7 +62,6 @@ export function DiiaModal({
       const sess = (await initRes.json()) as DiiaSignResponse;
       setSession(sess);
 
-      // Poll for signature
       const start = Date.now();
       const timeoutMs = 60_000;
       while (Date.now() - start < timeoutMs) {
@@ -103,12 +104,10 @@ export function DiiaModal({
           <div className="flex items-start justify-between gap-4">
             <div>
               <Dialog.Title className="text-lg font-semibold text-ink">
-                Підписати через Дія
+                {t.diia.modalTitle}
               </Dialog.Title>
               <Dialog.Description className="text-sm text-ink-muted mt-1">
-                {role === "pilot"
-                  ? "КЕП пілота — підписання метео-даних"
-                  : "КЕП постачальника — підписання документа закупівлі"}
+                {role === "pilot" ? t.diia.pilotModalDesc : t.diia.supplierModalDesc}
               </Dialog.Description>
             </div>
             <Dialog.Close className="text-ink-subtle hover:text-ink transition-colors">
@@ -117,7 +116,7 @@ export function DiiaModal({
           </div>
 
           <div className="mt-5 rounded-lg border border-border bg-surface-2/40 p-3 text-xs">
-            <p className="text-ink-muted">Документ:</p>
+            <p className="text-ink-muted">{t.diia.docLabel}</p>
             <p className="font-medium text-ink truncate">{documentFilename}</p>
             <p className="hash-mono mt-1.5 text-ink-subtle truncate">
               SHA-256: {documentSha256}
@@ -127,17 +126,14 @@ export function DiiaModal({
           <div className="mt-5">
             {phase === "init" && (
               <div className="space-y-4">
-                <p className="text-sm text-ink-muted">
-                  Натисніть «Розпочати», відкрийте застосунок Дія на смартфоні та підпишіть
-                  документ КЕП-сертифікатом.
-                </p>
+                <p className="text-sm text-ink-muted">{t.diia.initText}</p>
                 <Button
                   onClick={startSigning}
                   size="lg"
                   className="w-full"
                   leadingIcon={<Smartphone className="h-4 w-4" />}
                 >
-                  Розпочати підписання
+                  {t.diia.startButton}
                 </Button>
               </div>
             )}
@@ -149,14 +145,12 @@ export function DiiaModal({
                   <Loader2 className="absolute inset-0 m-auto h-10 w-10 text-brand-600 animate-spin" />
                 </div>
                 <div className="text-center">
-                  <p className="font-medium text-ink">Очікуємо підпис у Дії…</p>
-                  <p className="text-xs text-ink-muted mt-1">
-                    Відкрийте сповіщення на смартфоні
-                  </p>
+                  <p className="font-medium text-ink">{t.diia.awaitingTitle}</p>
+                  <p className="text-xs text-ink-muted mt-1">{t.diia.awaitingDesc}</p>
                 </div>
                 {session && (
                   <code className="hash-mono text-xs text-ink-subtle">
-                    Сесія: {session.sessionId.slice(0, 24)}…
+                    {t.diia.sessionLabel} {session.sessionId.slice(0, 24)}…
                   </code>
                 )}
               </div>
@@ -165,7 +159,7 @@ export function DiiaModal({
             {phase === "signed" && (
               <div className="flex flex-col items-center gap-3 py-6">
                 <CheckCircle2 className="h-12 w-12 text-brand-600" />
-                <p className="font-medium text-ink">Документ підписано</p>
+                <p className="font-medium text-ink">{t.diia.signedText}</p>
               </div>
             )}
 
@@ -176,7 +170,7 @@ export function DiiaModal({
                   <p className="text-sm text-rose-800">{errorMsg ?? "Помилка"}</p>
                 </div>
                 <Button onClick={startSigning} variant="secondary" size="md" className="w-full">
-                  Спробувати знову
+                  {t.diia.retryButton}
                 </Button>
               </div>
             )}
