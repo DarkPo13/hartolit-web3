@@ -11,7 +11,15 @@ import { useWizardStore } from "@/lib/store";
 import { useT } from "@/lib/i18n/context";
 import { useEffect } from "react";
 
-export function FarmerBlock() {
+interface FarmerBlockProps {
+  open?: boolean;
+  onToggle?: () => void;
+  done?: boolean;
+  summary?: string;
+  editLabel?: string;
+}
+
+export function FarmerBlock({ open, onToggle, done, summary, editLabel }: FarmerBlockProps = {}) {
   const farmer = useWizardStore((s) => s.farmer);
   const setFarmer = useWizardStore((s) => s.setFarmer);
   const t = useT();
@@ -47,7 +55,16 @@ export function FarmerBlock() {
   }, [watch, setFarmer]);
 
   return (
-    <BlockCard number="01" title={t.farmer.blockTitle} hint={t.farmer.blockHint}>
+    <BlockCard
+      number="01"
+      title={t.farmer.blockTitle}
+      hint={t.farmer.blockHint}
+      open={open}
+      onToggle={onToggle}
+      done={done}
+      summary={summary}
+      editLabel={editLabel}
+    >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
           <Input

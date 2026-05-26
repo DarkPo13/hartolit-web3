@@ -12,7 +12,15 @@ import { parseMeteoFile } from "@/lib/meteo-parser";
 import type { FileRef, MeteoData, DiiaSignatureRef } from "@/types/passport";
 import { toast } from "sonner";
 
-export function MeteoBlock() {
+interface MeteoBlockProps {
+  open?: boolean;
+  onToggle?: () => void;
+  done?: boolean;
+  summary?: string;
+  editLabel?: string;
+}
+
+export function MeteoBlock({ open, onToggle, done, summary, editLabel }: MeteoBlockProps = {}) {
   const meteo = useWizardStore((s) => s.meteo);
   const setMeteo = useWizardStore((s) => s.setMeteo);
   const treatment = useWizardStore((s) => s.treatment);
@@ -59,7 +67,16 @@ export function MeteoBlock() {
   }
 
   return (
-    <BlockCard number="03" title={t.meteo.blockTitle} hint={t.meteo.blockHint}>
+    <BlockCard
+      number="03"
+      title={t.meteo.blockTitle}
+      hint={t.meteo.blockHint}
+      open={open}
+      onToggle={onToggle}
+      done={done}
+      summary={summary}
+      editLabel={editLabel}
+    >
       <div className="space-y-4">
         <FileUpload
           label={t.meteo.fileLabel}

@@ -13,7 +13,15 @@ import { useT } from "@/lib/i18n/context";
 import { chemicalSchema, type ChemicalFormValues } from "@/lib/schemas";
 import type { FileRef, DiiaSignatureRef } from "@/types/passport";
 
-export function ChemicalBlock() {
+interface ChemicalBlockProps {
+  open?: boolean;
+  onToggle?: () => void;
+  done?: boolean;
+  summary?: string;
+  editLabel?: string;
+}
+
+export function ChemicalBlock({ open, onToggle, done, summary, editLabel }: ChemicalBlockProps = {}) {
   const chemical = useWizardStore((s) => s.chemical);
   const setChemical = useWizardStore((s) => s.setChemical);
   const t = useT();
@@ -48,7 +56,16 @@ export function ChemicalBlock() {
   const signature = chemical.supplierSignature;
 
   return (
-    <BlockCard number="04" title={t.chemical.blockTitle} hint={t.chemical.blockHint}>
+    <BlockCard
+      number="04"
+      title={t.chemical.blockTitle}
+      hint={t.chemical.blockHint}
+      open={open}
+      onToggle={onToggle}
+      done={done}
+      summary={summary}
+      editLabel={editLabel}
+    >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Input
           label={t.chemical.nameLabel}

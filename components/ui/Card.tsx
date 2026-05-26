@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Check, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Card = React.forwardRef<
@@ -72,9 +73,104 @@ interface BlockCardProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string;
   hint?: string;
   children: React.ReactNode;
+  /** Accordion mode — when provided, header becomes a toggle button */
+  open?: boolean;
+  onToggle?: () => void;
+  done?: boolean;
+  summary?: string;
+  editLabel?: string;
 }
 
-export function BlockCard({ number, title, hint, children, className, ...props }: BlockCardProps) {
+export function BlockCard({
+  number,
+  title,
+  hint,
+  children,
+  className,
+  open,
+  onToggle,
+  done,
+  summary,
+  editLabel,
+  ...props
+}: BlockCardProps) {
+  if (onToggle !== undefined) {
+    return (
+      <div
+        className={cn(
+          "rounded-xl border shadow-soft overflow-hidden transition-colors duration-200",
+          done && !open ? "bg-brand-50/50 border-brand-200" : "bg-surface border-border",
+          className,
+        )}
+        {...props}
+      >
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className={cn(
+            "w-full flex items-center gap-4 px-6 py-4 text-left transition-colors",
+            open ? "border-b border-border bg-surface-2/40" : "hover:bg-surface-2/30",
+          )}
+        >
+          <div
+            className={cn(
+              "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg transition-colors",
+              done || open ? "bg-brand-600 shadow-soft" : "bg-surface-2 border border-border",
+            )}
+          >
+            {done && !open ? (
+              <Check className="h-5 w-5 text-white" />
+            ) : (
+              <span
+                className={cn(
+                  "font-mono text-sm font-bold",
+                  done || open ? "text-white" : "text-ink-subtle",
+                )}
+              >
+                {number}
+              </span>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "font-semibold leading-tight",
+                  done || open ? "text-ink" : "text-ink-muted",
+                )}
+              >
+                {title}
+              </span>
+              {done && !open && editLabel && (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-brand-100 text-brand-700 border border-brand-200">
+                  {editLabel}
+                </span>
+              )}
+            </div>
+            {(open ? hint : done && summary ? summary : hint) && (
+              <p className="text-xs text-ink-muted mt-0.5 truncate">
+                {open ? hint : done && summary ? summary : hint}
+              </p>
+            )}
+          </div>
+
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 flex-shrink-0 text-ink-subtle transition-transform duration-200",
+              open && "rotate-180",
+            )}
+          />
+        </button>
+
+        <div className={open ? "block" : "hidden"}>
+          <div className="p-6">{children}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Card className={cn("overflow-hidden", className)} {...props}>
       <div className="flex items-center gap-4 border-b border-border bg-surface-2/40 px-6 py-4">

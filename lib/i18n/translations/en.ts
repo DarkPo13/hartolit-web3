@@ -31,6 +31,7 @@ export const en: Translations = {
     allFilled: "All filled — ready to mint",
     notFilled: "Not filled:",
     toBlockchain: "Go to Blockchain",
+    blockEdit: "Edit",
   },
   missing: {
     farmer: "farmer data",

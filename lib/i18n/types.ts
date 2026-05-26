@@ -30,6 +30,7 @@ export interface Translations {
     allFilled: string;
     notFilled: string;
     toBlockchain: string;
+    blockEdit: string;
   };
   missing: {
     farmer: string;

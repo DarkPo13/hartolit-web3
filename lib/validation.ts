@@ -33,6 +33,30 @@ export interface Step1Status {
   missing: MissingKey[];
 }
 
+export function isFarmerComplete(farmer: Partial<FarmerBlockData>): boolean {
+  return farmerSchema.safeParse(farmer).success;
+}
+
+export function isTreatmentComplete(treatment: Partial<TreatmentBlockData>): boolean {
+  return treatmentSchema.safeParse(treatment).success;
+}
+
+export function isMeteoComplete(meteo: Partial<MeteoBlockData>): boolean {
+  return (
+    !!meteo.meteoFile &&
+    meteoDataSchema.safeParse(meteo.meteoData).success &&
+    !!meteo.pilotSignature
+  );
+}
+
+export function isChemicalComplete(chemical: Partial<ChemicalBlockData>): boolean {
+  return (
+    chemicalSchema.safeParse(chemical).success &&
+    !!chemical.chemFile &&
+    !!chemical.supplierSignature
+  );
+}
+
 export function isStep1Complete(state: WizardLikeState): Step1Status {
   const missing: MissingKey[] = [];
 

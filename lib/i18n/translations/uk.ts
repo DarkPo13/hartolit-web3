@@ -31,6 +31,7 @@ export const uk: Translations = {
     allFilled: "Усе заповнено — можна переходити до мінту",
     notFilled: "Не заповнено:",
     toBlockchain: "Перейти до блокчейну",
+    blockEdit: "Редагувати",
   },
   missing: {
     farmer: "дані фермера",

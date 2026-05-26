@@ -11,7 +11,15 @@ import { treatmentSchema, TREATMENT_TYPE_OPTIONS, type TreatmentFormValues } fro
 import { useWizardStore } from "@/lib/store";
 import { useT } from "@/lib/i18n/context";
 
-export function TreatmentBlock() {
+interface TreatmentBlockProps {
+  open?: boolean;
+  onToggle?: () => void;
+  done?: boolean;
+  summary?: string;
+  editLabel?: string;
+}
+
+export function TreatmentBlock({ open, onToggle, done, summary, editLabel }: TreatmentBlockProps = {}) {
   const treatment = useWizardStore((s) => s.treatment);
   const setTreatment = useWizardStore((s) => s.setTreatment);
   const t = useT();
@@ -49,7 +57,16 @@ export function TreatmentBlock() {
   }, [watch, setTreatment]);
 
   return (
-    <BlockCard number="02" title={t.treatment.blockTitle} hint={t.treatment.blockHint}>
+    <BlockCard
+      number="02"
+      title={t.treatment.blockTitle}
+      hint={t.treatment.blockHint}
+      open={open}
+      onToggle={onToggle}
+      done={done}
+      summary={summary}
+      editLabel={editLabel}
+    >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="md:col-span-2">
           <Controller
