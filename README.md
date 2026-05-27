@@ -464,17 +464,12 @@ This is real-world utility for a population that genuinely needs decentralized t
 
 **VANTREXIS** — agricultural technology company based in Ukraine, operating Hartolit drone crop protection services.
 
+- **Mykyta Godovanets** — CEO, business development and agricultural operations
 - **Vladyslav Polovyk** — CTO, full-stack + Web3 development
 - Domain expertise in Ukrainian agricultural regulations, Diia ecosystem, EU phytosanitary export requirements
 
 Contact: [vladpolovukkenway@gmail.com](mailto:vladpolovukkenway@gmail.com)
 Website: [hartolit-agro.com](https://hartolit-agro.com)
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE).
 
 ---
 
