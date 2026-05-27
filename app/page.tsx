@@ -147,7 +147,7 @@ function Footer() {
             <FileSearch className="h-3.5 w-3.5" /> {t.footer.verify}
           </Link>
           <a
-            href="https://github.com/"
+            href="https://github.com/DarkPo13/hartolit-web3"
             target="_blank"
             rel="noreferrer noopener"
             className="inline-flex items-center gap-1 hover:text-ink"
