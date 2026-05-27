@@ -103,13 +103,7 @@ function Hero({ onFillMock }: { onFillMock?: () => void }) {
         <Badge tone="accent">{t.hero.badgeDiia}</Badge>
         <Badge tone="info">{t.hero.badgeIpfs}</Badge>
       </div>
-      <h2
-        className="mt-4 text-3xl md:text-4xl font-semibold leading-tight tracking-tight"
-        style={{ fontFamily: "var(--font-crimson)" }}
-      >
-        {t.hero.heading}
-      </h2>
-      <p className="mt-2 max-w-2xl text-sm md:text-base text-ink-muted">{t.hero.description}</p>
+      <p className="mt-4 max-w-2xl text-sm md:text-base text-ink-muted">{t.hero.description}</p>
       {onFillMock && (
         <div className="mt-5 flex">
           <button

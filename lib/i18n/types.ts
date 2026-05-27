@@ -9,7 +9,6 @@ export interface Translations {
     badgeErc: string;
     badgeDiia: string;
     badgeIpfs: string;
-    heading: string;
     description: string;
     fillMock: string;
   };

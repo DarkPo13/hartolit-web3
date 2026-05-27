@@ -9,7 +9,6 @@ export const en: Translations = {
     badgeErc: "ERC-721 · BNB Chain",
     badgeDiia: "Diia KEP",
     badgeIpfs: "IPFS · Pinata",
-    heading: "Every treatment — a signature on the blockchain.",
     description:
       "Fill in the treatment data, attach the meteo file and purchase document, collect two KEP signatures (pilot + supplier) — and issue an NFT certificate that cannot be forged or erased.",
     fillMock: "Fill with test data",
