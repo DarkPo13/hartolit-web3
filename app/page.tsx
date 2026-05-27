@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import Link from "next/link";
-import { Leaf, BookOpen, FileSearch, Github, Wand2 } from "lucide-react";
+import { BookOpen, FileSearch, Github, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { ChainBadge } from "@/components/web3/ChainBadge";
 import { ConnectWallet } from "@/components/web3/ConnectWallet";
@@ -52,9 +53,7 @@ function Header() {
     <header className="sticky top-0 z-30 border-b border-border bg-canvas/80 glass">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-600 to-brand-800 text-white shadow-soft">
-            <Leaf className="h-5 w-5" />
-          </div>
+          <Image src="/logo.png" alt="Hartolit" width={36} height={36} className="rounded-lg" />
           <div className="min-w-0">
             <h1 className="text-sm font-semibold leading-tight truncate">{t.header.title}</h1>
             <p className="hidden md:block text-xs text-ink-muted">{t.header.subtitle}</p>
