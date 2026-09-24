@@ -7,7 +7,7 @@ import { Plane, Calendar, Clock, ShieldCheck } from "lucide-react";
 import { BlockCard } from "@/components/ui/Card";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { treatmentSchema, TREATMENT_TYPE_OPTIONS, type TreatmentFormValues } from "@/lib/schemas";
+import { treatmentSchema, TREATMENT_TYPE_OPTIONS, type TreatmentFormInput, type TreatmentFormValues } from "@/lib/schemas";
 import { useWizardStore } from "@/lib/store";
 import { useT } from "@/lib/i18n/context";
 
@@ -34,14 +34,14 @@ export function TreatmentBlock({ open, onToggle, done, summary, editLabel }: Tre
     control,
     formState: { errors },
     watch,
-  } = useForm<TreatmentFormValues>({
+  } = useForm<TreatmentFormInput, unknown, TreatmentFormValues>({
     resolver: zodResolver(treatmentSchema),
     mode: "onBlur",
     defaultValues: {
       treatmentType: treatment.treatmentType ?? "",
       treatmentDate: treatment.treatmentDate ?? "",
       treatmentTime: treatment.treatmentTime ?? "",
-      droneModel: treatment.droneModel ?? "DJI Agras T40",
+      droneModel: treatment.droneModel ?? "",
       droneSerial: treatment.droneSerial ?? "",
       operator: treatment.operator ?? "",
       pilotCert: treatment.pilotCert ?? "",

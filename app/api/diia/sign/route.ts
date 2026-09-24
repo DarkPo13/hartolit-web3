@@ -1,22 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { signWithDiia } from "@/lib/diia";
-import type { DiiaSignRequest } from "@/types/diia";
+import { requireWriteAccess } from "@/lib/auth-guard";
 
 export const runtime = "nodejs";
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = (await req.json()) as DiiaSignRequest;
-    if (!body.role || !body.documentSha256 || !body.documentFilename || !body.signerName) {
-      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
-    }
-    const session = await signWithDiia(body);
-    return NextResponse.json(session);
-  } catch (e) {
-    console.error("[diia/sign] error:", e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Diia sign failed" },
-      { status: 500 },
-    );
-  }
+export async function POST(request: NextRequest) {
+  const denied = await requireWriteAccess(request);
+  if (denied) return denied;
+
+  return NextResponse.json(
+    { error: "Diia signing is deferred until after the core MVP infrastructure is released" },
+    { status: 501 },
+  );
 }

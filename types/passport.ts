@@ -45,8 +45,8 @@ export interface TreatmentBlockData {
 
 export interface MeteoBlockData {
   meteoFile: FileRef;
-  meteoData: MeteoData;
-  pilotSignature: DiiaSignatureRef;
+  meteoData: Partial<MeteoData>;
+  pilotSignature?: DiiaSignatureRef;
 }
 
 export interface ChemicalBlockData {
@@ -59,16 +59,31 @@ export interface ChemicalBlockData {
   supplierName: string;
   supplierEdrpou: string;
   chemFile: FileRef;
-  supplierSignature: DiiaSignatureRef;
+  supplierSignature?: DiiaSignatureRef;
 }
 
-export interface FieldPassportPayload
-  extends FarmerBlockData,
-    TreatmentBlockData,
-    MeteoBlockData,
-    ChemicalBlockData {
-  timestamp: string;
-  version: string;
+/** Version 1 public IPFS document. Every collected MVP field is intentionally public. */
+export interface FieldPassportPayload {
+  schema: "hartolit.field-passport.public";
+  version: "1.0.0";
+  issuedAt: string;
+  farmer: FarmerBlockData;
+  treatment: TreatmentBlockData;
+  meteo: {
+    file: FileRef;
+    data: MeteoData;
+  };
+  chemical: {
+    product: string;
+    activeSubstance: string;
+    dosePerHa: number;
+    workingVolumeLitresPerHa: number;
+    manufacturer: string;
+    registrationNumber: string;
+    supplierName: string;
+    supplierEdrpou: string;
+    file: FileRef;
+  };
 }
 
 export interface MintResult {
@@ -81,4 +96,5 @@ export interface MintResult {
   contractAddress: `0x${string}`;
   chainId: number;
   mintedAt: string;
+  payload: FieldPassportPayload;
 }

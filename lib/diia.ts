@@ -14,6 +14,7 @@ import type {
   DiiaVerifyResponse,
 } from "@/types/diia";
 import { sha256Hex } from "./hash";
+import { isDemoMode } from "./demo-mode";
 
 const MOCK_SESSIONS = new Map<
   string,
@@ -29,6 +30,9 @@ export async function signWithDiia(req: DiiaSignRequest): Promise<DiiaSignRespon
   if (apiKey) {
     return realSign(req);
   }
+  if (!isDemoMode()) {
+    throw new Error("Diia signing is not configured");
+  }
   return mockSign(req);
 }
 
@@ -36,6 +40,9 @@ export async function verifyDiiaSignature(req: DiiaVerifyRequest): Promise<DiiaV
   const apiKey = process.env.DIIA_API_KEY;
   if (apiKey) {
     return realVerify(req);
+  }
+  if (!isDemoMode()) {
+    throw new Error("Diia verification is not configured");
   }
   return mockVerify(req);
 }

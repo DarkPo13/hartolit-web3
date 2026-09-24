@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    container_name: hartolit-web3-postgres
+    env_file: .env.db.local
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - hartolit_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  mailpit:
+    image: axllent/mailpit:v1.31.1
+    container_name: hartolit-web3-mailpit
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.47
+    container_name: hartolit-web3-seaweedfs
+    command: ["mini", "-dir=/data"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${EVIDENCE_S3_ACCESS_KEY:-local-development-only}
+      AWS_SECRET_ACCESS_KEY: ${EVIDENCE_S3_SECRET_KEY:-local-development-only}
+      S3_BUCKET: hartolit-evidence
+    ports:
+      - "127.0.0.1:8333:8333"
+    volumes:
+      - hartolit_evidence_data:/data
+  clamav:
+    image: clamav/clamav:1.5.4-debian13-slim
+    container_name: hartolit-web3-clamav
+    ports:
+      - "127.0.0.1:3310:3310"
+    volumes:
+      - hartolit_clamav_data:/var/lib/clamav
+
+volumes:
+  hartolit_pg_data:
+  hartolit_evidence_data:
+  hartolit_clamav_data:

@@ -7,9 +7,8 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
 /// @title  Hartolit Digital Field Passport
 /// @notice Immutable on-chain certificates for agricultural drone treatments.
-///         Each token binds (a) an off-chain SHA-256 payload hash of the full
-///         passport JSON (farmer, treatment, telemetry, KEP signatures) to
-///         (b) the IPFS URI of that JSON. Verifiers can re-hash the payload
+///         Each token binds (a) an off-chain SHA-256 hash of the complete
+///         public Version 1 passport payload to (b) its IPFS URI. Verifiers can re-hash the payload
 ///         and compare against `payloadHash[tokenId]` to prove non-tampering.
 /// @dev    ERC-721 + URI storage + role-based minting. Tokens are
 ///         non-transferable by Hartolit policy — see `_update`.
@@ -20,11 +19,8 @@ contract HartolitFieldPassport is ERC721URIStorage, AccessControl {
     uint256 private _nextTokenId = 1;
     bool public paused;
 
-    /// @notice tokenId -> SHA-256 hash of the full off-chain payload
+    /// @notice tokenId -> SHA-256 hash of the public off-chain payload
     mapping(uint256 tokenId => bytes32 hash) public payloadHash;
-
-    /// @notice tokenId -> farmer EDRPOU or IPN (for indexing/search)
-    mapping(uint256 tokenId => string id) public farmerId;
 
     /// @notice payload hash -> tokenId (uniqueness guard; 0 = unused)
     mapping(bytes32 hash => uint256 tokenId) public hashToTokenId;
@@ -34,7 +30,6 @@ contract HartolitFieldPassport is ERC721URIStorage, AccessControl {
         address indexed mintedBy,
         address indexed to,
         bytes32 payloadHash,
-        string farmerId,
         string ipfsUri
     );
 
@@ -43,7 +38,6 @@ contract HartolitFieldPassport is ERC721URIStorage, AccessControl {
 
     error ContractPaused();
     error ZeroAddress();
-    error EmptyFarmerId();
     error EmptyIpfsUri();
     error ZeroPayloadHash();
     error DuplicatePayload(bytes32 payloadHash, uint256 existingTokenId);
@@ -62,34 +56,31 @@ contract HartolitFieldPassport is ERC721URIStorage, AccessControl {
 
     /// @notice Mint a new field passport.
     /// @param to            Recipient (typically the farmer or Hartolit treasury).
-    /// @param _payloadHash  SHA-256 of the full off-chain JSON payload.
-    /// @param _farmerId     Farmer EDRPOU / IPN (Ukrainian tax id).
+    /// @param _payloadHash  SHA-256 of the public off-chain JSON payload.
     /// @param _ipfsUri      ipfs://CID pointer to the JSON payload.
     /// @return tokenId      The newly minted token id.
     function mintPassport(
         address to,
         bytes32 _payloadHash,
-        string calldata _farmerId,
         string calldata _ipfsUri
     ) external onlyRole(MINTER_ROLE) returns (uint256 tokenId) {
         if (paused) revert ContractPaused();
         if (to == address(0)) revert ZeroAddress();
         if (_payloadHash == bytes32(0)) revert ZeroPayloadHash();
-        if (bytes(_farmerId).length == 0) revert EmptyFarmerId();
         if (bytes(_ipfsUri).length == 0) revert EmptyIpfsUri();
 
         uint256 existing = hashToTokenId[_payloadHash];
         if (existing != 0) revert DuplicatePayload(_payloadHash, existing);
 
         tokenId = _nextTokenId++;
-        _safeMint(to, tokenId);
-        _setTokenURI(tokenId, _ipfsUri);
-
+        // Reserve the payload before _safeMint calls a contract recipient.
+        // A recipient with MINTER_ROLE must not mint the same hash reentrantly.
         payloadHash[tokenId] = _payloadHash;
-        farmerId[tokenId] = _farmerId;
         hashToTokenId[_payloadHash] = tokenId;
+        _setTokenURI(tokenId, _ipfsUri);
+        _safeMint(to, tokenId);
 
-        emit PassportMinted(tokenId, msg.sender, to, _payloadHash, _farmerId, _ipfsUri);
+        emit PassportMinted(tokenId, msg.sender, to, _payloadHash, _ipfsUri);
     }
 
     /// @notice Next token id that will be assigned on the next mint.

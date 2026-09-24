@@ -40,13 +40,6 @@ export const MOCK_METEO: MeteoBlockData = {
     rainfallMm: 0,
     measuredAt: "2026-05-15T07:15:00.000Z",
   },
-  pilotSignature: {
-    keyId: "mock-key-pilot-001",
-    signerName: "Петренко Іван Олегович",
-    timestamp: "2026-05-15T07:20:00.000Z",
-    sha256: "b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3",
-    certSerial: "MOCK-CERT-PILOT-2024",
-  },
 };
 
 export const MOCK_CHEMICAL: ChemicalBlockData = {
@@ -64,13 +57,5 @@ export const MOCK_CHEMICAL: ChemicalBlockData = {
     size: 204800,
     filename: "nakladna-2026-05-10.pdf",
     contentType: "application/pdf",
-  },
-  supplierSignature: {
-    keyId: "mock-key-supplier-002",
-    signerName: "Коваленко Сергій Миколайович",
-    signerEdrpou: "12345678",
-    timestamp: "2026-05-10T14:30:00.000Z",
-    sha256: "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5",
-    certSerial: "MOCK-CERT-SUPPLIER-2024",
   },
 };

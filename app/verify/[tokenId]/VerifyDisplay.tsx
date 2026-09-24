@@ -9,6 +9,7 @@ import {
   bscscanTokenUrl,
   ipfsToHttp,
   shortHash,
+  formatBytes,
   formatDateTime,
 } from "@/lib/utils";
 import type { FieldPassportPayload } from "@/types/passport";
@@ -18,7 +19,6 @@ interface PassportData {
   owner: `0x${string}`;
   tokenURI: string;
   payloadHash: `0x${string}`;
-  farmerId: string;
   chainId: number;
   contractAddress: `0x${string}`;
   payload: FieldPassportPayload | null;
@@ -82,7 +82,6 @@ export function VerifyDisplay({ data }: { data: PassportData }) {
               mono
               href={bscscanTokenUrl(data.chainId, data.contractAddress, data.tokenId)}
             />
-            <KV label={t.verify.farmerIdLabel} value={data.farmerId} mono />
             <KV label="On-chain SHA-256" value={shortHash(payloadHash, 10, 10)} mono full />
             {computedHash && (
               <KV
@@ -102,45 +101,66 @@ export function VerifyDisplay({ data }: { data: PassportData }) {
           <CardHeader>
             <CardTitle>{t.verify.treatmentTitle}</CardTitle>
             <CardDescription>
-              {t.verify.issued} {formatDateTime(payload.timestamp)} · {t.verify.version}{" "}
+              {t.verify.issued} {formatDateTime(payload.issuedAt)} · {t.verify.version}{" "}
               {payload.version}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
               <Section title={t.verify.sectionFarmer}>
-                <Row label={t.verify.lName} value={payload.farmerName} />
-                <Row label={t.verify.lId} value={payload.farmerId} mono />
-                <Row label={t.verify.lCrop} value={payload.crop} />
-                <Row label={t.verify.lArea} value={`${payload.fieldArea} ha`} />
-                <Row label={t.verify.lGps} value={payload.gpsCoords} mono />
+                <Row label={t.verify.lName} value={payload.farmer.farmerName} />
+                <Row label={t.verify.lId} value={payload.farmer.farmerId} mono />
+                <Row label={t.verify.lCrop} value={payload.farmer.crop} />
+                <Row label={t.verify.lArea} value={`${payload.farmer.fieldArea} ha`} />
+                <Row label={t.verify.lGps} value={payload.farmer.gpsCoords} mono />
+                <Row label={t.step3.lCadastral} value={payload.farmer.cadastralNumber || "—"} mono />
               </Section>
               <Section title={t.verify.sectionTreatment}>
-                <Row label={t.verify.lType} value={payload.treatmentType} />
-                <Row label={t.verify.lDate} value={`${payload.treatmentDate} ${payload.treatmentTime}`} />
-                <Row label={t.verify.lDrone} value={`${payload.droneModel} · ${payload.droneSerial}`} mono />
-                <Row label={t.verify.lOperator} value={payload.operator} />
+                <Row label={t.verify.lType} value={payload.treatment.treatmentType} />
+                <Row
+                  label={t.verify.lDate}
+                  value={`${payload.treatment.treatmentDate} ${payload.treatment.treatmentTime}`}
+                />
+                <Row
+                  label={t.verify.lDrone}
+                  value={`${payload.treatment.droneModel} · ${payload.treatment.droneSerial}`}
+                />
+                <Row label={t.verify.lOperator} value={payload.treatment.operator} />
+                <Row label={t.step3.lDarsCert} value={payload.treatment.pilotCert} mono />
+                <Row label={t.verify.lNotes} value={payload.treatment.notes || "—"} />
               </Section>
               <Section title={t.verify.sectionMeteo}>
-                <Row label="T" value={`${payload.meteoData.temperatureCelsius} °C`} />
-                <Row label="H" value={`${payload.meteoData.humidityPercent} %`} />
-                <Row label="Wind" value={`${payload.meteoData.windSpeedMps} m/s`} />
-                <Row label="Rain" value={`${payload.meteoData.rainfallMm} mm`} />
-                <Row
-                  label={t.verify.lPilotKep}
-                  value={`${payload.pilotSignature.keyId} · ${shortHash(payload.pilotSignature.sha256, 6, 6)}`}
-                  mono
-                />
+                <Row label="T" value={`${payload.meteo.data.temperatureCelsius} °C`} />
+                <Row label="H" value={`${payload.meteo.data.humidityPercent} %`} />
+                <Row label="Wind" value={`${payload.meteo.data.windSpeedMps} m/s`} />
+                <Row label="Rain" value={`${payload.meteo.data.rainfallMm} mm`} />
+                <Row label={t.verify.lDate} value={formatDateTime(payload.meteo.data.measuredAt)} />
+                <Row label={t.verify.lFile} value={payload.meteo.file.filename} />
+                <Row label={t.verify.lFileSize} value={formatBytes(payload.meteo.file.size)} />
+                <Row label={t.verify.lContentType} value={payload.meteo.file.contentType} mono />
+                <Row label={t.verify.lMeteoEvidence} value={payload.meteo.file.sha256} mono />
+                <Row label={t.verify.lFileUrl} value={payload.meteo.file.url} mono />
               </Section>
               <Section title={t.verify.sectionChemical}>
-                <Row label={t.verify.lChemical} value={payload.chemical} />
-                <Row label={t.verify.lDose} value={`${payload.dose}`} />
-                <Row label={t.verify.lSupplier} value={payload.supplierName} />
+                <Row label={t.verify.lChemical} value={payload.chemical.product} />
+                <Row label={t.step3.lActive} value={payload.chemical.activeSubstance} />
+                <Row label={t.verify.lDose} value={`${payload.chemical.dosePerHa} /ha`} />
+                <Row label={t.step3.lWorkingVol} value={`${payload.chemical.workingVolumeLitresPerHa} L/ha`} />
+                <Row label={t.step3.lManufacturer} value={payload.chemical.manufacturer} />
+                <Row label={t.step3.lRegNumber} value={payload.chemical.registrationNumber} mono />
                 <Row
-                  label={t.verify.lSupplierKep}
-                  value={`${payload.supplierSignature.keyId} · ${shortHash(payload.supplierSignature.sha256, 6, 6)}`}
+                  label={t.verify.lSupplier}
+                  value={`${payload.chemical.supplierName} · ${payload.chemical.supplierEdrpou}`}
+                />
+                <Row label={t.verify.lFile} value={payload.chemical.file.filename} />
+                <Row label={t.verify.lFileSize} value={formatBytes(payload.chemical.file.size)} />
+                <Row label={t.verify.lContentType} value={payload.chemical.file.contentType} mono />
+                <Row
+                  label={t.verify.lChemicalEvidence}
+                  value={payload.chemical.file.sha256}
                   mono
                 />
+                <Row label={t.verify.lFileUrl} value={payload.chemical.file.url} mono />
               </Section>
             </div>
           </CardContent>
@@ -177,7 +197,7 @@ function Row({ label, value, mono }: { label: string; value: string | number; mo
   return (
     <div className="grid grid-cols-[110px_1fr] gap-2 items-baseline text-sm">
       <dt className="text-ink-muted">{label}</dt>
-      <dd className={mono ? "hash-mono text-ink" : "text-ink"}>{value}</dd>
+      <dd className={mono ? "hash-mono break-all text-ink" : "break-words text-ink"}>{value}</dd>
     </div>
   );
 }

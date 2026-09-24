@@ -7,7 +7,6 @@ import { FarmerBlock } from "@/components/form/FarmerBlock";
 import { TreatmentBlock } from "@/components/form/TreatmentBlock";
 import { MeteoBlock } from "@/components/form/MeteoBlock";
 import { ChemicalBlock } from "@/components/form/ChemicalBlock";
-import { SignatureSummary } from "@/components/form/SignatureSummary";
 import { useWizardStore } from "@/lib/store";
 import {
   isStep1Complete,
@@ -18,7 +17,7 @@ import {
 } from "@/lib/validation";
 import { useT } from "@/lib/i18n/context";
 
-export function Step1Form() {
+export function Step1Form({ demoMode = true }: { demoMode?: boolean }) {
   const state = useWizardStore();
   const next = useWizardStore((s) => s.next);
   const farmer = useWizardStore((s) => s.farmer);
@@ -91,9 +90,8 @@ export function Step1Form() {
   const meteoSummary = useMemo(() => {
     if (!meteo.meteoData) return "";
     const parts = [
-      `${meteo.meteoData.temperatureCelsius}°C`,
-      `${meteo.meteoData.windSpeedMps} m/s`,
-      meteo.pilotSignature ? "KEP ✓" : null,
+      meteo.meteoData.temperatureCelsius != null ? `${meteo.meteoData.temperatureCelsius}°C` : null,
+      meteo.meteoData.windSpeedMps != null ? `${meteo.meteoData.windSpeedMps} m/s` : null,
     ].filter(Boolean);
     return parts.join(" · ");
   }, [meteo]);
@@ -124,6 +122,7 @@ export function Step1Form() {
       />
 
       <MeteoBlock
+        allowUpload={demoMode}
         open={openBlock === 3}
         onToggle={() => toggle(3)}
         done={meteoDone}
@@ -132,6 +131,7 @@ export function Step1Form() {
       />
 
       <ChemicalBlock
+        allowUpload={demoMode}
         open={openBlock === 4}
         onToggle={() => toggle(4)}
         done={chemicalDone}
@@ -139,12 +139,7 @@ export function Step1Form() {
         editLabel={editLabel}
       />
 
-      <SignatureSummary
-        pilotSigned={!!state.meteo.pilotSignature}
-        supplierSigned={!!state.chemical.supplierSignature}
-      />
-
-      <div className="sticky bottom-4 z-10 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface/95 backdrop-blur p-4 shadow-lifted">
+      {demoMode && <div className="sticky bottom-4 z-10 flex items-center justify-between gap-4 rounded-xl border border-border bg-surface/95 backdrop-blur p-4 shadow-lifted">
         <div className="text-xs text-ink-muted">
           {complete ? (
             <span className="text-brand-700 font-medium">{t.step1.allFilled}</span>
@@ -162,7 +157,7 @@ export function Step1Form() {
         >
           {t.step1.toBlockchain}
         </Button>
-      </div>
+      </div>}
     </div>
   );
 }

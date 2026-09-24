@@ -5,11 +5,10 @@ import { Thermometer, Droplets, Wind, CloudRain } from "lucide-react";
 import { BlockCard } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { FileUpload } from "@/components/ui/FileUpload";
-import { DiiaBlock } from "@/components/diia/DiiaBlock";
 import { useWizardStore } from "@/lib/store";
 import { useT } from "@/lib/i18n/context";
 import { parseMeteoFile } from "@/lib/meteo-parser";
-import type { FileRef, MeteoData, DiiaSignatureRef } from "@/types/passport";
+import type { FileRef, MeteoData } from "@/types/passport";
 import { toast } from "sonner";
 
 interface MeteoBlockProps {
@@ -18,18 +17,17 @@ interface MeteoBlockProps {
   done?: boolean;
   summary?: string;
   editLabel?: string;
+  allowUpload?: boolean;
 }
 
-export function MeteoBlock({ open, onToggle, done, summary, editLabel }: MeteoBlockProps = {}) {
+export function MeteoBlock({ open, onToggle, done, summary, editLabel, allowUpload = true }: MeteoBlockProps = {}) {
   const meteo = useWizardStore((s) => s.meteo);
   const setMeteo = useWizardStore((s) => s.setMeteo);
-  const treatment = useWizardStore((s) => s.treatment);
   const t = useT();
 
   const [parsing, setParsing] = useState(false);
   const fileRef = meteo.meteoFile;
   const data = meteo.meteoData;
-  const signature = meteo.pilotSignature;
 
   async function handleRawFile(file: File) {
     setParsing(true);
@@ -51,17 +49,14 @@ export function MeteoBlock({ open, onToggle, done, summary, editLabel }: MeteoBl
   }
 
   function handleFileChange(file: FileRef | null) {
-    setMeteo({ meteoFile: file ?? undefined, pilotSignature: undefined });
+    setMeteo({ meteoFile: file ?? undefined });
   }
 
   function updateField(key: keyof MeteoData, value: number) {
-    const merged: MeteoData = {
-      temperatureCelsius: data?.temperatureCelsius ?? 0,
-      humidityPercent: data?.humidityPercent ?? 0,
-      windSpeedMps: data?.windSpeedMps ?? 0,
-      rainfallMm: data?.rainfallMm ?? 0,
-      measuredAt: data?.measuredAt ?? new Date().toISOString(),
-      [key]: value,
+    const merged: Partial<MeteoData> = {
+      ...data,
+      measuredAt: data?.measuredAt ?? (allowUpload ? new Date().toISOString() : undefined),
+      [key]: Number.isFinite(value) ? value : undefined,
     };
     setMeteo({ meteoData: merged });
   }
@@ -70,7 +65,7 @@ export function MeteoBlock({ open, onToggle, done, summary, editLabel }: MeteoBl
     <BlockCard
       number="03"
       title={t.meteo.blockTitle}
-      hint={t.meteo.blockHint}
+      hint={allowUpload ? t.meteo.blockHint : t.drafts.meteoHint}
       open={open}
       onToggle={onToggle}
       done={done}
@@ -78,14 +73,14 @@ export function MeteoBlock({ open, onToggle, done, summary, editLabel }: MeteoBl
       editLabel={editLabel}
     >
       <div className="space-y-4">
-        <FileUpload
+        {allowUpload ? <FileUpload
           label={t.meteo.fileLabel}
           hint={t.meteo.fileHint}
           accept=".json,.csv,.txt,.pdf,.xml"
           value={fileRef}
           onChange={handleFileChange}
           onRawFile={handleRawFile}
-        />
+        /> : <p className="text-xs text-ink-muted">{t.drafts.evidenceLater}</p>}
 
         {parsing && <p className="text-xs text-ink-muted">{t.meteo.parsing}</p>}
 
@@ -123,17 +118,6 @@ export function MeteoBlock({ open, onToggle, done, summary, editLabel }: MeteoBl
             leadingIcon={<CloudRain className="h-4 w-4" />}
           />
         </div>
-
-        <DiiaBlock
-          role="pilot"
-          documentFilename={fileRef?.filename ?? "метео-дані"}
-          documentSha256={fileRef?.sha256 ?? ""}
-          signerName={treatment.operator ?? "Пілот"}
-          signature={signature}
-          onSigned={(sig: DiiaSignatureRef) => setMeteo({ pilotSignature: sig })}
-          disabled={!fileRef}
-          disabledReason={!fileRef ? t.diia.pilotPending : undefined}
-        />
       </div>
     </BlockCard>
   );

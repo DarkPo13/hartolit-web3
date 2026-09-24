@@ -6,7 +6,7 @@ import { Sprout, MapPin, Hash, Wheat } from "lucide-react";
 import { BlockCard } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { farmerSchema, CROP_OPTIONS, type FarmerFormValues } from "@/lib/schemas";
+import { farmerSchema, CROP_OPTIONS, type FarmerFormInput, type FarmerFormValues } from "@/lib/schemas";
 import { useWizardStore } from "@/lib/store";
 import { useT } from "@/lib/i18n/context";
 import { useEffect } from "react";
@@ -34,7 +34,7 @@ export function FarmerBlock({ open, onToggle, done, summary, editLabel }: Farmer
     control,
     formState: { errors },
     watch,
-  } = useForm<FarmerFormValues>({
+  } = useForm<FarmerFormInput, unknown, FarmerFormValues>({
     resolver: zodResolver(farmerSchema),
     mode: "onBlur",
     defaultValues: {

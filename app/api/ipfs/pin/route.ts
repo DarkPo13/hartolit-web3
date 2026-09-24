@@ -1,10 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { pinJson } from "@/lib/ipfs";
+import { DEMO_WRITE_UNAVAILABLE, isDemoMode } from "@/lib/demo-mode";
+import { requireWriteAccess } from "@/lib/auth-guard";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
+  const denied = await requireWriteAccess(req);
+  if (denied) return denied;
+
+  if (!isDemoMode()) {
+    return NextResponse.json({ error: DEMO_WRITE_UNAVAILABLE }, { status: 503 });
+  }
+
   try {
     const { value, name } = (await req.json()) as { value: unknown; name?: string };
     if (value === undefined || value === null) {

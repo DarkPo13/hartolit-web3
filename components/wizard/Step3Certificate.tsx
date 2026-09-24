@@ -18,6 +18,7 @@ import { useT } from "@/lib/i18n/context";
 import {
   bscscanTokenUrl,
   bscscanTxUrl,
+  formatBytes,
   formatDateTime,
   ipfsToHttp,
   shortHash,
@@ -59,6 +60,7 @@ export function Step3Certificate() {
   }
 
   const issuedAt = formatDateTime(result.mintedAt);
+  const payload = result.payload;
 
   return (
     <div className="space-y-5 fade-in">
@@ -131,65 +133,58 @@ export function Step3Certificate() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-8">
           <Section title={t.step3.sectionFarmer}>
-            <Row label={t.step3.lFarmer} value={state.farmer.farmerName} />
-            <Row label={t.step3.lId} value={state.farmer.farmerId} mono />
-            <Row label={t.step3.lCrop} value={state.farmer.crop} />
-            <Row label={t.step3.lArea} value={`${state.farmer.fieldArea ?? "—"} ha`} />
-            <Row label={t.step3.lGps} value={state.farmer.gpsCoords} mono />
-            {state.farmer.cadastralNumber && (
-              <Row label={t.step3.lCadastral} value={state.farmer.cadastralNumber} mono />
-            )}
+            <Row label={t.step3.lFarmer} value={payload.farmer.farmerName} />
+            <Row label={t.step3.lId} value={payload.farmer.farmerId} mono />
+            <Row label={t.step3.lCrop} value={payload.farmer.crop} />
+            <Row label={t.step3.lArea} value={`${payload.farmer.fieldArea} ha`} />
+            <Row label={t.step3.lGps} value={payload.farmer.gpsCoords} mono />
+            <Row label={t.step3.lCadastral} value={payload.farmer.cadastralNumber || "—"} mono />
           </Section>
 
           <Section title={t.step3.sectionTreatment}>
-            <Row label={t.step3.lType} value={state.treatment.treatmentType} />
+            <Row label={t.step3.lType} value={payload.treatment.treatmentType} />
             <Row
               label={t.step3.lDateTime}
-              value={`${state.treatment.treatmentDate} ${state.treatment.treatmentTime}`}
+              value={`${payload.treatment.treatmentDate} ${payload.treatment.treatmentTime}`}
             />
             <Row
               label={t.step3.lDrone}
-              value={`${state.treatment.droneModel} · ${state.treatment.droneSerial}`}
-              mono
+              value={`${payload.treatment.droneModel} · ${payload.treatment.droneSerial}`}
             />
-            <Row label={t.step3.lOperator} value={state.treatment.operator} />
-            <Row label={t.step3.lDarsCert} value={state.treatment.pilotCert} mono />
+            <Row label={t.step3.lOperator} value={payload.treatment.operator} />
+            <Row label={t.step3.lDarsCert} value={payload.treatment.pilotCert} mono />
+            <Row label={t.step3.lNotes} value={payload.treatment.notes || "—"} />
           </Section>
 
           <Section title={t.step3.sectionMeteo}>
-            <Row label={t.step3.lTemp} value={`${state.meteo.meteoData?.temperatureCelsius ?? "—"} °C`} />
-            <Row label={t.step3.lHumidity} value={`${state.meteo.meteoData?.humidityPercent ?? "—"} %`} />
-            <Row label={t.step3.lWind} value={`${state.meteo.meteoData?.windSpeedMps ?? "—"} m/s`} />
-            <Row label={t.step3.lRain} value={`${state.meteo.meteoData?.rainfallMm ?? "—"} mm`} />
-            {state.meteo.pilotSignature && (
-              <Row
-                label={t.step3.lPilotKep}
-                value={`${state.meteo.pilotSignature.keyId} · ${shortHash(state.meteo.pilotSignature.sha256, 6, 6)}`}
-                mono
-                badge="success"
-              />
-            )}
+            <Row label={t.step3.lTemp} value={`${payload.meteo.data.temperatureCelsius} °C`} />
+            <Row label={t.step3.lHumidity} value={`${payload.meteo.data.humidityPercent} %`} />
+            <Row label={t.step3.lWind} value={`${payload.meteo.data.windSpeedMps} m/s`} />
+            <Row label={t.step3.lRain} value={`${payload.meteo.data.rainfallMm} mm`} />
+            <Row label={t.step3.lDateTime} value={formatDateTime(payload.meteo.data.measuredAt)} />
+            <Row label={t.step3.lFile} value={payload.meteo.file.filename} />
+            <Row label={t.step3.lFileSize} value={formatBytes(payload.meteo.file.size)} />
+            <Row label={t.step3.lContentType} value={payload.meteo.file.contentType} mono />
+            <Row label={t.step3.lMeteoEvidence} value={payload.meteo.file.sha256} mono />
+            <Row label={t.step3.lFileUrl} value={payload.meteo.file.url} mono />
           </Section>
 
           <Section title={t.step3.sectionChemical}>
-            <Row label={t.step3.lChemical} value={state.chemical.chemical} />
-            <Row label={t.step3.lActive} value={state.chemical.chemicalActive} />
-            <Row label={t.step3.lDose} value={`${state.chemical.dose} (ha)`} />
-            <Row label={t.step3.lWorkingVol} value={`${state.chemical.workingVolume} L/ha`} />
-            <Row label={t.step3.lManufacturer} value={state.chemical.manufacturer} />
-            <Row label={t.step3.lRegNumber} value={state.chemical.regNumber} mono />
+            <Row label={t.step3.lChemical} value={payload.chemical.product} />
+            <Row label={t.step3.lActive} value={payload.chemical.activeSubstance} />
+            <Row label={t.step3.lDose} value={`${payload.chemical.dosePerHa} /ha`} />
+            <Row label={t.step3.lWorkingVol} value={`${payload.chemical.workingVolumeLitresPerHa} L/ha`} />
+            <Row label={t.step3.lManufacturer} value={payload.chemical.manufacturer} />
+            <Row label={t.step3.lRegNumber} value={payload.chemical.registrationNumber} mono />
             <Row
               label={t.step3.lSupplier}
-              value={`${state.chemical.supplierName} (EDRPOU ${state.chemical.supplierEdrpou})`}
+              value={`${payload.chemical.supplierName} · ${payload.chemical.supplierEdrpou}`}
             />
-            {state.chemical.supplierSignature && (
-              <Row
-                label={t.step3.lSupplierKep}
-                value={`${state.chemical.supplierSignature.keyId} · ${shortHash(state.chemical.supplierSignature.sha256, 6, 6)}`}
-                mono
-                badge="success"
-              />
-            )}
+            <Row label={t.step3.lFile} value={payload.chemical.file.filename} />
+            <Row label={t.step3.lFileSize} value={formatBytes(payload.chemical.file.size)} />
+            <Row label={t.step3.lContentType} value={payload.chemical.file.contentType} mono />
+            <Row label={t.step3.lChemicalEvidence} value={payload.chemical.file.sha256} mono />
+            <Row label={t.step3.lFileUrl} value={payload.chemical.file.url} mono />
           </Section>
         </div>
 
@@ -264,7 +259,9 @@ function Row({
     <div className="grid grid-cols-[140px_1fr] gap-3 text-sm items-baseline">
       <dt className="text-ink-muted">{label}</dt>
       <dd className="flex items-center gap-2">
-        <span className={mono ? "hash-mono text-ink" : "text-ink"}>{value ?? "—"}</span>
+        <span className={mono ? "hash-mono break-all text-ink" : "break-words text-ink"}>
+          {value ?? "—"}
+        </span>
         {badge && <Badge tone={badge}>verified</Badge>}
       </dd>
     </div>

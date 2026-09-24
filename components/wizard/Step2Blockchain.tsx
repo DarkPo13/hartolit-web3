@@ -34,6 +34,8 @@ export function Step2Blockchain() {
   const prev = useWizardStore((s) => s.prev);
   const next = useWizardStore((s) => s.next);
   const setMintResult = useWizardStore((s) => s.setMintResult);
+  const pendingPayload = useWizardStore((s) => s.pendingPayload);
+  const setPendingPayload = useWizardStore((s) => s.setPendingPayload);
   const existingResult = useWizardStore((s) => s.mintResult);
   const { address } = useAccount();
   const t = useT();
@@ -69,7 +71,8 @@ export function Step2Blockchain() {
 
     try {
       updateStep("validate", "active");
-      const payload = buildPayload(state);
+      const payload = pendingPayload ?? buildPayload(state);
+      if (!pendingPayload) setPendingPayload(payload);
       await delay(400);
       updateStep("validate", "done");
 

@@ -27,12 +27,14 @@ yarn-error.log*
 .env
 .env*.local
 .env.production
+.env.db.local
 
 # Vercel
 .vercel
 
 # TypeScript
 *.tsbuildinfo
+/generated/prisma/
 
 # IDE
 .vscode/*

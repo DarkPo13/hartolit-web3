@@ -31,7 +31,6 @@ export const HARTOLIT_PASSPORT_ABI = [
     inputs: [
       { name: "to", type: "address" },
       { name: "_payloadHash", type: "bytes32" },
-      { name: "_farmerId", type: "string" },
       { name: "_ipfsUri", type: "string" },
     ],
     outputs: [{ name: "tokenId", type: "uint256" }],
@@ -56,13 +55,6 @@ export const HARTOLIT_PASSPORT_ABI = [
     name: "payloadHash",
     inputs: [{ name: "tokenId", type: "uint256" }],
     outputs: [{ type: "bytes32" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "farmerId",
-    inputs: [{ name: "tokenId", type: "uint256" }],
-    outputs: [{ type: "string" }],
     stateMutability: "view",
   },
   {
@@ -166,7 +158,6 @@ export const HARTOLIT_PASSPORT_ABI = [
       { name: "mintedBy", type: "address", indexed: true },
       { name: "to", type: "address", indexed: true },
       { name: "payloadHash", type: "bytes32", indexed: false },
-      { name: "farmerId", type: "string", indexed: false },
       { name: "ipfsUri", type: "string", indexed: false },
     ],
     anonymous: false,

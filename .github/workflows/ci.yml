@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
+      BETTER_AUTH_SECRET: ci-only-secret-which-is-never-used-outside-this-build
+      BETTER_AUTH_URL: http://localhost:3000
+      EVIDENCE_S3_BUCKET: hartolit-evidence
+      EVIDENCE_S3_REGION: us-east-1
+      EVIDENCE_S3_ENDPOINT: http://127.0.0.1:8333
+      EVIDENCE_S3_ACCESS_KEY: ci-evidence-access
+      EVIDENCE_S3_SECRET_KEY: ci-evidence-secret
+      EVIDENCE_CLAMD_HOST: 127.0.0.1
+      EVIDENCE_CLAMD_PORT: 3310
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      seaweedfs:
+        image: chrislusf/seaweedfs:4.47
+        env:
+          AWS_ACCESS_KEY_ID: ci-evidence-access
+          AWS_SECRET_ACCESS_KEY: ci-evidence-secret
+          S3_BUCKET: hartolit-evidence
+        ports:
+          - 8333:8333
+      clamav:
+        image: clamav/clamav:1.5.4-debian13-slim
+        ports:
+          - 3310:3310
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Build with isolated test-only auth configuration
+        run: npm run build
+      - run: npm run db:deploy
+      - name: Wait for private storage and scanner
+        shell: bash
+        run: |
+          ready=0
+          for attempt in {1..90}; do
+            if curl --silent http://127.0.0.1:8333/ > /dev/null && (echo > /dev/tcp/127.0.0.1/3310) 2>/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "Evidence storage or scanner did not become ready"
+            exit 1
+          fi
+      - run: npm run evidence:configure
+      - name: Verify authenticated draft and evidence routes
+        shell: bash
+        run: |
+          ./node_modules/.bin/next start > /tmp/hartolit-next.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for attempt in {1..30}; do
+            if curl --fail --silent http://localhost:3000/login > /dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            cat /tmp/hartolit-next.log
+            exit 1
+          fi
+          npm run drafts:smoke
+          npm run evidence:smoke
+          npm run review:smoke
+      - run: npm audit --omit=dev --audit-level=high
+
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Install pinned contract libraries
+        working-directory: contracts
+        run: forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.6.0 foundry-rs/forge-std@v1.16.1
+      - run: forge build --root contracts
+      - run: forge test --root contracts -vvv

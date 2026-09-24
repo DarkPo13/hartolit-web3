@@ -1,6 +1,8 @@
 # Hartolit Digital Field Passport
 
-> **On-chain ERC-721 certificates for every agricultural drone treatment — immutable, legally-admissible proof for farmers, insurers, and EU certification bodies.**
+> **Prototype for recording agricultural drone treatments and checking a passport payload against a BNB Chain hash.**
+
+**Release status:** This repository is not ready to issue production passports. Local phases 1–3 provide PostgreSQL accounts, owner-scoped drafts, and private evidence uploads. Phase 4 now has an operator submission and MFA-admin review workflow, with read-only admin record views. Hosted storage, restore testing, browser acceptance, and further admin management work remain. Publication remains disabled outside the local demo. Do not enter real customer data until hosting, privacy, backup, and release gates are completed. Diia signing is deferred until after the core MVP release. Product claims below describe the intended system, not proven current capabilities. See the [phased application architecture](#phased-application-architecture) below for the current implementation.
 
 [![Built on BNB Chain](https://img.shields.io/badge/Built%20on-BNB%20Chain-F0B90B?logo=binance&logoColor=black)](https://www.bnbchain.org/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org/)
@@ -27,9 +29,9 @@ Ukraine is one of the world's top producers of sunflower, corn, and wheat — ye
 **Hartolit Digital Field Passport** mints a unique ERC-721 NFT on BNB Smart Chain for every drone treatment. Each token:
 
 1. Contains a cryptographic SHA-256 fingerprint of the complete treatment payload
-2. Links to full metadata stored on IPFS (treatment details, drone telemetry, meteo conditions, chemical data)
-3. Carries two qualified electronic signatures (KEP) — from the drone pilot and the chemical supplier — signed via Ukraine's national **Diia** app
-4. Is publicly verifiable at `/verify/{tokenId}` — anyone can check authenticity without a wallet or account
+2. Will link to an explicitly approved public passport snapshot on IPFS
+3. Is issued directly by an approved Hartolit operator wallet; the website stores no server minter key
+4. Is publicly verifiable at `/verify/{tokenId}` — anyone can check integrity without a wallet or account
 
 One QR code on a printed certificate points to an immutable on-chain record. Insurers, subsidy offices, and EU auditors scan it and instantly see tamper-proof data.
 
@@ -61,17 +63,17 @@ Hartolit Operator
 │                                                      │
 │  Block 01: Farmer + Field (name, EDRPOU, GPS, crop)  │
 │  Block 02: Treatment (date, drone model, operator)   │
-│  Block 03: Meteo file + Drone Pilot KEP signature    │
-│  Block 04: Chemical doc + Supplier KEP signature     │
+│  Block 03: Meteo file + parsed weather data          │
+│  Block 04: Chemical + supplier document              │
 └──────────────────────┬───────────────────────────────┘
-                       │  All data + signatures
+                       │  Complete public Version 1 data
                        ▼
 ┌──────────────────────────────────────────────────────┐
-│  STEP 2 — Blockchain Mint  (server-side)             │
+│  STEP 2 — Public IPFS + operator-wallet mint         │
 │                                                      │
 │  1. Canonicalize payload → SHA-256 hash (bytes32)    │
-│  2. Pin JSON metadata to IPFS via Pinata             │
-│  3. Call mintPassport(owner, hash, farmerId, cid)    │
+│  2. Pin evidence and JSON to public IPFS             │
+│  3. Call mintPassport(owner, hash, cid)              │
 │     on HartolitFieldPassport.sol                     │
 │  4. Return tokenId + txHash + blockNumber            │
 └──────────────────────┬───────────────────────────────┘
@@ -93,7 +95,7 @@ Anyone with the QR code or token ID can verify independently — no account, no 
 ```
 /verify/{tokenId}
        │
-       ├── Read: ownerOf, tokenURI, payloadHash, farmerId (from BSC)
+       ├── Read: ownerOf, tokenURI, payloadHash (from BSC)
        ├── Fetch: full JSON payload (from IPFS)
        ├── Compute: SHA-256 of fetched payload
        └── Compare: on-chain hash === computed hash?
@@ -117,22 +119,20 @@ pragma solidity ^0.8.24;
 contract HartolitFieldPassport is ERC721URIStorage, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
-    mapping(uint256 => bytes32) public payloadHash;  // immutable on-chain proof
-    mapping(uint256 => string)  public farmerId;     // indexed by farmer EDRPOU/IPN
-    mapping(bytes32 => uint256) private hashToTokenId; // duplicate guard
+    mapping(uint256 => bytes32) public payloadHash;    // immutable on-chain proof
+    mapping(bytes32 => uint256) public hashToTokenId;  // duplicate guard and recovery
 
     event PassportMinted(
         uint256 indexed tokenId,
         address indexed mintedBy,
+        address indexed to,
         bytes32 payloadHash,
-        string farmerId,
         string ipfsUri
     );
 
     function mintPassport(
         address to,
         bytes32 _payloadHash,
-        string memory _farmerId,
         string memory _ipfsUri
     ) external onlyRole(MINTER_ROLE) returns (uint256) { ... }
 }
@@ -148,18 +148,20 @@ contract HartolitFieldPassport is ERC721URIStorage, AccessControl {
 
 ---
 
-## Diia KEP Integration
+## Diia KEP Integration — deferred
 
 Ukraine's [Diia](https://diia.gov.ua/) platform provides government-grade qualified electronic signatures (KEP) legally equivalent to a handwritten signature under Ukrainian law and EU eIDAS regulation.
 
-Hartolit integrates **two signatures per passport**:
+Diia signing is not part of Version 1. The active wizard, public payload, and certificate do not require or claim KEP signatures. The integration will be designed after the core application and infrastructure are released.
+
+The future design may add two signatures per passport:
 
 - **Drone pilot** signs the meteo observation file (confirms conditions at treatment time)
 - **Chemical supplier** signs the purchase document (confirms product authenticity and chain of custody)
 
-Both KEP signatures — keyId, signer name, certificate serial, timestamp, and document SHA-256 — are stored in the IPFS payload. The on-chain `payloadHash` fingerprints the entire bundle. If any signature or document is tampered with post-mint, the hash verification fails automatically.
+The Version 1 IPFS payload contains no signature fields. A later schema version must distinguish signed passports from Version 1 records and verify real signatures before displaying any signed or legally qualified claim.
 
-Each Field Passport becomes a legally admissible record under:
+Future legal review must cover:
 - Ukrainian Law No. 2155-IX (electronic documents)
 - EU Regulation 910/2014 (eIDAS — qualified electronic signatures)
 
@@ -167,53 +169,76 @@ Each Field Passport becomes a legally admissible record under:
 
 ## Data Model
 
-Each NFT stores a rich, canonicalized JSON payload on IPFS:
+Version 1 publishes every field collected by the active form, together with complete file-reference metadata. Diia fields are absent.
 
 ```jsonc
 {
-  "version": "1.0",
-  "timestamp": "2026-05-15T07:30:00.000Z",
-
-  // Block 01 — Farmer & Field
-  "farmerName": "ФГ «Степ-Агро»",
-  "farmerId": "32456789",             // EDRPOU (Ukrainian company registry ID)
-  "fieldArea": 56.2,                  // hectares
-  "gpsCoords": "49.5826, 34.5544",
-  "cadastralNumber": "5322487800:01:001:0042",
-  "crop": "sunflower",
-
-  // Block 02 — Treatment
-  "treatmentType": "insecticide",
-  "treatmentDate": "2026-05-15",
-  "treatmentTime": "07:30",
-  "droneModel": "DJI Agras T50",
-  "droneSerial": "1ZNBC3K0025678",
-  "operator": "Марченко Андрій Вікторович",
-  "pilotCert": "UA-DARS-A2-2024-0342",
-
-  // Block 03 — Meteo + Pilot KEP
-  "meteoFile": { "url": "ipfs://Qm...", "sha256": "0xabc...", "size": 1024 },
-  "meteoData": { "temperatureCelsius": 18.5, "humidityPercent": 72,
-                 "windSpeedMps": 2.8, "rainfallMm": 0 },
-  "pilotSignature": { "keyId": "DRFO-1234567890",
-                      "signerName": "Петренко Іван Олегович",
-                      "sha256": "0xdef...", "certSerial": "UA-KEP-2024-XXXXXX" },
-
-  // Block 04 — Chemical + Supplier KEP
-  "chemical": "Актара 25 WG",
-  "chemicalActive": "тіаметоксам 250 г/кг",
-  "dose": "0.14 кг/га",
-  "workingVolume": 10,
-  "manufacturer": "Syngenta AG",
-  "regNumber": "UA-01-00823-0000",    // Ukrpestycid registration
-  "supplierName": "ТОВ «Агрохім-Плюс»",
-  "supplierEdrpou": "43210987",
-  "supplierSignature": { "keyId": "EDRPOU-43210987",
-                         "sha256": "0x789...", "certSerial": "UA-KEP-2024-YYYYYY" }
+  "schema": "hartolit.field-passport.public",
+  "version": "1.0.0",
+  "issuedAt": "2026-05-15T07:30:00.000Z",
+  "farmer": {
+    "farmerName": "Example Farm",
+    "farmerId": "32456789",
+    "fieldArea": 56.2,
+    "gpsCoords": "49.5826, 34.5544",
+    "cadastralNumber": "5322487800:01:001:0042",
+    "crop": "sunflower"
+  },
+  "treatment": {
+    "treatmentType": "insecticide",
+    "treatmentDate": "2026-05-15",
+    "treatmentTime": "07:30",
+    "droneModel": "DJI Agras T50",
+    "droneSerial": "1ZNBC3K0025678",
+    "operator": "Example Operator",
+    "pilotCert": "UA-DARS-A2-2024-0342",
+    "notes": "Public Version 1 notes"
+  },
+  "meteo": {
+    "file": {
+      "url": "https://public.example/meteo.json",
+      "sha256": "64-character SHA-256 hex",
+      "size": 1024,
+      "filename": "meteo.json",
+      "contentType": "application/json"
+    },
+    "data": {
+      "temperatureCelsius": 18.5,
+      "humidityPercent": 72,
+      "windSpeedMps": 2.8,
+      "rainfallMm": 0,
+      "measuredAt": "2026-05-15T07:15:00.000Z"
+    }
+  },
+  "chemical": {
+    "product": "Example product",
+    "activeSubstance": "Example active substance",
+    "dosePerHa": 0.14,
+    "workingVolumeLitresPerHa": 10,
+    "manufacturer": "Example manufacturer",
+    "registrationNumber": "UA-01-00823-0000",
+    "supplierName": "Example supplier",
+    "supplierEdrpou": "43210987",
+    "file": {
+      "url": "https://public.example/invoice.pdf",
+      "sha256": "64-character SHA-256 hex",
+      "size": 204800,
+      "filename": "invoice.pdf",
+      "contentType": "application/pdf"
+    }
+  }
 }
 ```
 
-The SHA-256 of the **canonicalized** (deterministically serialized) JSON is what gets written on-chain as `payloadHash`. This is the tamper-proof fingerprint the whole system is built on.
+The SHA-256 of the **canonicalized** JSON is stored on chain as `payloadHash`. The current demo payload reflects the earlier fully public concept and must not be used for real records. The final public snapshot needs a field allowlist and approval. The optional demo still returns `internal://` file references and does not preserve uploaded bytes. The authenticated draft path stores private evidence in object storage; it does not publish those files to IPFS.
+
+---
+
+## Phased application architecture
+
+Phase 1 stores individual accounts, sessions, MFA enrollment, password reset tokens, and rate limits in PostgreSQL through Prisma and Better Auth. The shared password gate is removed. Anonymous visitors can still use public certificate verification.
+
+Phase 2 stores farmer, field, passport, treatment, meteo, chemical, and audit records in PostgreSQL. Signed-in users can create and edit their own drafts; autosave uses a version check and shows a conflict if another session saved first. The tab stores structured fields only while edits are unsynced. Phase 3 adds private S3-compatible evidence storage with direct, five-minute upload grants, server-side integrity checks, a malware scan, and one-minute owner-authorized download links. The optional local demo remains separate and still uses tab-scoped state. Phase 4 adds submission, assignment, correction, rejection, and approval with version checks and audit history. The admin console at `/admin` includes a review queue, passport details, and read-only farmer, field, user, publication, and audit lists. Phase 5 will enable controlled publication of an explicitly approved public snapshot.
 
 ---
 
@@ -221,15 +246,16 @@ The SHA-256 of the **canonicalized** (deterministically serialized) JSON is what
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 16.2 (App Router, Turbopack) + TypeScript strict |
+| Frontend | Next.js 16.3 (App Router, Turbopack) + TypeScript strict |
 | Styling | Tailwind CSS v4 (CSS-first `@theme`, zero config file) |
 | Forms | React Hook Form + Zod validation |
-| State | Zustand with `persist` middleware (localStorage) |
+| State | PostgreSQL is authoritative for signed-in structured drafts; Zustand and tab-scoped `sessionStorage` recover unsynced edits |
+| Accounts | Better Auth + PostgreSQL + Prisma; invite-only users and admin TOTP |
 | Web3 | Wagmi v2 + Viem + RainbowKit |
 | Blockchain | BNB Smart Chain — Mainnet (56) + Testnet (97) |
 | Smart Contract | Solidity 0.8.24 + OpenZeppelin v5 + Foundry |
 | IPFS | Pinata SDK (server-side — JWT never exposed to browser) |
-| Electronic Signatures | Ukraine Diia KEP (qualified, legally binding) |
+| Electronic Signatures | Deferred until after the core application and infrastructure release |
 | i18n | Custom React context — Ukrainian (default) + English |
 | QR Code | `qrcode` library — verification URL embedded in certificate |
 | File Parsing | PapaParse (CSV), Web Crypto API (SHA-256 hashing) |
@@ -300,7 +326,7 @@ hartolit-dapp/
 - [Foundry](https://getfoundry.sh/) — `curl -L https://foundry.paradigm.xyz | bash && foundryup`
 - WalletConnect project ID — [cloud.reown.com](https://cloud.reown.com) (free)
 - Pinata account + JWT — [app.pinata.cloud](https://app.pinata.cloud) (free tier works)
-- Admin wallet private key with test BNB on BSC Testnet
+- Deployment/operator wallet with test BNB on BSC Testnet; never place its private key in the website environment
 
 ### 1. Install dependencies
 
@@ -311,13 +337,28 @@ npm install
 ### 2. Configure environment
 
 ```bash
-cp .env.local.example .env.local
+npm run db:setup
+npm run evidence:setup
+npm run dev:services:up
+npm run evidence:up
+npm run evidence:configure
+npm run db:deploy
+npm run auth:create-admin
+npm run dev
 ```
+
+`db:setup` adds a random PostgreSQL password and Better Auth secret to ignored local environment files without replacing existing values. `evidence:setup` adds separate random local storage credentials. `dev:services:up` starts PostgreSQL and a local Mailpit inbox at <http://localhost:8025>; `evidence:up` starts SeaweedFS and ClamAV; `evidence:configure` sets browser CORS on the local private bucket. Wait for the scanner to become healthy before uploading. The account command prompts for an admin email and password; use a unique password of at least 12 characters and store it in a password manager. Sign in at <http://localhost:3000/login>, then enroll an authenticator app at `/settings/security`. Enrollment revokes earlier sessions, so sign in once more with your new six-digit code. Create another individual operator with `npm run auth:create-operator`; the command prompts for their email and password. Never pass passwords on a command line or commit local environment files.
+
+After creating an operator, sign in and select **New draft** to save structured details to PostgreSQL. Attach up to 20 active evidence files per draft in the private evidence panel. Supported files are PDF, PNG, JPEG, JSON, CSV, TXT, and XML up to 10 MB each. An attachment is downloadable only after the server verifies its size, type, SHA-256, and ClamAV result. Remove abandoned or unwanted attachments in the panel. An already issued download link can remain usable for up to one minute if object deletion fails. Optional fictional local data can be added with `npm run db:seed:fictional -- --owner operator@example.com`; the command is idempotent for that owner and refuses a nonlocal database. `npm run drafts:smoke`, `npm run evidence:smoke`, and `npm run review:smoke` check the authenticated APIs against the running local server, then remove their fixture accounts, drafts, and objects. `npm run evidence:prune` previews stale quarantine cleanup; add `-- --execute` to perform it.
+
+To review a passport, complete the required form fields, upload weather and chemical evidence, and wait until both files show **Verified**. Save the draft, then select **Submit for review**. Submission freezes the draft and its evidence. Sign in as an MFA-enabled admin at `/admin`, open the review queue, assign the passport to yourself or another active MFA admin, inspect the details and evidence, and approve, reject, or request changes. Rejection and correction require a reason. The operator sees the decision and can reopen a rejected or correction-requested passport, edit it, and submit again. All transitions are version checked and audited. Publishing a passport or certificate is still disabled.
+
+The local inbox captures password reset emails. For hosting, configure a managed PostgreSQL `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, and transactional SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, and optional `SMTP_USER`/`SMTP_PASSWORD`). Configure a **private** S3-compatible bucket with `EVIDENCE_S3_BUCKET`, `EVIDENCE_S3_REGION`, and optional `EVIDENCE_S3_ENDPOINT`; the endpoint must be reachable by the server and operators' browsers. Use a dedicated storage identity via `EVIDENCE_S3_ACCESS_KEY`/`EVIDENCE_S3_SECRET_KEY` or the host's workload identity, restricted to this bucket. Permit POST and GET from the deployed app origin in bucket CORS, block anonymous access, and run ClamAV at `EVIDENCE_CLAMD_HOST`/`EVIDENCE_CLAMD_PORT`. Schedule `npm run evidence:prune -- --execute` daily. Apply committed migrations with `npm run db:deploy` before starting the app. Use a production SMTP service that supports TLS. The deployed origin must be reachable only through a trusted reverse proxy that controls the client IP header used for rate limiting. Test a matched PostgreSQL and object-bucket backup/restore, unauthorized access, and expired links in the hosted environment before real data.
 
 Edit `.env.local`:
 
 ```env
-# Required for wallet connection UI
+# Required only for the optional local wallet demo
 NEXT_PUBLIC_WALLETCONNECT_ID=your_project_id
 
 # Set after deploying the contract (see below)
@@ -325,8 +366,7 @@ NEXT_PUBLIC_CONTRACT_ADDRESS=0x...
 NEXT_PUBLIC_CHAIN_ID=97           # 97 = BSC Testnet, 56 = Mainnet
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# Server-side only — NEVER expose to the browser
-ADMIN_PRIVATE_KEY=0x...           # Wallet with MINTER_ROLE
+# Server-side only — protects the IPFS integration
 PINATA_JWT=eyJ...
 BSC_TESTNET_RPC=https://bsc-testnet-rpc.publicnode.com
 BSCSCAN_API_KEY=...
@@ -336,13 +376,12 @@ BSCSCAN_API_KEY=...
 
 ```bash
 cd contracts
-forge install OpenZeppelin/openzeppelin-contracts@v5.6.0 --no-commit
-forge install foundry-rs/forge-std --no-commit
+forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.6.0 foundry-rs/forge-std@v1.16.1
 forge build
 forge test -vvv
 ```
 
-Deploy to BSC Testnet:
+The deploy script currently reads `ADMIN_PRIVATE_KEY` and `BSC_TESTNET_RPC` from the deployment shell; Foundry does not load `.env.local` automatically. `ADMIN_PRIVATE_KEY` is a deployment-only input and must not be configured in the web host. Deploy only after the release gates are met. Then deploy to BSC Testnet:
 
 ```bash
 # from project root
@@ -358,21 +397,23 @@ npm run dev
 # → http://localhost:3000
 ```
 
-Click the **"Fill mock data"** wand button in the hero to instantly prefill all form fields with realistic Ukrainian farm data and pre-signed Diia KEP stubs. No external configuration needed for Steps 1–3.
+For the local prototype only, set `NEXT_PUBLIC_DEMO_MODE=true` in `.env.local` and restart the dev server. Leave `ADMIN_PRIVATE_KEY` and `PINATA_JWT` unset: the unauthenticated demo refuses real credentials. The **"Fill mock data"** button then pre-fills fictional test data. Diia is not part of this flow.
+
+With demo mode off, the signed-in home page shows durable structured drafts. Evidence upload, submission, and issuance controls are intentionally unavailable until their later phases.
 
 ---
 
 ## Testing Without a Wallet
 
-The app has a complete mock-first architecture — every external service has a graceful fallback:
+The local prototype can run without a wallet when `NEXT_PUBLIC_DEMO_MODE=true` and no real contract or Pinata configuration is present. Production builds ignore the demo flag. Authenticated draft and private-evidence APIs can write to configured storage; issuance, public pinning, and Diia write routes remain disabled outside the local demo until the approval and controlled publication phases are complete.
 
-| Feature | No config (mock) | With config (real) |
+| Feature | Local demo | Current configured path |
 |---|---|---|
-| Form fill | One-click "Fill mock data" | Manual entry |
-| File upload | Returns mock SHA-256 + internal URL | Uploads to server |
-| Diia KEP signing | Simulated modal + instant signature | Real Diia OAuth + KEP |
+| Form fill | One-click "Fill mock data" | Signed-in PostgreSQL drafts with autosave |
+| File upload | Returns SHA-256 + `internal://` reference | Bytes are not durably stored yet |
+| Diia KEP signing | Deferred | Planned after the core MVP and infrastructure release |
 | IPFS pinning | Returns deterministic mock CID | Pins to Pinata |
-| Blockchain mint | Returns simulated tokenId + txHash | Mints on BSC Testnet/Mainnet |
+| Blockchain mint | Returns simulated tokenId + txHash | Direct approved-wallet minting still needs implementation and end-to-end validation |
 
 ---
 
@@ -389,15 +430,19 @@ The UI ships with full **Ukrainian** (default) and **English** support. The loca
 | Smart contract + Foundry tests | ✅ Complete |
 | Full 3-step wizard UI | ✅ Complete |
 | SHA-256 file hashing (Web Crypto API) | ✅ Complete |
-| Server-side mint pipeline (Viem + admin wallet) | ✅ Complete |
-| Pinata IPFS pinning with mock fallback | ✅ Complete |
+| Legacy server-side mint pipeline | 🟡 Present in demo; will be replaced by direct approved-wallet minting |
+| Stateless public IPFS pinning | 🟡 Provider path exists; wallet authorization and real evidence upload are pending |
 | QR-coded certificate (printable + downloadable HTML) | ✅ Complete |
 | Public `/verify/[tokenId]` with hash verification | ✅ Complete |
 | Ukrainian + English i18n | ✅ Complete |
 | One-click mock data prefill | ✅ Complete |
-| Diia KEP — mocked | 🟡 Pending Diia platform approval |
-| File storage (S3/Supabase) | 🟡 Pending configuration |
-| BSC Testnet deploy | 🔧 Ready — needs Foundry + admin wallet |
+| Invite-only accounts | Phase 1 complete locally: PostgreSQL, individual sessions, admin MFA, reset email, and server role checks |
+| Refresh-safe draft | Phase 2 local pass: owner-scoped PostgreSQL drafts; tab cache only for unsynced edits |
+| Private evidence | Phase 3 local pass: owner-scoped direct upload, integrity and malware checks, private storage, expiring download links; hosted restore gate remains |
+| Review workflow and admin console | Phase 4 local implementation: submit, assign, decide, reopen, dashboard, queue, detail, and read-only record views; browser and hosted acceptance remain |
+| Diia KEP | 📋 Deferred to Version 2 or later |
+| Public evidence storage (IPFS) | 🟡 Pending implementation |
+| BSC Testnet deploy | 🔧 Needs Foundry, reviewed contract, and approved operator wallet |
 | BSC Mainnet deploy | 📋 After testnet validation |
 
 ---
@@ -451,10 +496,10 @@ This is real-world utility for a population that genuinely needs decentralized t
 - [ ] Contract deployed and verified on BSC Mainnet
 - [ ] Admin wallet moved into a Gnosis Safe multisig
 - [ ] All `.env` keys set in Vercel
-- [ ] Diia.Signature production credentials approved
 - [ ] Pinata account upgraded for production traffic
-- [ ] S3/Supabase Storage bucket with CORS + lifecycle policies
-- [ ] Rate limiting on `/api/mint` (Upstash Ratelimit)
+- [ ] Public evidence and payload CIDs replicated through a second pinning provider
+- [ ] Approved operator wallet holds `MINTER_ROLE`; the website has no server minter key
+- [ ] Wallet-authorized stateless upload routes have request limits and edge rate limiting
 - [ ] Error monitoring (Sentry) + Vercel Analytics configured
 - [ ] SSL + custom domain → `dapp.hartolit-agro.com`
 

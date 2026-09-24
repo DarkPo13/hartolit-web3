@@ -4,6 +4,7 @@
  */
 
 import { sha256Hex } from "./hash";
+import { isDemoMode } from "./demo-mode";
 
 const PINATA_BASE = "https://api.pinata.cloud";
 
@@ -16,10 +17,16 @@ export interface PinResult {
 
 export async function pinJson(value: unknown, name: string): Promise<PinResult> {
   const jwt = process.env.PINATA_JWT;
+  if (isDemoMode() && jwt) {
+    throw new Error("Real IPFS pinning is disabled in the unauthenticated demo");
+  }
   const json = JSON.stringify(value);
   const size = new TextEncoder().encode(json).length;
 
   if (!jwt) {
+    if (!isDemoMode()) {
+      throw new Error("IPFS pinning is not configured");
+    }
     const hash = await sha256Hex(json);
     const mockCid = `bafkmock${hash.slice(0, 50)}`;
     return {

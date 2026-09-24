@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   description:
     "Immutable on-chain certificates (NFTs) for agricultural drone treatments. " +
-    "Issued on BNB Chain, signed with Diia KEP, pinned to IPFS.",
+    "Public agricultural treatment proofs anchored to BNB Chain and IPFS.",
   applicationName: "Hartolit Field Passport",
   authors: [{ name: "VANTREXIS" }],
   keywords: [
@@ -38,8 +38,6 @@ export const metadata: Metadata = {
     "drone",
     "NFT",
     "BNB Chain",
-    "Diia",
-    "KEP",
     "field passport",
   ],
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://dapp.hartolit-agro.com"),

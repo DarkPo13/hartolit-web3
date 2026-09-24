@@ -3,6 +3,7 @@ import { createPublicClient, http } from "viem";
 import { bsc, bscTestnet } from "viem/chains";
 import { HARTOLIT_PASSPORT_ABI } from "@/lib/contract";
 import { fetchJsonFromIpfs } from "@/lib/ipfs";
+import { fieldPassportPayloadSchema } from "@/lib/schemas";
 import type { FieldPassportPayload } from "@/types/passport";
 
 export const runtime = "nodejs";
@@ -34,7 +35,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ tokenId: s
       ),
     });
 
-    const [owner, tokenURI, payloadHash, farmerId] = await Promise.all([
+    const [owner, tokenURI, payloadHash] = await Promise.all([
       client.readContract({
         address: contractAddress,
         abi: HARTOLIT_PASSPORT_ABI,
@@ -53,17 +54,12 @@ export async function GET(_: Request, { params }: { params: Promise<{ tokenId: s
         functionName: "payloadHash",
         args: [tokenId],
       }),
-      client.readContract({
-        address: contractAddress,
-        abi: HARTOLIT_PASSPORT_ABI,
-        functionName: "farmerId",
-        args: [tokenId],
-      }),
     ]);
 
     let payload: FieldPassportPayload | null = null;
     try {
-      payload = await fetchJsonFromIpfs<FieldPassportPayload>(tokenURI as string);
+      const fetched = await fetchJsonFromIpfs<unknown>(tokenURI as string);
+      payload = fieldPassportPayloadSchema.parse(fetched) as FieldPassportPayload;
     } catch (e) {
       console.warn("[passport] IPFS fetch failed:", e);
     }
@@ -73,7 +69,6 @@ export async function GET(_: Request, { params }: { params: Promise<{ tokenId: s
       owner,
       tokenURI,
       payloadHash,
-      farmerId,
       chainId,
       contractAddress,
       payload,

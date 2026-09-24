@@ -5,6 +5,39 @@ import {Test, console2} from "forge-std/Test.sol";
 import {HartolitFieldPassport} from "../src/HartolitFieldPassport.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+
+contract ReentrantMinter is IERC721Receiver {
+    HartolitFieldPassport private immutable passport;
+    bytes32 private immutable hash;
+    bool public reentryRejected;
+
+    constructor(HartolitFieldPassport _passport, bytes32 _hash) {
+        passport = _passport;
+        hash = _hash;
+    }
+
+    function onERC721Received(address, address, uint256, bytes calldata) external returns (bytes4) {
+        require(msg.sender == address(passport), "unexpected sender");
+        (bool ok, bytes memory reason) = address(passport).call(
+            abi.encodeWithSelector(
+                passport.mintPassport.selector,
+                address(this),
+                hash,
+                "ipfs://second"
+            )
+        );
+        require(!ok && reason.length >= 4, "duplicate mint succeeded");
+
+        bytes4 selector;
+        assembly {
+            selector := mload(add(reason, 32))
+        }
+        require(selector == HartolitFieldPassport.DuplicatePayload.selector, "wrong reentry error");
+        reentryRejected = true;
+        return IERC721Receiver.onERC721Received.selector;
+    }
+}
 
 contract HartolitFieldPassportTest is Test {
     HartolitFieldPassport internal passport;
@@ -16,7 +49,6 @@ contract HartolitFieldPassportTest is Test {
 
     bytes32 internal constant HASH_A = keccak256("payload-a");
     bytes32 internal constant HASH_B = keccak256("payload-b");
-    string internal constant FARMER_ID = "12345678";
     string internal constant IPFS_URI = "ipfs://bafybeigdyrabc";
 
     event PassportMinted(
@@ -24,7 +56,6 @@ contract HartolitFieldPassportTest is Test {
         address indexed mintedBy,
         address indexed to,
         bytes32 payloadHash,
-        string farmerId,
         string ipfsUri
     );
 
@@ -59,16 +90,15 @@ contract HartolitFieldPassportTest is Test {
 
     function test_Mint_HappyPath() public {
         vm.expectEmit(true, true, true, true);
-        emit PassportMinted(1, admin, farmer, HASH_A, FARMER_ID, IPFS_URI);
+        emit PassportMinted(1, admin, farmer, HASH_A, IPFS_URI);
 
         vm.prank(admin);
-        uint256 tokenId = passport.mintPassport(farmer, HASH_A, FARMER_ID, IPFS_URI);
+        uint256 tokenId = passport.mintPassport(farmer, HASH_A, IPFS_URI);
 
         assertEq(tokenId, 1);
         assertEq(passport.ownerOf(1), farmer);
         assertEq(passport.tokenURI(1), IPFS_URI);
         assertEq(passport.payloadHash(1), HASH_A);
-        assertEq(passport.farmerId(1), FARMER_ID);
         assertEq(passport.hashToTokenId(HASH_A), 1);
         assertEq(passport.totalMinted(), 1);
         assertEq(passport.nextTokenId(), 2);
@@ -76,8 +106,8 @@ contract HartolitFieldPassportTest is Test {
 
     function test_Mint_IncrementsTokenIds() public {
         vm.startPrank(admin);
-        uint256 id1 = passport.mintPassport(farmer, HASH_A, "id-1", "ipfs://1");
-        uint256 id2 = passport.mintPassport(farmer, HASH_B, "id-2", "ipfs://2");
+        uint256 id1 = passport.mintPassport(farmer, HASH_A, "ipfs://1");
+        uint256 id2 = passport.mintPassport(farmer, HASH_B, "ipfs://2");
         vm.stopPrank();
 
         assertEq(id1, 1);
@@ -94,42 +124,52 @@ contract HartolitFieldPassportTest is Test {
             )
         );
         vm.prank(stranger);
-        passport.mintPassport(farmer, HASH_A, FARMER_ID, IPFS_URI);
+        passport.mintPassport(farmer, HASH_A, IPFS_URI);
     }
 
     function test_Mint_RevertsOnZeroAddressRecipient() public {
         vm.expectRevert(HartolitFieldPassport.ZeroAddress.selector);
         vm.prank(admin);
-        passport.mintPassport(address(0), HASH_A, FARMER_ID, IPFS_URI);
+        passport.mintPassport(address(0), HASH_A, IPFS_URI);
     }
 
     function test_Mint_RevertsOnZeroHash() public {
         vm.expectRevert(HartolitFieldPassport.ZeroPayloadHash.selector);
         vm.prank(admin);
-        passport.mintPassport(farmer, bytes32(0), FARMER_ID, IPFS_URI);
-    }
-
-    function test_Mint_RevertsOnEmptyFarmerId() public {
-        vm.expectRevert(HartolitFieldPassport.EmptyFarmerId.selector);
-        vm.prank(admin);
-        passport.mintPassport(farmer, HASH_A, "", IPFS_URI);
+        passport.mintPassport(farmer, bytes32(0), IPFS_URI);
     }
 
     function test_Mint_RevertsOnEmptyIpfsUri() public {
         vm.expectRevert(HartolitFieldPassport.EmptyIpfsUri.selector);
         vm.prank(admin);
-        passport.mintPassport(farmer, HASH_A, FARMER_ID, "");
+        passport.mintPassport(farmer, HASH_A, "");
     }
 
     function test_Mint_RevertsOnDuplicateHash() public {
         vm.prank(admin);
-        passport.mintPassport(farmer, HASH_A, FARMER_ID, IPFS_URI);
+        passport.mintPassport(farmer, HASH_A, IPFS_URI);
 
         vm.expectRevert(
             abi.encodeWithSelector(HartolitFieldPassport.DuplicatePayload.selector, HASH_A, 1)
         );
         vm.prank(admin);
-        passport.mintPassport(farmer, HASH_A, "other-id", "ipfs://other");
+        passport.mintPassport(farmer, HASH_A, "ipfs://other");
+    }
+
+    function test_Mint_RejectsDuplicateHashDuringReceiverCallback() public {
+        ReentrantMinter receiver = new ReentrantMinter(passport, HASH_A);
+        vm.prank(admin);
+        passport.grantRole(passport.MINTER_ROLE(), address(receiver));
+
+        vm.prank(admin);
+        uint256 tokenId = passport.mintPassport(address(receiver), HASH_A, IPFS_URI);
+
+        assertTrue(receiver.reentryRejected());
+        assertEq(tokenId, 1);
+        assertEq(passport.totalMinted(), 1);
+        assertEq(passport.hashToTokenId(HASH_A), tokenId);
+        assertEq(passport.payloadHash(tokenId), HASH_A);
+        assertEq(passport.tokenURI(tokenId), IPFS_URI);
     }
 
     function test_Mint_RevertsWhenPaused() public {
@@ -138,7 +178,7 @@ contract HartolitFieldPassportTest is Test {
 
         vm.expectRevert(HartolitFieldPassport.ContractPaused.selector);
         vm.prank(admin);
-        passport.mintPassport(farmer, HASH_A, FARMER_ID, IPFS_URI);
+        passport.mintPassport(farmer, HASH_A, IPFS_URI);
     }
 
     // ---------------------------------------------------------------------
@@ -147,7 +187,7 @@ contract HartolitFieldPassportTest is Test {
 
     function test_Transfer_Reverts() public {
         vm.prank(admin);
-        passport.mintPassport(farmer, HASH_A, FARMER_ID, IPFS_URI);
+        passport.mintPassport(farmer, HASH_A, IPFS_URI);
 
         vm.expectRevert(HartolitFieldPassport.PassportsAreSoulbound.selector);
         vm.prank(farmer);
@@ -156,7 +196,7 @@ contract HartolitFieldPassportTest is Test {
 
     function test_SafeTransfer_Reverts() public {
         vm.prank(admin);
-        passport.mintPassport(farmer, HASH_A, FARMER_ID, IPFS_URI);
+        passport.mintPassport(farmer, HASH_A, IPFS_URI);
 
         vm.expectRevert(HartolitFieldPassport.PassportsAreSoulbound.selector);
         vm.prank(farmer);
@@ -171,7 +211,7 @@ contract HartolitFieldPassportTest is Test {
         assertFalse(passport.isPayloadMinted(HASH_A));
 
         vm.prank(admin);
-        passport.mintPassport(farmer, HASH_A, FARMER_ID, IPFS_URI);
+        passport.mintPassport(farmer, HASH_A, IPFS_URI);
 
         assertTrue(passport.isPayloadMinted(HASH_A));
         assertFalse(passport.isPayloadMinted(HASH_B));
@@ -179,7 +219,7 @@ contract HartolitFieldPassportTest is Test {
 
     function test_VerifyPayload_True() public {
         vm.prank(admin);
-        passport.mintPassport(farmer, HASH_A, FARMER_ID, IPFS_URI);
+        passport.mintPassport(farmer, HASH_A, IPFS_URI);
 
         assertTrue(passport.verifyPayload(1, HASH_A));
         assertFalse(passport.verifyPayload(1, HASH_B));
@@ -224,7 +264,7 @@ contract HartolitFieldPassportTest is Test {
         passport.grantRole(passport.MINTER_ROLE(), minter);
 
         vm.prank(minter);
-        uint256 tokenId = passport.mintPassport(farmer, HASH_A, FARMER_ID, IPFS_URI);
+        uint256 tokenId = passport.mintPassport(farmer, HASH_A, IPFS_URI);
         assertEq(tokenId, 1);
     }
 
@@ -253,8 +293,8 @@ contract HartolitFieldPassportTest is Test {
         vm.assume(hashA != hashB);
 
         vm.startPrank(admin);
-        uint256 id1 = passport.mintPassport(farmer, hashA, "f1", "ipfs://a");
-        uint256 id2 = passport.mintPassport(farmer, hashB, "f2", "ipfs://b");
+        uint256 id1 = passport.mintPassport(farmer, hashA, "ipfs://a");
+        uint256 id2 = passport.mintPassport(farmer, hashB, "ipfs://b");
         vm.stopPrank();
 
         assertEq(id1, 1);

@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { HARTOLIT_PASSPORT_ABI } from "@/lib/contract";
 import { fetchJsonFromIpfs } from "@/lib/ipfs";
 import { canonicalize, sha256Hex } from "@/lib/hash";
+import { fieldPassportPayloadSchema } from "@/lib/schemas";
 import { VerifyDisplay } from "./VerifyDisplay";
 import type { FieldPassportPayload } from "@/types/passport";
 
@@ -44,7 +45,7 @@ async function loadPassport(tokenIdStr: string) {
   });
 
   try {
-    const [owner, tokenURI, payloadHash, farmerId] = await Promise.all([
+    const [owner, tokenURI, payloadHash] = await Promise.all([
       client.readContract({
         address: contractAddress,
         abi: HARTOLIT_PASSPORT_ABI,
@@ -63,19 +64,14 @@ async function loadPassport(tokenIdStr: string) {
         functionName: "payloadHash",
         args: [tokenId],
       }),
-      client.readContract({
-        address: contractAddress,
-        abi: HARTOLIT_PASSPORT_ABI,
-        functionName: "farmerId",
-        args: [tokenId],
-      }),
     ]);
 
     let payload: FieldPassportPayload | null = null;
     let computedHash: string | null = null;
     let hashesMatch = false;
     try {
-      payload = await fetchJsonFromIpfs<FieldPassportPayload>(tokenURI as string);
+      const fetched = await fetchJsonFromIpfs<unknown>(tokenURI as string);
+      payload = fieldPassportPayloadSchema.parse(fetched) as FieldPassportPayload;
       computedHash = `0x${await sha256Hex(canonicalize(payload))}`;
       hashesMatch = computedHash.toLowerCase() === (payloadHash as string).toLowerCase();
     } catch (e) {
@@ -87,7 +83,6 @@ async function loadPassport(tokenIdStr: string) {
       owner: owner as `0x${string}`,
       tokenURI: tokenURI as string,
       payloadHash: payloadHash as `0x${string}`,
-      farmerId: farmerId as string,
       chainId,
       contractAddress,
       payload,

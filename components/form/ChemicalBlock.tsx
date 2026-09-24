@@ -7,11 +7,10 @@ import { FlaskConical, Building2, Hash } from "lucide-react";
 import { BlockCard } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { FileUpload } from "@/components/ui/FileUpload";
-import { DiiaBlock } from "@/components/diia/DiiaBlock";
 import { useWizardStore } from "@/lib/store";
 import { useT } from "@/lib/i18n/context";
-import { chemicalSchema, type ChemicalFormValues } from "@/lib/schemas";
-import type { FileRef, DiiaSignatureRef } from "@/types/passport";
+import { chemicalSchema, type ChemicalFormInput, type ChemicalFormValues } from "@/lib/schemas";
+import type { FileRef } from "@/types/passport";
 
 interface ChemicalBlockProps {
   open?: boolean;
@@ -19,9 +18,10 @@ interface ChemicalBlockProps {
   done?: boolean;
   summary?: string;
   editLabel?: string;
+  allowUpload?: boolean;
 }
 
-export function ChemicalBlock({ open, onToggle, done, summary, editLabel }: ChemicalBlockProps = {}) {
+export function ChemicalBlock({ open, onToggle, done, summary, editLabel, allowUpload = true }: ChemicalBlockProps = {}) {
   const chemical = useWizardStore((s) => s.chemical);
   const setChemical = useWizardStore((s) => s.setChemical);
   const t = useT();
@@ -30,7 +30,7 @@ export function ChemicalBlock({ open, onToggle, done, summary, editLabel }: Chem
     register,
     formState: { errors },
     watch,
-  } = useForm<ChemicalFormValues>({
+  } = useForm<ChemicalFormInput, unknown, ChemicalFormValues>({
     resolver: zodResolver(chemicalSchema),
     mode: "onBlur",
     defaultValues: {
@@ -53,13 +53,12 @@ export function ChemicalBlock({ open, onToggle, done, summary, editLabel }: Chem
   }, [watch, setChemical]);
 
   const fileRef = chemical.chemFile;
-  const signature = chemical.supplierSignature;
 
   return (
     <BlockCard
       number="04"
       title={t.chemical.blockTitle}
-      hint={t.chemical.blockHint}
+      hint={allowUpload ? t.chemical.blockHint : t.drafts.chemicalHint}
       open={open}
       onToggle={onToggle}
       done={done}
@@ -125,27 +124,13 @@ export function ChemicalBlock({ open, onToggle, done, summary, editLabel }: Chem
       </div>
 
       <div className="mt-5 space-y-4">
-        <FileUpload
+        {allowUpload ? <FileUpload
           label={t.chemical.docLabel}
           hint={t.chemical.docHint}
           accept=".pdf,.jpg,.jpeg,.png"
           value={fileRef}
-          onChange={(f: FileRef | null) =>
-            setChemical({ chemFile: f ?? undefined, supplierSignature: undefined })
-          }
-        />
-
-        <DiiaBlock
-          role="supplier"
-          documentFilename={fileRef?.filename ?? "документ закупівлі"}
-          documentSha256={fileRef?.sha256 ?? ""}
-          signerName={chemical.supplierName ?? "Постачальник"}
-          signerEdrpou={chemical.supplierEdrpou}
-          signature={signature}
-          onSigned={(sig: DiiaSignatureRef) => setChemical({ supplierSignature: sig })}
-          disabled={!fileRef}
-          disabledReason={!fileRef ? t.diia.supplierPending : undefined}
-        />
+          onChange={(f: FileRef | null) => setChemical({ chemFile: f ?? undefined })}
+        /> : <p className="text-xs text-ink-muted">{t.drafts.evidenceLater}</p>}
       </div>
     </BlockCard>
   );

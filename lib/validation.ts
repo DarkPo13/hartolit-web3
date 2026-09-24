@@ -16,10 +16,8 @@ export type MissingKey =
   | "farmer"
   | "treatment"
   | "meteoData"
-  | "pilotSignature"
   | "chemical"
-  | "chemFile"
-  | "supplierSignature";
+  | "chemFile";
 
 interface WizardLikeState {
   farmer: Partial<FarmerBlockData>;
@@ -42,18 +40,12 @@ export function isTreatmentComplete(treatment: Partial<TreatmentBlockData>): boo
 }
 
 export function isMeteoComplete(meteo: Partial<MeteoBlockData>): boolean {
-  return (
-    !!meteo.meteoFile &&
-    meteoDataSchema.safeParse(meteo.meteoData).success &&
-    !!meteo.pilotSignature
-  );
+  return !!meteo.meteoFile && meteoDataSchema.safeParse(meteo.meteoData).success;
 }
 
 export function isChemicalComplete(chemical: Partial<ChemicalBlockData>): boolean {
   return (
-    chemicalSchema.safeParse(chemical).success &&
-    !!chemical.chemFile &&
-    !!chemical.supplierSignature
+    chemicalSchema.safeParse(chemical).success && !!chemical.chemFile
   );
 }
 
@@ -67,10 +59,8 @@ export function isStep1Complete(state: WizardLikeState): Step1Status {
     !meteoDataSchema.safeParse(state.meteo.meteoData).success
   )
     missing.push("meteoData");
-  if (!state.meteo.pilotSignature) missing.push("pilotSignature");
   if (!chemicalSchema.safeParse(state.chemical).success) missing.push("chemical");
   if (!state.chemical.chemFile) missing.push("chemFile");
-  if (!state.chemical.supplierSignature) missing.push("supplierSignature");
 
   return { complete: missing.length === 0, missing };
 }
@@ -82,20 +72,30 @@ export function buildPayload(state: WizardLikeState): FieldPassportPayload {
   const chemical = chemicalSchema.parse(state.chemical);
 
   if (!state.meteo.meteoFile) throw new Error("Meteo file missing");
-  if (!state.meteo.pilotSignature) throw new Error("Pilot KEP signature missing");
   if (!state.chemical.chemFile) throw new Error("Chemical document missing");
-  if (!state.chemical.supplierSignature) throw new Error("Supplier KEP signature missing");
 
   return {
-    ...farmer,
-    ...treatment,
-    meteoFile: state.meteo.meteoFile,
-    meteoData,
-    pilotSignature: state.meteo.pilotSignature,
-    ...chemical,
-    chemFile: state.chemical.chemFile,
-    supplierSignature: state.chemical.supplierSignature,
-    timestamp: new Date().toISOString(),
+    schema: "hartolit.field-passport.public",
     version: "1.0.0",
+    issuedAt: new Date().toISOString(),
+    farmer,
+    treatment: {
+      ...treatment,
+    },
+    meteo: {
+      file: state.meteo.meteoFile,
+      data: meteoData,
+    },
+    chemical: {
+      product: chemical.chemical,
+      activeSubstance: chemical.chemicalActive,
+      dosePerHa: chemical.dose,
+      workingVolumeLitresPerHa: chemical.workingVolume,
+      manufacturer: chemical.manufacturer,
+      registrationNumber: chemical.regNumber,
+      supplierName: chemical.supplierName,
+      supplierEdrpou: chemical.supplierEdrpou,
+      file: state.chemical.chemFile,
+    },
   };
 }

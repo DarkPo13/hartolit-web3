@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { sha256Hex } from "@/lib/hash";
+import { DEMO_WRITE_UNAVAILABLE, isDemoMode } from "@/lib/demo-mode";
+import { requireWriteAccess } from "@/lib/auth-guard";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -24,6 +26,13 @@ const ALLOWED_TYPES = new Set([
  * keyed by the hash so the client can still reference the file.
  */
 export async function POST(req: NextRequest) {
+  const denied = await requireWriteAccess(req);
+  if (denied) return denied;
+
+  if (!isDemoMode()) {
+    return NextResponse.json({ error: DEMO_WRITE_UNAVAILABLE }, { status: 503 });
+  }
+
   try {
     const formData = await req.formData();
     const file = formData.get("file");

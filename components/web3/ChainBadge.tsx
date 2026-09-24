@@ -1,15 +1,15 @@
 "use client";
 
-import { TARGET_CHAIN } from "@/lib/wagmi";
 import { Badge } from "@/components/ui/Badge";
 
 export function ChainBadge() {
-  const isTestnet = TARGET_CHAIN.id !== 56;
+  const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 97);
+  const isTestnet = chainId !== 56;
   return (
     <Badge tone={isTestnet ? "warning" : "success"} className="gap-2">
       <span className="pulse-dot" aria-hidden />
       <span className="hash-mono">
-        {TARGET_CHAIN.name} · chainId {TARGET_CHAIN.id}
+        {isTestnet ? "BNB Smart Chain Testnet" : "BNB Smart Chain"} · chainId {chainId}
       </span>
     </Badge>
   );
