@@ -113,6 +113,9 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - **2026-09-24 — `npm run build` was run while the user's `next dev` server was running.** Why this was safe: the bundled Next.js 16 CLI docs say dev output goes to `.next/dev`, so dev and build can run concurrently (`node_modules/next/dist/docs/01-app/03-api-reference/06-cli/next.md`).
 - **2026-09-24 — The smokes were run against the already-running `next dev` server.** Why valid: that server serves the working tree, which was clean at `a4154a1` when the smokes ran, so the results describe that commit.
 - **2026-09-24 — Two preferences from a local AI memory store were not written into the repository.** "Ignore `prototype.html`" is obsolete: the user confirmed no such file exists. "Always upgrade to the latest stable version" was not confirmed as a repository rule (Q5), and it would interact with D10's pin.
+- **2026-09-25 — Record editing is draft-only and advances linked passport versions (D18).** Why: farmer and field rows are shared by passports; editing them after submission would change the reviewed record. Archive and restore preserve completed historical content, and a rejected passport cannot reopen while its records are archived.
+- **2026-09-25 — Operator invitations and access changes use audited routes (D19).** Why: Better Auth's mutating admin plugin paths did not create `AdminAction` rows; the console now creates only operator accounts with unknown random passwords and setup email, and disabling one revokes sessions. Admin roles stay with CLI setup and MFA.
+- **2026-09-25 — CI uses Mailpit STARTTLS with a trusted temporary certificate (D20).** Why: the production server requires TLS for SMTP, and the plain local Mailpit default does not provide it. Testing the production path keeps the TLS requirement intact.
 
 ---
 
@@ -125,11 +128,11 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 | Q3 | Who is the initial admin, and who may publish Testnet records? | User | **Yes** for Phase 5. No otherwise |
 | Q4 | Should `docs/DATABASE_AUTH_ADMIN_PLAN.md` and `docs/MVP_RELEASE_PLAN.md` be tracked in git (a `.gitignore` exception) or stay private? | User | No; the essentials are mirrored in STATE and DECISIONS |
 | Q5 | Should "prefer the latest stable version of dependencies" be a repository rule? | User | No |
-| Q6 | Which JS test harness? `node --test` with the existing `jiti` needs no new dependency. | AI decides, user controls | **Yes** for closing S2 |
+| Q6 | Settled 2026-09-24: use `node --test` with the existing `jiti`; no new dependency. | AI decides, user controls | No; S2 closed locally and in CI |
 
-## Blockers
+## Blockers from the 2026-09-24 snapshot (B1 resolved; B2 open)
 
-- **B1 — CI red (S1, F2).** Unblocking requires the failing test's output: from the run 35979500952 log (repository-admin login) or from a local Foundry run. **Must NOT be done instead:**
+- **B1 — Resolved 2026-09-25 (S1, F2).** The original failure was reproduced and fixed locally; later clean CI runs passed. The original unblocking requirement was the failing test's output, from run 35979500952 or a local Foundry run. The following shortcuts were rejected:
   - deleting or skipping the failing test, or filtering it with `--no-match-test`
   - making the CI step non-blocking
   - reporting the contract as done because `forge build` succeeded
@@ -160,3 +163,24 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - [GitHub Actions CI run 36107136075](https://github.com/DarkPo13/hartolit-web3/actions/runs/36107136075) on `0a7764cd46018bad285f6493f51c65472d1a2a2d` completed `success` on 2026-09-25. Both `contract` and `web` jobs completed successfully. This closes S1 for that code commit; historical run 35979500952 on `a4154a1` remains failed.
 - Local Windows 11 checks on 2026-09-25: `npm run lint` exit 0, `npm run typecheck` exit 0, `npm run test:hash` 2/2, and the ABI comparison exits 0 for 21 entries. The temporary Foundry binary from 2026-09-24 was unavailable, so the contract suite was not rerun locally on 2026-09-25; the clean CI contract job is the authoritative new result. The production build and auth smoke results remain those measured on 2026-09-24.
 - Remaining gates: Phase 4 browser/keyboard/mobile acceptance (S4), Phase 3 hosted storage and restore (S7), and user decisions Q1–Q3 before controlled publication. No hosted app or contract deployment is claimed.
+
+---
+
+## 2026-09-25 — Phase 4 local completion on the uncommitted working tree
+
+- **S4 and S5 closed locally:** Added draft-only admin farmer/field editing with version increments and passport audit rows, archive/restore for completed records, duplicate warnings, operator invitation with unknown random password plus setup email, disable/enable and session revocation, a separate `AdminAction` audit, record search and UTC date filters. Mutating Better Auth admin plugin routes now return 404 so browser clients cannot bypass the audit path. Admin role creation/change stays outside the console; publication remains read-only. See D9 and D18–D19.
+- **Migration:** `20260925090000_phase4_admin_actions` creates `AdminAction` and extends `AuditAction`. `npm run db:deploy` exited 0 against the local PostgreSQL database; the migration has not run in CI or hosted infrastructure.
+- **Local validation, Windows 11, 2026-09-25:** `npm run db:generate`, `npm run lint`, `npm run typecheck`, and `npm run build` exited 0; the production build listed 37 routes. The first build attempt hit sandbox `spawn EPERM` after TypeScript compilation; the approved rerun exited 0. `npm run review:smoke` and `npm run auth:smoke` exited 0 after the final backend changes. The expanded smokes assert conflict handling, submitted-record immutability, audit/date filtering, invitation email and password setup, operator disable/enable and session revocation. Fixtures and Mailpit messages were removed.
+- **Browser pass:** The in-app browser still rejected its runtime dependency as untrusted. A separate temporary local Chrome profile rendered the admin console at desktop and 390px, switched Ukrainian/English, opened and edited a farmer through the form, checked keyboard navigation, empty/list/error states, and opened the invitation/audit tabs. No horizontal overflow at 390px. Temporary browser profile, screenshots, scripts and fictional fixture accounts were removed. This is not a real-device or hosted pass.
+- **CI boundary:** `.github/workflows/ci.yml` now includes Mailpit and `auth:smoke`, but no clean-runner result covers these uncommitted Phase 4 changes. The last verified pushed code result remains CI run 36107136075 on `0a7764c`.
+- **Open release gates:** Q1–Q3 (public-field scope, providers, Testnet publisher), hosted Phase 3 storage and backup/restore (S7), and hosted/real-device acceptance (S9). No real customer data, IPFS publication, contract deployment or Diia claim is authorized by this local pass.
+
+---
+
+## 2026-09-25 — Phase 4 pushed and clean CI verified
+
+- Implementation commit `da38758` was pushed. [CI run 36122301671](https://github.com/DarkPo13/hartolit-web3/actions/runs/36122301671) passed the contract job but failed the web job at the shared live-smoke step; earlier lint, typecheck, hash, build, migration and service setup steps passed. The detailed log API returned 403 because repository admin rights are required, so the exact failed assertion was not readable.
+- The production mailer requires STARTTLS, while default Mailpit advertises none. Local Nodemailer verification against default Mailpit failed with `ETLS`; against a temporary Mailpit service with STARTTLS and a trusted test certificate it passed. This supported the CI diagnosis without weakening the production mailer. The temporary service and certificate were removed.
+- Follow-up commit `513bf88` configures Mailpit STARTTLS in CI and trusts its generated certificate for `next start`. [CI run 36123487787](https://github.com/DarkPo13/hartolit-web3/actions/runs/36123487787) completed **success** on 2026-09-25 with both `web` and `contract` jobs passing. The web job includes the four live smokes, `db:deploy`, lint, typecheck, hash, build and dependency audit. The contract job includes Foundry build, 22 tests and the ABI comparison.
+- Handoff checks on Windows 11, 2026-09-25: lint, typecheck, hash tests, build (37 routes), Prisma validate and migration status (seven migrations), and each draft/evidence/review/auth smoke exited 0. CI YAML parsed successfully; `git diff --check` exited 0. A one-line UI error-state correction was typechecked and passed in the clean CI run. No hosted, real-device, backup/restore, publication, contract deployment or Diia acceptance is claimed.
+- The tracked README, PROJECT, STATE, DECISIONS, AGENTS and PROGRESS files carry the handoff. The two full plans in gitignored `docs/` remain local by D12; Q4 is still the user's choice. Check the current HEAD's CI separately after the documentation commit.

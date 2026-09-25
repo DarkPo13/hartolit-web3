@@ -72,11 +72,11 @@ Current results, with dates and the machine they were taken on, live only in `.a
 | `npx prisma validate` | nothing | Whether a database matches the migrations. |
 | `npx prisma migrate status` | running PostgreSQL, `DATABASE_URL` | Whether the code uses the schema correctly. |
 | `npm run drafts:smoke`, `npm run evidence:smoke`, `npm run review:smoke` | PostgreSQL, SeaweedFS and ClamAV (`compose.yaml`), migrations applied, the app running on `http://localhost:3000` | Browser UI, keyboard and mobile; hosted storage; backup and restore. |
-| `npm run auth:smoke` | as above, plus Mailpit (`npm run dev:services:up`) | Not run by CI. |
+| `npm run auth:smoke` | as above, plus Mailpit (`npm run dev:services:up`) | Browser UI and hosted email delivery. Runs in CI with Mailpit. |
 | `npm run test:hash` | `npm ci` | Browser-specific crypto behavior or real IPFS and chain storage. |
 | `npm run contracts:build`, `npm run contracts:test` | Foundry, plus `forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.6.0 foundry-rs/forge-std@v1.16.1` run inside `contracts/` (`contracts/lib/` is gitignored) | Whether the hand-written ABI in `lib/contract.ts` matches the contract; the separate ABI check covers its declared subset. |
 | `node --experimental-strip-types scripts/check-contract-abi.mjs` | Node 24+, compiled Foundry artifact at `contracts/out/` | Whether the app declares every compiled function; it checks the 21 entries actually declared in `lib/contract.ts`. |
-| CI, `.github/workflows/ci.yml` (on every push) | a push to GitHub | Runs lint, typecheck, hash tests, build, `db:deploy`, the drafts/evidence/review smokes, `npm audit --omit=dev --audit-level=high`, ABI comparison, and forge build + test. Does not run `auth:smoke`, browser checks, or anything hosted. |
+| CI, `.github/workflows/ci.yml` (on every push) | a push to GitHub | Runs lint, typecheck, hash tests, build, `db:deploy`, the drafts/evidence/review/auth smokes, `npm audit --omit=dev --audit-level=high`, ABI comparison, and forge build + test. Does not run browser checks or anything hosted. |
 
 Habits:
 

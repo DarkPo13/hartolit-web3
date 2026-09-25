@@ -56,11 +56,11 @@ Ids are never reused. To retract an entry, strike it through in place with the d
 - **Source:** `app/api/auth/[...all]/route.ts`, comment "Expire every earlier session, including that new cookie, so the next login proves both factors."
 - **Check:** smoke assertion `smoke-auth` → "enrollment revokes old sessions".
 
-### D9 — Only four Better Auth admin operations are reachable
-- **Wrong move prevented:** exposing the rest of the admin plugin (for example impersonation or role changes) through the catch-all route.
-- **Source:** `app/api/auth/[...all]/route.ts`: an allowlist of list, create, ban and unban user; everything else under `/api/auth/admin/` returns 404.
-- **Why:** not recorded beyond the 404 message "This admin operation is not available yet".
-- **Check:** the allowlist has 4 entries (count the `"GET /api/auth/admin/` and `"POST /api/auth/admin/` strings in that file). Smoke assertion `smoke-auth` → "unsafe admin operation remains unavailable".
+### D9 — Only the read-only Better Auth admin user list is reachable
+- **Wrong move prevented:** exposing mutating plugin routes that bypass the Phase 4 `AdminAction` audit, or impersonation and role changes.
+- **Source:** `app/api/auth/[...all]/route.ts`: the allowlist contains only `GET /api/auth/admin/list-users`; everything else under `/api/auth/admin/` returns 404. Audited operator actions use `app/api/admin/users/`.
+- **Why:** the Phase 4 console must attribute each account change and keep role changes outside this MVP UI.
+- **Check:** the allowlist has 1 entry (count the `"GET /api/auth/admin/` and `"POST /api/auth/admin/` strings in that file). Smoke assertion `smoke-auth` → "unaudited create-user endpoint unavailable".
 
 ### D10 — Prisma ORM 7 is pinned, not 8
 - **Wrong move prevented:** a routine "upgrade to latest" onto Prisma 8.
@@ -85,10 +85,10 @@ Ids are never reused. To retract an entry, strike it through in place with the d
 - **Source:** `lib/evidence/service.ts`: after a direct upload it re-reads the object and checks size, content type, SHA-256 and magic bytes (`validFileContent`), runs the ClamAV scan, then checks the final object metadata.
 - **Check:** `grep -c "validFileContent(bytes, file.filename)" lib/evidence/service.ts` = 1. Smoke assertions `smoke-evidence` → "hash mismatch rejected", "malware test signature rejected".
 
-### D14 — Every passport mutation is a version-checked conditional update
+### D14 — Passport content and status changes are version-checked conditional updates
 - **Wrong move prevented:** replacing `updateMany({ where: { …, version } })` with a plain `update`. That silently loses concurrent edits and review decisions.
-- **Source:** `lib/drafts/service.ts`, `lib/review/service.ts`, `lib/drafts/lock.ts` (comment: "The passport row is the serialization point for edits, evidence changes, and submission.").
-- **Check:** `grep -c "version: { increment: 1 }"` gives 1 in `lib/drafts/service.ts` and 4 in `lib/review/service.ts`. Smoke assertions: `smoke-drafts` → "stale version rejected", "concurrent writes serialize"; `smoke-review` → "stale assignment rejected".
+- **Source:** `lib/drafts/service.ts`, `lib/review/service.ts`, `lib/review/management.ts`, `lib/drafts/lock.ts` (comment: "The passport row is the serialization point for edits, evidence changes, and submission."). Evidence and archival operations can touch `updatedAt` to lock that row without changing the content version.
+- **Check:** `grep -c "version: { increment: 1 }"` gives 1 in `lib/drafts/service.ts`, 4 in `lib/review/service.ts`, and 1 in `lib/review/management.ts`. Smoke assertions: `smoke-drafts` → "stale version rejected", "concurrent writes serialize"; `smoke-review` → "stale assignment rejected" and "admin edit invalidated operator draft version".
 
 ### D15 — Only the assigned reviewer can decide a passport
 - **Wrong move prevented:** letting any MFA admin approve or reject. A reviewer must first assign the passport to themselves.
@@ -107,3 +107,21 @@ Ids are never reused. To retract an entry, strike it through in place with the d
 - **Source:** `lib/hash.ts` `canonicalize`; `tests/hash.test.mjs`.
 - **Why:** minting and verification are separated by JSON storage and retrieval. The hash must describe the serialized value that can actually be published and fetched.
 - **Check:** `npm run test:hash` asserts canonical bytes and SHA-256 equality before and after a JSON round-trip; it failed against the earlier implementation on 2026-09-24.
+
+### D18 — Admin edits are draft-only and advance every linked passport version
+- **Wrong move prevented:** editing farmer or field rows while a submitted or reviewed passport references them. That would silently change data after review.
+- **Source:** `lib/review/management.ts` `editRecord` and `archiveRecord`; `lib/review/service.ts` `reopenPassport` checks archived records.
+- **Why:** farmer and field rows are shared references inside a passport. A completed record can be archived without altering its historical content, but must be restored before a rejected or correction-requested passport can reopen.
+- **Check:** `npm run review:smoke` asserts admin edits invalidate an operator's draft version, submitted details reject edits, submitted records reject archive, and completed records archive and restore with audit entries.
+
+### D19 — Operator access changes use audited routes; admin roles stay outside the console
+- **Wrong move prevented:** calling Better Auth's exposed create/ban/unban plugin routes from the browser, adding role changes to the UI, or sending a known temporary password to an invited operator.
+- **Source:** `app/api/auth/[...all]/route.ts`, `app/api/admin/users/`, `lib/review/management.ts`, `AdminAction` in `prisma/schema.prisma`.
+- **Why:** an invitation gives only the operator role, uses a random unknown password, and requests a password setup email. Disabling an operator also revokes their sessions. Admin accounts still require CLI setup and MFA.
+- **Check:** `npm run auth:smoke` verifies invite email, password setup, denied plugin bypass, disable/enable, session revocation, and four admin action rows.
+
+### D20 — CI verifies the production SMTP STARTTLS requirement
+- **Wrong move prevented:** weakening `lib/reset-email.ts` production TLS enforcement to make a plain Mailpit service pass.
+- **Source:** `.github/workflows/ci.yml` configures Mailpit with an auto-generated `localhost` certificate and required STARTTLS, then trusts that test certificate for the `next start` process. No private key is committed. [Mailpit's SMTP documentation](https://mailpit.axllent.org/docs/configuration/smtp/) describes its plain default and STARTTLS configuration; [certificate documentation](https://mailpit.axllent.org/docs/configuration/certificates/) describes `sans:localhost`.
+- **Why:** the CI smoke runs against a production server. Default Mailpit does not advertise STARTTLS, but the production mailer requires it. The first Phase 4 CI web smoke failed; its detailed log required repository admin rights, so this is an evidence-backed diagnosis rather than a quoted assertion from that run.
+- **Check:** local Nodemailer `requireTLS` verification failed with `ETLS` against default Mailpit and passed with a trusted temporary STARTTLS Mailpit certificate. [CI run 36123487787](https://github.com/DarkPo13/hartolit-web3/actions/runs/36123487787) passed the web and contract jobs after the fix, including `auth:smoke`.

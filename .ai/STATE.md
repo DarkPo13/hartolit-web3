@@ -2,7 +2,7 @@
 
 - **Last updated:** 2026-09-25
 - **Branch:** `master`
-- ~~**HEAD:** `a4154a1`, with the release-check changes uncommitted.~~ **2026-09-25:** The validated code commit is `0a7764c` ("Fix contract test setup and harden release checks"), pushed to `origin/master`. This handoff update changes documentation only; use `git log -1` for its final HEAD.
+- **Phase 4 code:** `da38758` (implementation) and `513bf88` (CI STARTTLS), pushed to `master`. Use `git log -1` for the latest handoff commit.
 
 Rules for this file:
 - It is a frontier, not a log. Keep it under about 250 lines; move history to `PROGRESS.md`.
@@ -13,9 +13,7 @@ Rules for this file:
 
 ## Current goal
 
-*Inferred from repository evidence (commit `a4154a1`, README "Release status", the phased plan), not a standing instruction:*
-
-~~Get `master` CI green (the last pushed Foundry run failed; S1).~~ **Completed 2026-09-25:** CI run 36107136075 passed both jobs on `0a7764c`. Next, finish Phase 4 browser acceptance and settle the Phase 0 decisions that gate Phase 5, controlled publication. No real customer data until the hosting, privacy, backup and release gates pass.
+**User request 2026-09-25:** Complete Phase 4, then prepare handoff and push. The local workflow, management and headless browser checks passed, and [CI run 36123487787](https://github.com/DarkPo13/hartolit-web3/actions/runs/36123487787) passed both jobs on `513bf88`. Next, settle the Phase 0 decisions that gate Phase 5 controlled publication and the hosted release. No real customer data until hosting, privacy, backup and release gates pass.
 
 ## Phases
 
@@ -24,10 +22,10 @@ This table is the committed summary of the phased plan, whose full text is gitig
 | Phase | Scope | State on 2026-09-25 |
 |---|---|---|
 | 0 | Approve the boundary: public-field allowlist, retention, providers and regions, who may publish | Open. Decisions Q1–Q3 |
-| 1 | Accounts, DB sessions, admin TOTP, password reset, invite-only | Built. `auth:smoke` passed locally on 2026-09-24 |
+| 1 | Accounts, DB sessions, admin TOTP, password reset, invite-only | Built. `auth:smoke` passed locally and in CI on 2026-09-25 |
 | 2 | Durable owner-scoped drafts, optimistic concurrency, audit | Built. `drafts:smoke` exit 0 locally and in CI |
 | 3 | Private evidence: direct upload, integrity checks, ClamAV, expiring links | Built locally. `evidence:smoke` exit 0 locally and in CI. Hosted gate open (S7) |
-| 4 | Submit / assign / decide / reopen; admin console | Workflow built; `review:smoke` exit 0 locally and in CI. Admin record editing and invitations not built (S5). Browser acceptance not done (S4) |
+| 4 | Submit / assign / decide / reopen; admin console | Local pass 2026-09-25. Draft-only record edits, archive/restore, operator invitation/access controls, audit filters, API smokes, desktop and 390px Chrome pass. Hosted/real-device acceptance remains a release gate |
 | 5 | Controlled publication from an allowlisted public snapshot | Not started. Blocked by Q1 and Q3 |
 | 6 | Release hardening, hosted Testnet pilot | Not started |
 
@@ -35,38 +33,33 @@ This table is the committed summary of the phased plan, whose full text is gitig
 
 | Id | Item | Detail lives in | Unblocked by |
 |---|---|---|---|
-| S4 | Phase 4 UI has had no browser, keyboard or mobile acceptance pass. Browser connection failed because its runtime code path was not trusted. | README → "Current Status", Phase 4 row | A working browser connection, or a human acceptance pass |
-| S5 | Admin record editing and user invitations not built | README → "Phased application architecture" | A scoped design approved by the user (AI proposes, user controls) |
 | S6 | Phase 0 decisions | PROGRESS → Open questions Q1–Q3 | User decision |
 | S7 | Phase 3 hosted gate: managed bucket and scanner, hosted auth and expiry checks, matched DB + object backup/restore | README → "Local Setup" §2, last paragraph | Q2 (hosting and provider choice) |
 | S8 | The phased plan and release plan exist only in gitignored `docs/` | D12; PROGRESS Q4 | User: track those two files, or keep them private (their essentials are mirrored here and in DECISIONS) |
+| S9 | Hosted and real-device release acceptance for Phase 4 and the complete MVP | README → "Current Status" | Q2 and a deployed test environment for Phase 4; Q1/Q3 and Phase 5 for full MVP |
 
-S1 closed on 2026-09-25: [CI run 36107136075](https://github.com/DarkPo13/hartolit-web3/actions/runs/36107136075) completed with both `contract` and `web` jobs successful on `0a7764c`. Earlier run 35979500952 remains a failed historical result for `a4154a1`.
+S4 and S5 closed locally on 2026-09-25. The in-app browser still could not connect; a separate headless local Chrome pass covered rendered UI, keyboard navigation, English/Ukrainian text, record editing, empty/error states and a 390px viewport. The operator invite and access flows passed local API and Mailpit checks.
+
+S1 closed on 2026-09-25. The current Phase 4 code passed [CI run 36123487787](https://github.com/DarkPo13/hartolit-web3/actions/runs/36123487787) on `513bf88`. The first Phase 4 push, `da38758`, failed its web smoke step; D20 and PROGRESS record the CI correction. Check the run for any later HEAD separately.
 
 ## Current validation status
 
-All runs were unpiped, reading the command's own exit status.
-- "Local" = Windows 11, Node 26.1.0, npm 11.13.0, Docker 29.7.2. A portable Foundry binary was used on 2026-09-24 from a temporary directory; it was not installed system-wide and was unavailable on 2026-09-25. PostgreSQL, SeaweedFS, ClamAV, and Mailpit were running from `compose.yaml` on 2026-09-24. The earlier smokes ran against a clean `a4154a1`; the release checks describe `0a7764c`.
-- "CI" = GitHub-hosted `ubuntu-latest`, Node 24, run 36107136075 on `0a7764c`, completed **success** on 2026-09-25. Both jobs passed. The separate handoff commit changes documentation only; check GitHub Actions for its own CI result.
+All local runs were unpiped, reading each command's exit status. "Local" = Windows 11, Node 26.1.0, npm 11.13.0, Docker 29.7.2 on 2026-09-25. "CI" = GitHub-hosted `ubuntu-latest`, Node 24, [run 36123487787](https://github.com/DarkPo13/hartolit-web3/actions/runs/36123487787) on `513bf88`, completed **success** with `web` and `contract` jobs on 2026-09-25.
 
-| Validator | Local, Windows 11, 2026-09-24/25 | CI run 36107136075 on `0a7764c` |
+| Validator | Local, Windows 11, 2026-09-25 | CI run 36123487787 on `513bf88` |
 |---|---|---|
-| `npm run lint` | exit 0 on 2026-09-25 with zero-warning gate; `.mjs` undefined and unused probes failed on 2026-09-24 | success |
-| `npm run typecheck` | exit 0 on 2026-09-25 with unused TypeScript checks | success |
-| `npm run test:hash` | 2/2 pass on 2026-09-25; before the fix both assertions failed on 2026-09-24 | success |
-| `npm run build` | exit 0, 34 routes on 2026-09-24 | success |
+| `npm run lint`, `npm run typecheck` | both exit 0; typecheck rerun after the final UI expression | both success |
+| `npm run test:hash` | 2/2 pass | success |
+| `npm run build` | exit 0, 37 routes | success |
 | `npx prisma validate` | exit 0 | not a CI step |
-| `npx prisma migrate status` | exit 0: 6 migrations, "Database schema is up to date" | `db:deploy` success |
-| `npm run drafts:smoke` | exit 0 | success (runs inside "Verify authenticated draft and evidence routes") |
-| `npm run evidence:smoke` | exit 0 | success (same step) |
-| `npm run review:smoke` | exit 0 | success (same step) |
-| `npm run auth:smoke` | exit 0 on 2026-09-24 after Mailpit started | not a CI step |
-| `forge build --root contracts` | exit 0 on 2026-09-24 using portable Foundry | success |
-| `forge test --root contracts -vvv` | 22/22 pass on 2026-09-24 after fixing two test setups; not rerun locally on 2026-09-25 | success |
-| ABI comparison script | exit 0 for 21 entries on 2026-09-25; a deliberately changed output failed on 2026-09-24 | success |
+| `npx prisma migrate status` | exit 0, seven migrations up to date | `db:deploy` success |
+| `npm run drafts:smoke`, `npm run evidence:smoke`, `npm run review:smoke`, `npm run auth:smoke` | each exit 0 against local services and running app; fictional fixtures removed | all success in shared live-smoke step |
+| Foundry build, 22 tests, ABI comparison | not rerun locally on 2026-09-25; local Foundry passed 22/22 on 2026-09-24 | success |
 | `npm audit --omit=dev --audit-level=high` | not run locally | success |
 
-Negative controls, 2026-09-24, local: `evidence:smoke` pointed at a closed port exits 1; the hash regression tests failed before the fix; the ABI check rejected a modified artifact with exit 1.
+The Phase 4 migration `20260925090000_phase4_admin_actions` applied locally with `npm run db:deploy` exit 0; `npm run db:generate` exited 0. A temporary headless Chrome pass at desktop and 390px rendered the admin UI, edited a record, switched language, navigated by keyboard, and showed empty/error states. Temporary browser files and fictional fixtures were removed. The in-app browser connection remained unavailable. Real-device and hosted validation were **not run**.
+
+Negative controls: `evidence:smoke` against a closed port, the hash regression before its fix, and the ABI check against a changed artifact all failed on 2026-09-24. On 2026-09-25, production-style Nodemailer verification against default Mailpit failed with `ETLS`; the same verification against temporary Mailpit STARTTLS with a trusted test certificate passed. The temporary container and certificate were removed.
 
 ## Environment
 
@@ -85,9 +78,9 @@ Negative controls, 2026-09-24, local: `evidence:smoke` pointed at a closed port 
 
 Ordered by leverage.
 
-1. **[Human, or agent with a working browser] Phase 4 browser, keyboard, and mobile acceptance (S4).** The in-app browser could not connect on this machine because its runtime code path was rejected by the trust configuration; no visual pass is claimed.
-2. **[Agent + user] Scope admin record editing and invitations (S5).** The review workflow and read-only records are present; define the permissions and audit behavior before writing these mutations.
-3. **[User] Decide Q1–Q3.** They gate Phase 5 and hosted release work.
+1. **[User] Decide Q1 and Q3.** Approve the public-field allowlist and retention period, then name who may publish Testnet records. These gate Phase 5.
+2. **[User] Decide Q2.** Choose hosting, database, private bucket, scanner and SMTP providers/regions to enable the Phase 3 hosted gate and Phase 4 hosted acceptance.
+3. **[Agent] After decisions, implement Phase 5 controlled publication and prepare hosted release verification.** Keep demo publication disabled for real records.
 
 ## Open questions
 
