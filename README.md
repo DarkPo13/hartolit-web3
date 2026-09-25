@@ -390,7 +390,7 @@ The UI ships with full **Ukrainian** (default) and **English** support. The loca
 
 | Feature | Status |
 |---|---|
-| Smart contract + Foundry tests | 22/22 tests pass locally after a test setup fix; clean CI rerun pending |
+| Smart contract + Foundry tests | 22/22 tests passed locally and the contract job passed in [CI run 36107136075](https://github.com/DarkPo13/hartolit-web3/actions/runs/36107136075) |
 | Full 3-step wizard UI | ✅ Complete |
 | SHA-256 file hashing (Web Crypto API) | ✅ Complete |
 | Legacy server-side mint pipeline | 🟡 Present in demo; will be replaced by direct approved-wallet minting |
