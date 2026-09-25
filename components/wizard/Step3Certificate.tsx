@@ -23,7 +23,6 @@ import {
   ipfsToHttp,
   shortHash,
 } from "@/lib/utils";
-import { TARGET_CHAIN_ID } from "@/lib/wagmi";
 
 export function Step3Certificate() {
   const state = useWizardStore();

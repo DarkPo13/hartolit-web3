@@ -2,7 +2,7 @@
 
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Sprout, MapPin, Hash, Wheat } from "lucide-react";
+import { Sprout, MapPin, Hash } from "lucide-react";
 import { BlockCard } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";

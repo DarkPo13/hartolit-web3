@@ -158,8 +158,9 @@ contract HartolitFieldPassportTest is Test {
 
     function test_Mint_RejectsDuplicateHashDuringReceiverCallback() public {
         ReentrantMinter receiver = new ReentrantMinter(passport, HASH_A);
+        bytes32 minterRole = passport.MINTER_ROLE();
         vm.prank(admin);
-        passport.grantRole(passport.MINTER_ROLE(), address(receiver));
+        passport.grantRole(minterRole, address(receiver));
 
         vm.prank(admin);
         uint256 tokenId = passport.mintPassport(address(receiver), HASH_A, IPFS_URI);
@@ -260,8 +261,9 @@ contract HartolitFieldPassportTest is Test {
     // ---------------------------------------------------------------------
 
     function test_GrantMinterRole() public {
+        bytes32 minterRole = passport.MINTER_ROLE();
         vm.prank(admin);
-        passport.grantRole(passport.MINTER_ROLE(), minter);
+        passport.grantRole(minterRole, minter);
 
         vm.prank(minter);
         uint256 tokenId = passport.mintPassport(farmer, HASH_A, IPFS_URI);

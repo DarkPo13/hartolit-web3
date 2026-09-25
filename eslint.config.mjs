@@ -13,6 +13,13 @@ const config = [
     },
   },
   {
+    files: ["**/*.mjs"],
+    rules: {
+      "no-undef": "error",
+      "no-unused-vars": "error",
+    },
+  },
+  {
     ignores: ["contracts/**", ".next/**", "generated/**", "node_modules/**", "next-env.d.ts"],
   },
 ];

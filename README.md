@@ -6,8 +6,7 @@
 
 [![Built on BNB Chain](https://img.shields.io/badge/Built%20on-BNB%20Chain-F0B90B?logo=binance&logoColor=black)](https://www.bnbchain.org/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org/)
-[![Solidity 0.8.24](https://img.shields.io/badge/Solidity-0.8.24-363636?logo=solidity)](https://soliditylang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-22c55e.svg)](LICENSE)
+[![Solidity 0.8.28](https://img.shields.io/badge/Solidity-0.8.28-363636?logo=solidity)](https://soliditylang.org/)
 
 ---
 
@@ -26,7 +25,7 @@ Ukraine is one of the world's top producers of sunflower, corn, and wheat — ye
 
 ## The Solution
 
-**Hartolit Digital Field Passport** mints a unique ERC-721 NFT on BNB Smart Chain for every drone treatment. Each token:
+**Hartolit Digital Field Passport** is designed to mint a unique ERC-721 NFT on BNB Smart Chain for each approved drone treatment. Each token:
 
 1. Contains a cryptographic SHA-256 fingerprint of the complete treatment payload
 2. Will link to an explicitly approved public passport snapshot on IPFS
@@ -66,13 +65,13 @@ Hartolit Operator
 │  Block 03: Meteo file + parsed weather data          │
 │  Block 04: Chemical + supplier document              │
 └──────────────────────┬───────────────────────────────┘
-                       │  Complete public Version 1 data
+                       │  Approved public snapshot (Phase 5)
                        ▼
 ┌──────────────────────────────────────────────────────┐
 │  STEP 2 — Public IPFS + operator-wallet mint         │
 │                                                      │
 │  1. Canonicalize payload → SHA-256 hash (bytes32)    │
-│  2. Pin evidence and JSON to public IPFS             │
+│  2. Pin approved public JSON to IPFS                  │
 │  3. Call mintPassport(owner, hash, cid)              │
 │     on HartolitFieldPassport.sol                     │
 │  4. Return tokenId + txHash + blockNumber            │
@@ -169,7 +168,7 @@ Future legal review must cover:
 
 ## Data Model
 
-Version 1 publishes every field collected by the active form, together with complete file-reference metadata. Diia fields are absent.
+The following example is the legacy local demo payload. It includes farmer identifiers, coordinates, and file references and must not be published for real customers. Phase 5 needs an approved public-field allowlist and retention policy before a real public snapshot is defined. Diia fields are absent.
 
 ```jsonc
 {
@@ -253,67 +252,31 @@ Phase 2 stores farmer, field, passport, treatment, meteo, chemical, and audit re
 | Accounts | Better Auth + PostgreSQL + Prisma; invite-only users and admin TOTP |
 | Web3 | Wagmi v2 + Viem + RainbowKit |
 | Blockchain | BNB Smart Chain — Mainnet (56) + Testnet (97) |
-| Smart Contract | Solidity 0.8.24 + OpenZeppelin v5 + Foundry |
-| IPFS | Pinata SDK (server-side — JWT never exposed to browser) |
+| Smart Contract | Solidity `^0.8.24` source, compiled with 0.8.28; OpenZeppelin v5 + Foundry |
+| IPFS | Pinata HTTP API through a server-only `fetch` helper; publication remains disabled |
 | Electronic Signatures | Deferred until after the core application and infrastructure release |
 | i18n | Custom React context — Ukrainian (default) + English |
 | QR Code | `qrcode` library — verification URL embedded in certificate |
 | File Parsing | PapaParse (CSV), Web Crypto API (SHA-256 hashing) |
-| Hosting | Vercel (Next.js native, Edge Runtime) |
+| Hosting | Provider and region to be selected before a hosted pilot; server routes use the Node.js runtime |
 
 ---
 
 ## Project Structure
 
-```
-hartolit-dapp/
-├── app/
-│   ├── layout.tsx                    # Root layout — fonts, providers
-│   ├── page.tsx                      # 3-step wizard host
-│   ├── providers.tsx                 # Wagmi + RainbowKit + React Query + i18n
-│   └── verify/[tokenId]/
-│       ├── page.tsx                  # Server component — fetches from BSC + IPFS
-│       ├── VerifyDisplay.tsx         # Client component — renders with locale
-│       └── not-found.tsx
-│
-├── app/api/
-│   ├── files/upload/route.ts         # Multipart upload + SHA-256 hash
-│   ├── ipfs/pin/route.ts             # Pinata pinning (PINATA_JWT server-only)
-│   ├── mint/route.ts                 # Admin wallet mint via Viem
-│   ├── diia/sign/route.ts            # Diia KEP initiation
-│   ├── diia/verify/route.ts          # Diia KEP verification (polling)
-│   └── passport/[tokenId]/route.ts  # On-chain data read
-│
-├── components/
-│   ├── wizard/    # StepsNav, Step1Form, Step2Blockchain, Step3Certificate
-│   ├── form/      # FarmerBlock, TreatmentBlock, MeteoBlock, ChemicalBlock, SignatureSummary
-│   ├── diia/      # DiiaBlock, DiiaModal, DiiaSigPreview
-│   ├── ui/        # Button, Card, Input, Select, FileUpload, Badge
-│   └── web3/      # ConnectWallet, ChainBadge
-│
-├── lib/
-│   ├── i18n/                  # Ukrainian + English translations + React context
-│   ├── contract.ts            # HartolitFieldPassport ABI (fully typed)
-│   ├── hash.ts                # SHA-256 + canonical JSON serialization
-│   ├── store.ts               # Zustand wizard state (fillMockData, persist)
-│   ├── wagmi.ts               # Wagmi + RainbowKit config (BSC mainnet + testnet)
-│   ├── ipfs.ts                # Pinata client with mock fallback
-│   ├── diia.ts                # Diia.Signature wrapper with mock for dev
-│   ├── meteo-parser.ts        # JSON / CSV / TXT meteo file parser
-│   ├── mock-data.ts           # Realistic Ukrainian farm test data
-│   ├── schemas.ts             # Zod schemas for all 4 form blocks
-│   ├── validation.ts          # Step-1 completeness check (typed MissingKey)
-│   └── utils.ts               # cn, shortHash, BSCScan URLs, ipfsToHttp
-│
-├── types/
-│   ├── passport.ts            # FieldPassportPayload, MintResult, FileRef, DiiaSignatureRef
-│   └── diia.ts
-│
-└── contracts/                 # Foundry workspace
-    ├── src/HartolitFieldPassport.sol
-    ├── test/HartolitFieldPassport.t.sol
-    ├── script/Deploy.s.sol
-    └── foundry.toml
+```text
+app/                    # Pages: home, auth, admin, settings, public verification
+app/api/                # Auth, drafts, evidence, review, and guarded prototype routes
+components/drafts/      # Durable draft editor, evidence panel, review status
+components/wizard/      # Optional local prototype wizard and certificate
+components/form/        # Shared farmer, treatment, weather, and chemical forms
+lib/drafts/             # Draft validation, ownership, and persistence
+lib/evidence/           # Private storage, scanning, and file lifecycle
+lib/review/             # Submission, assignment, decisions, audit-backed records
+lib/contract.ts         # Hand-maintained app ABI, checked against Foundry output
+prisma/                 # Schema and committed migrations
+scripts/                # Setup, smoke checks, cleanup, and ABI check
+contracts/              # Foundry contract, tests, and deployment script
 ```
 
 ---
@@ -322,16 +285,16 @@ hartolit-dapp/
 
 ### Prerequisites
 
-- Node.js ≥ 20.10
-- [Foundry](https://getfoundry.sh/) — `curl -L https://foundry.paradigm.xyz | bash && foundryup`
-- WalletConnect project ID — [cloud.reown.com](https://cloud.reown.com) (free)
-- Pinata account + JWT — [app.pinata.cloud](https://app.pinata.cloud) (free tier works)
-- Deployment/operator wallet with test BNB on BSC Testnet; never place its private key in the website environment
+- Node.js 24, matching CI
+- Docker for local PostgreSQL, private storage, malware scanner, and Mailpit
+- [Foundry](https://getfoundry.sh/) for contract builds and tests
+- WalletConnect project ID for the optional local wallet demo
+- An approved operator wallet with test BNB only when the Testnet release gates are met; never place its private key in the website environment
 
 ### 1. Install dependencies
 
 ```bash
-npm install
+npm ci
 ```
 
 ### 2. Configure environment
@@ -399,7 +362,7 @@ npm run dev
 
 For the local prototype only, set `NEXT_PUBLIC_DEMO_MODE=true` in `.env.local` and restart the dev server. Leave `ADMIN_PRIVATE_KEY` and `PINATA_JWT` unset: the unauthenticated demo refuses real credentials. The **"Fill mock data"** button then pre-fills fictional test data. Diia is not part of this flow.
 
-With demo mode off, the signed-in home page shows durable structured drafts. Evidence upload, submission, and issuance controls are intentionally unavailable until their later phases.
+With demo mode off, the signed-in home page shows durable structured drafts. Private evidence upload and submission for admin review are available locally. Issuance and public publication remain disabled.
 
 ---
 
@@ -410,9 +373,9 @@ The local prototype can run without a wallet when `NEXT_PUBLIC_DEMO_MODE=true` a
 | Feature | Local demo | Current configured path |
 |---|---|---|
 | Form fill | One-click "Fill mock data" | Signed-in PostgreSQL drafts with autosave |
-| File upload | Returns SHA-256 + `internal://` reference | Bytes are not durably stored yet |
+| File upload | Returns SHA-256 + `internal://` reference without storing bytes | Bytes are stored in a private S3-compatible bucket; evidence becomes available after integrity and malware checks |
 | Diia KEP signing | Deferred | Planned after the core MVP and infrastructure release |
-| IPFS pinning | Returns deterministic mock CID | Pins to Pinata |
+| IPFS pinning | Returns deterministic mock CID | Disabled until the public snapshot and approval flow are implemented |
 | Blockchain mint | Returns simulated tokenId + txHash | Direct approved-wallet minting still needs implementation and end-to-end validation |
 
 ---
@@ -427,7 +390,7 @@ The UI ships with full **Ukrainian** (default) and **English** support. The loca
 
 | Feature | Status |
 |---|---|
-| Smart contract + Foundry tests | ✅ Complete |
+| Smart contract + Foundry tests | 22/22 tests pass locally after a test setup fix; clean CI rerun pending |
 | Full 3-step wizard UI | ✅ Complete |
 | SHA-256 file hashing (Web Crypto API) | ✅ Complete |
 | Legacy server-side mint pipeline | 🟡 Present in demo; will be replaced by direct approved-wallet minting |
@@ -442,7 +405,7 @@ The UI ships with full **Ukrainian** (default) and **English** support. The loca
 | Review workflow and admin console | Phase 4 local implementation: submit, assign, decide, reopen, dashboard, queue, detail, and read-only record views; browser and hosted acceptance remain |
 | Diia KEP | 📋 Deferred to Version 2 or later |
 | Public evidence storage (IPFS) | 🟡 Pending implementation |
-| BSC Testnet deploy | 🔧 Needs Foundry, reviewed contract, and approved operator wallet |
+| BSC Testnet deploy | 🔧 Needs clean CI, release gates, and an approved operator wallet |
 | BSC Mainnet deploy | 📋 After testnet validation |
 
 ---
@@ -478,15 +441,12 @@ This is real-world utility for a population that genuinely needs decentralized t
 
 ## Roadmap
 
-| Phase | Timeline | Description |
+| Phase | Gate | Description |
 |---|---|---|
-| Testnet + pilot | Q2 2026 | Deploy to BSC Testnet, real Hartolit season, 50 passports |
-| Real Diia KEP | Q3 2026 | Diia.Signature production integration |
-| Mainnet + production | Q3 2026 | BSC Mainnet deploy, real subsidy claim pilots |
-| EU audit export | Q4 2026 | PDF/XML export in GlobalG.A.P. format |
-| Third-party operators | Q1 2027 | Open API for other drone operators |
-| Mobile app | Q1 2027 | React Native for field operators |
-| On-chain insurance | Q2 2027 | Parametric crop insurance using passport data as oracle |
+| Controlled Testnet pilot | After public-field, operator, hosting, and release gates | Deploy to BSC Testnet and validate approved public records end to end |
+| Core application release | After hosted storage, restore, security, and browser acceptance | Admit real customer data only when these checks pass |
+| Diia KEP | After the core application and infrastructure release | Design and verify real signatures before showing signed claims |
+| Mainnet and other integrations | After Testnet evidence and separate approval | Scope production deployment, exports, partner APIs, and mobile access |
 
 ---
 
@@ -495,8 +455,8 @@ This is real-world utility for a population that genuinely needs decentralized t
 - [ ] Smart contract audited (at minimum, internal review with OpenZeppelin patterns)
 - [ ] Contract deployed and verified on BSC Mainnet
 - [ ] Admin wallet moved into a Gnosis Safe multisig
-- [ ] All `.env` keys set in Vercel
-- [ ] Pinata account upgraded for production traffic
+- [ ] Required secrets configured in the chosen hosting provider
+- [ ] Public pinning provider selected and limited to approved snapshots
 - [ ] Public evidence and payload CIDs replicated through a second pinning provider
 - [ ] Approved operator wallet holds `MINTER_ROLE`; the website has no server minter key
 - [ ] Wallet-authorized stateless upload routes have request limits and edge rate limiting

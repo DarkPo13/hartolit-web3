@@ -58,6 +58,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run test:hash
       - name: Build with isolated test-only auth configuration
         run: npm run build
       - run: npm run db:deploy
@@ -106,9 +107,13 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
       - uses: foundry-rs/foundry-toolchain@v1
       - name: Install pinned contract libraries
         working-directory: contracts
         run: forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.6.0 foundry-rs/forge-std@v1.16.1
       - run: forge build --root contracts
+      - run: node --experimental-strip-types scripts/check-contract-abi.mjs
       - run: forge test --root contracts -vvv

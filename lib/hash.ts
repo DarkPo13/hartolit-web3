@@ -42,15 +42,21 @@ export async function sha256Json(value: unknown): Promise<string> {
   return sha256Hex(canonicalize(value));
 }
 
-/** Deterministic JSON serialization for stable hashes across clients. */
+/** Deterministic serialization of the JSON value that can actually be stored and retrieved. */
 export function canonicalize(value: unknown): string {
+  const json = JSON.stringify(value);
+  if (json === undefined) throw new TypeError("Expected a JSON-serializable value");
+  return canonicalizeJson(JSON.parse(json));
+}
+
+function canonicalizeJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
   if (Array.isArray(value)) {
-    return `[${value.map((v) => canonicalize(v)).join(",")}]`;
+    return `[${value.map((v) => canonicalizeJson(v)).join(",")}]`;
   }
   const obj = value as Record<string, unknown>;
   const keys = Object.keys(obj).sort();
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalize(obj[k])}`).join(",")}}`;
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalizeJson(obj[k])}`).join(",")}}`;
 }
 
 export function hexToBytes32(hex: string): `0x${string}` {
