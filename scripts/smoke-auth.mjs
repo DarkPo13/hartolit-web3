@@ -1,4 +1,4 @@
-// Run against a local dev server and the isolated Docker services only.
+// Run against a local server and isolated test services only.
 // All fixture users and captured reset messages created here are removed.
 import assert from "node:assert/strict";
 import { randomBytes, createHmac } from "node:crypto";

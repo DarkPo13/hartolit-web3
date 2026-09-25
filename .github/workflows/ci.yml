@@ -14,7 +14,7 @@ jobs:
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
       BETTER_AUTH_SECRET: ci-only-secret-which-is-never-used-outside-this-build
       BETTER_AUTH_URL: http://localhost:3000
-      SMTP_HOST: 127.0.0.1
+      SMTP_HOST: localhost
       SMTP_PORT: 1025
       SMTP_FROM: Hartolit CI <ci@example.invalid>
       EVIDENCE_S3_BUCKET: hartolit-evidence
@@ -52,6 +52,10 @@ jobs:
           - 3310:3310
       mailpit:
         image: axllent/mailpit:v1.31.1
+        env:
+          MP_SMTP_TLS_CERT: sans:localhost
+          MP_SMTP_TLS_KEY: sans:localhost
+          MP_SMTP_REQUIRE_STARTTLS: "true"
         ports:
           - 1025:1025
           - 8025:8025
@@ -89,6 +93,14 @@ jobs:
       - name: Verify authenticated draft and evidence routes
         shell: bash
         run: |
+          for attempt in {1..30}; do
+            if openssl s_client -starttls smtp -connect localhost:1025 -showcerts </dev/null 2>/dev/null | openssl x509 -outform PEM > /tmp/hartolit-mailpit-ca.pem 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          test -s /tmp/hartolit-mailpit-ca.pem
+          export NODE_EXTRA_CA_CERTS=/tmp/hartolit-mailpit-ca.pem
           ./node_modules/.bin/next start > /tmp/hartolit-next.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
