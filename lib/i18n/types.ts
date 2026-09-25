@@ -95,6 +95,21 @@ export interface Translations {
     active: string; banned: string; created: string; noRecords: string;
     passports: string; status: string; yes: string; no: string;
   };
+  management: {
+    actions: string; open: string; close: string; searchHint: string; searchButton: string;
+    fromDate: string; toDate: string; archivedLocked: string;
+    inviteTitle: string; inviteHint: string; inviteName: string; inviteEmail: string;
+    invite: string; invited: string; inviteFallback: string; inviteError: string;
+    editTitle: string; save: string; saved: string; saveError: string;
+    archive: string; restore: string; archived: string; restored: string;
+    confirmArchive: string; locked: string; duplicate: string; linkedPassports: string;
+    owner: string; label: string; legalName: string; registrationId: string;
+    contactName: string; contactEmail: string; contactPhone: string;
+    areaHectares: string; gpsCoords: string; cadastralNumber: string; crop: string;
+    disable: string; enable: string; revokeSessions: string; userUpdated: string;
+    confirmDisable: string; confirmRevoke: string; actionError: string;
+    adminUserProtected: string; resetHint: string;
+  };
   access: {
     title: string;
     description: string;

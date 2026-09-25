@@ -84,9 +84,14 @@ export async function submitPassport(ownerId: string, id: string, version: numbe
 
 export async function reopenPassport(ownerId: string, id: string, version: number) {
   return getDb().$transaction(async (tx) => {
-    const row = await tx.passport.findFirst({ where: { id, ownerId }, select: { status: true } });
+    const row = await tx.passport.findFirst({ where: { id, ownerId }, select: { status: true, farmerId: true, fieldId: true } });
     if (!row) throw new WorkflowError(404, "Passport not found");
     if (row.status !== "REJECTED" && row.status !== "CORRECTION_REQUIRED") throw new WorkflowError(409, "Passport cannot be reopened");
+    const locked = await tx.passport.updateMany({ where: { id, ownerId, status: row.status, version }, data: { updatedAt: new Date() } });
+    if (!locked.count) throw new WorkflowError(409, "Passport changed; reload before reopening");
+    const farmer = await tx.farmer.findUnique({ where: { id: row.farmerId }, select: { archivedAt: true } });
+    const field = await tx.field.findUnique({ where: { id: row.fieldId }, select: { archivedAt: true } });
+    if (farmer?.archivedAt || field?.archivedAt) throw new WorkflowError(409, "Restore the farmer and field before reopening");
     const changed = await tx.passport.updateMany({ where: { id, ownerId, status: row.status, version }, data: { status: "DRAFT", version: { increment: 1 }, approvedVersion: null } });
     if (!changed.count) throw new WorkflowError(409, "Passport changed; reload before reopening");
     await tx.auditLog.create({ data: { passportId: id, actorId: ownerId, action: "PASSPORT_REOPENED", version: version + 1, fromStatus: row.status, toStatus: "DRAFT" } });

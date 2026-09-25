@@ -16,8 +16,9 @@ const suffix = randomBytes(8).toString("hex");
 const testIp = `198.51.${parseInt(suffix.slice(0, 2), 16)}.${parseInt(suffix.slice(2, 4), 16)}`;
 const operatorEmail = `phase1-operator-${suffix}@example.invalid`;
 const adminEmail = `phase1-admin-${suffix}@example.invalid`;
+const invitedEmail = `phase4-invited-${suffix}@example.invalid`;
 const password = `${randomBytes(24).toString("base64url")}aA1!`;
-const createdEmails = [operatorEmail, adminEmail];
+const createdEmails = [operatorEmail, adminEmail, invitedEmail];
 const capturedIds = [];
 
 function makeJar() {
@@ -38,13 +39,13 @@ function makeJar() {
   };
 }
 
-async function request(path, { jar, body, method = body ? "POST" : "GET", origin = base } = {}) {
+async function request(path, { jar, body, method = body ? "POST" : "GET", origin = base, ip = testIp } = {}) {
   const response = await fetch(`${base}${path}`, {
     method,
     redirect: "manual",
     headers: {
       ...(origin ? { origin } : {}),
-      "x-forwarded-for": testIp,
+      "x-forwarded-for": ip,
       ...(body ? { "content-type": "application/json" } : {}),
       ...(jar?.header() ? { cookie: jar.header() } : {}),
     },
@@ -113,6 +114,46 @@ try {
   assert.equal((await request("/admin", { jar: adminVerified })).status, 200, "admin page opens after MFA");
   assert.equal((await request("/api/auth/admin/list-users", { jar: adminVerified })).status, 200, "admin API opens after MFA");
   assert.equal((await request("/api/auth/admin/impersonate-user", { jar: adminVerified, body: { userId: "none" } })).status, 404, "unsafe admin operation remains unavailable");
+  assert.equal((await request("/api/auth/admin/create-user", { jar: adminVerified, body: { name: "Bypass", email: `bypass-${suffix}@example.invalid`, password } })).status, 404, "unaudited create-user endpoint unavailable");
+  assert.equal((await request("/api/admin/users", { jar: operator, body: { name: "No", email: invitedEmail } })).status, 403, "operator cannot invite");
+  assert.equal((await request("/api/admin/users", { jar: adminVerified, body: { name: "No", email: invitedEmail }, origin: null })).status, 403, "invite requires same origin");
+  const invitation = await request("/api/admin/users", { jar: adminVerified, body: { name: "Fictional Invited Operator", email: invitedEmail } });
+  assert.equal(invitation.status, 201, `invite: ${await invitation.clone().text()}`);
+  const invitedResult = (await invitation.json()).user;
+  assert.equal(invitedResult.emailRequested, true, "setup email requested");
+  const invitedId = invitedResult.id;
+  assert.equal((await db.user.findUniqueOrThrow({ where: { id: invitedId } })).role, "user", "invite only grants operator role");
+  let invitedMessage;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const inbox = await (await fetch(`${mailpit}/api/v1/messages?limit=30`)).json();
+    invitedMessage = inbox.messages?.find((item) => item.To?.some((recipient) => recipient.Address === invitedEmail));
+    if (invitedMessage) break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  assert.ok(invitedMessage, "invitation password setup link reached local inbox");
+  capturedIds.push(invitedMessage.ID);
+  const invitationMessage = await (await fetch(`${mailpit}/api/v1/message/${invitedMessage.ID}`)).json();
+  const invitationLink = invitationMessage.Text?.match(/https?:\/\/[^\s]+/)?.[0];
+  assert.ok(invitationLink, "invitation link present");
+  const invitationCallback = await fetch(invitationLink, { redirect: "manual" });
+  assert.equal(invitationCallback.status, 302);
+  const invitationToken = new URL(invitationCallback.headers.get("location")).searchParams.get("token");
+  assert.ok(invitationToken, "invitation callback carries a reset token");
+  const invitedPassword = `${randomBytes(24).toString("base64url")}cC3!`;
+  assert.equal((await request("/api/auth/reset-password", { body: { token: invitationToken, newPassword: invitedPassword } })).status, 200, "invited operator can set password");
+  const invitedJar = makeJar();
+  assert.equal((await request("/api/auth/sign-in/email", { jar: invitedJar, body: { email: invitedEmail, password: invitedPassword }, ip: "198.51.100.110" })).status, 200, "invited operator signs in");
+  assert.equal((await request("/api/admin/users", { jar: adminVerified, body: { name: "Duplicate", email: invitedEmail } })).status, 409, "duplicate invite denied");
+  assert.equal((await request(`/api/admin/users/${invitedId}`, { jar: adminVerified, body: { action: "disable" } })).status, 200, "operator disabled");
+  assert.equal((await request("/", { jar: invitedJar })).headers.get("location"), "/login", "disabled operator session revoked");
+  assert.equal((await request(`/api/admin/users/${invitedId}`, { jar: adminVerified, body: { action: "enable" } })).status, 200, "operator enabled");
+  const invitedAgain = makeJar();
+  assert.equal((await request("/api/auth/sign-in/email", { jar: invitedAgain, body: { email: invitedEmail, password: invitedPassword }, ip: "198.51.100.111" })).status, 200);
+  assert.equal((await request(`/api/admin/users/${invitedId}`, { jar: adminVerified, body: { action: "revokeSessions" } })).status, 200, "operator sessions revoked");
+  assert.equal((await request("/", { jar: invitedAgain })).headers.get("location"), "/login", "revocation takes effect");
+  const adminId = (await db.user.findUniqueOrThrow({ where: { email: adminEmail } })).id;
+  assert.equal((await request(`/api/admin/users/${adminId}`, { jar: adminVerified, body: { action: "disable" } })).status, 403, "admin cannot disable self");
+  assert.equal((await db.adminAction.count({ where: { entity: "users", entityId: invitedId } })), 4, "invitation and access actions audited");
 
   const reset = await request("/api/auth/request-password-reset", { body: { email: operatorEmail, redirectTo: `${base}/reset-password` } });
   assert.equal(reset.status, 200, "reset request accepted");
@@ -138,8 +179,9 @@ try {
   assert.notEqual((await request("/api/auth/sign-in/email", { body: { email: operatorEmail, password } })).status, 200, "old password rejected");
   assert.equal((await request("/api/auth/sign-in/email", { body: { email: operatorEmail, password: newPassword } })).status, 200, "new password works");
 
-  console.log("PASS: signup denied, roles enforced, ban immediate, admin MFA, SMTP reset, session revocation");
+  console.log("PASS: signup denied, roles enforced, ban immediate, admin MFA, invite email, operator access controls, SMTP reset, session revocation");
 } finally {
+  await db.adminAction.deleteMany({ where: { actor: { email: { in: createdEmails } } } });
   await db.user.deleteMany({ where: { email: { in: createdEmails } } });
   assert.equal(await db.user.count({ where: { email: { in: createdEmails } } }), 0, "fixture users removed");
   if (capturedIds.length) {

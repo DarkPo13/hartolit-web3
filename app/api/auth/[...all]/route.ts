@@ -17,9 +17,6 @@ async function guardAdminRoute(request: NextRequest): Promise<NextResponse | nul
   if (!request.nextUrl.pathname.startsWith("/api/auth/admin/")) return null;
   const allowed = new Set([
     "GET /api/auth/admin/list-users",
-    "POST /api/auth/admin/create-user",
-    "POST /api/auth/admin/ban-user",
-    "POST /api/auth/admin/unban-user",
   ]);
   if (!allowed.has(`${request.method} ${request.nextUrl.pathname}`)) {
     return NextResponse.json({ error: "This admin operation is not available yet" }, { status: 404 });

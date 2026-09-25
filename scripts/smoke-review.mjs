@@ -91,6 +91,29 @@ try {
   const saved = await api(`/api/drafts/${passportId}`, { user: operator, method: "PATCH", body: { version: 1, data } });
   assert.equal(saved.status, 200);
   let version = (await saved.json()).draft.version;
+  const linked = await db.passport.findUniqueOrThrow({ where: { id: passportId }, select: { farmerId: true, fieldId: true } });
+  const farmerPath = `/api/admin/records/farmers/${linked.farmerId}`;
+  const fieldPath = `/api/admin/records/fields/${linked.fieldId}`;
+  assert.equal((await api(farmerPath, { user: operator })).status, 403, "operator cannot inspect admin record detail");
+  const farmerRecord = (await (await api(farmerPath, { user: verified })).json()).record;
+  assert.equal((await api(farmerPath, { user: verified, method: "PATCH", body: { updatedAt: farmerRecord.updatedAt, data: { ...farmerRecord.data, legalName: "Fictional Review Farm Updated" } }, origin: "https://evil.invalid" })).status, 403, "admin edit requires same origin");
+  const farmerChanged = await api(farmerPath, { user: verified, method: "PATCH", body: { updatedAt: farmerRecord.updatedAt, data: { ...farmerRecord.data, legalName: "Fictional Review Farm Updated" } } });
+  assert.equal(farmerChanged.status, 200, `farmer edit: ${await farmerChanged.clone().text()}`);
+  assert.equal((await db.farmer.findUniqueOrThrow({ where: { id: linked.farmerId } })).legalName, "Fictional Review Farm Updated", "admin edit persisted");
+  assert.equal((await api(farmerPath, { user: verified, method: "PATCH", body: { updatedAt: farmerRecord.updatedAt, data: farmerRecord.data } })).status, 409, "stale admin edit denied");
+  assert.equal((await api(`/api/drafts/${passportId}`, { user: operator, method: "PATCH", body: { version, data } })).status, 409, "admin edit invalidated operator draft version");
+  const fieldRecord = (await (await api(fieldPath, { user: verified })).json()).record;
+  const fieldChanged = await api(fieldPath, { user: verified, method: "PATCH", body: { updatedAt: fieldRecord.updatedAt, data: { ...fieldRecord.data, label: "Fictional Field" } } });
+  assert.equal(fieldChanged.status, 200, `field edit: ${await fieldChanged.clone().text()}`);
+  const today = new Date().toISOString().slice(0, 10);
+  const adminHistory = await api(`/api/admin/records?view=adminActions&search=RECORD_UPDATED&from=${today}&to=${today}`, { user: verified });
+  assert.equal(adminHistory.status, 200);
+  assert.ok((await adminHistory.json()).items.filter((item) => item.detail.includes(emails[1])).length >= 2, "admin history filters action and date and shows actor");
+  const draftHistory = await api(`/api/admin/records?view=audit&search=ADMIN_RECORD_UPDATED&from=${today}&to=${today}`, { user: verified });
+  assert.equal(draftHistory.status, 200);
+  assert.ok((await draftHistory.json()).items.length >= 2, "audit action and date filters work");
+  assert.equal((await api("/api/admin/records?view=audit&from=2026-09-26&to=2026-09-25", { user: verified })).status, 400, "reversed audit dates rejected");
+  version = (await db.passport.findUniqueOrThrow({ where: { id: passportId } })).version;
   const submitPath = `/api/passports/${passportId}/submit`;
   const incomplete = await api(submitPath, { user: operator, method: "POST", body: { version } });
   assert.equal(incomplete.status, 422, "verified evidence required");
@@ -103,6 +126,8 @@ try {
   version = (await submitted.json()).passport.version;
   assert.equal((await api(`/api/drafts/${passportId}`, { user: operator })).status, 409, "submitted draft is frozen");
   assert.equal((await api(`/api/drafts/${passportId}`, { user: operator, method: "PATCH", body: { version, data } })).status, 409, "submitted draft cannot change");
+  assert.equal((await api(farmerPath, { user: verified, method: "PATCH", body: { updatedAt: (await farmerChanged.json()).record.updatedAt, data: farmerRecord.data } })).status, 409, "submitted farmer details are immutable");
+  assert.equal((await api(fieldPath, { user: verified, method: "POST", body: { updatedAt: (await fieldChanged.json()).record.updatedAt, archived: true } })).status, 409, "submitted field cannot be archived");
   assert.equal((await api(`/api/drafts/${passportId}/evidence`, { user: operator, method: "POST", body: { kind: "OTHER", filename: "x.txt", contentType: "text/plain", sizeBytes: 1, sha256: "0".repeat(64) } })).status, 404, "submitted evidence cannot change");
   assert.equal((await api(`/api/admin/passports/${passportId}`, { user: operator })).status, 403);
   assert.equal((await api("/api/admin/records?view=users", { user: operator })).status, 403, "operator cannot inspect users");
@@ -128,6 +153,11 @@ try {
   const mine = await api("/api/passports/mine", { user: operator });
   assert.equal(mine.status, 200);
   assert.equal((await mine.json()).passports.find((item) => item.id === passportId).reviewNote, "Check treatment note");
+  const correctionFarmer = (await (await api(farmerPath, { user: verified })).json()).record;
+  const archivedCorrection = await api(farmerPath, { user: verified, method: "POST", body: { updatedAt: correctionFarmer.updatedAt, archived: true } });
+  assert.equal(archivedCorrection.status, 200, "correction record can be archived without changing its content");
+  assert.equal((await api(`/api/passports/${passportId}/reopen`, { user: operator, method: "POST", body: { version } })).status, 409, "archived farmer blocks reopening");
+  assert.equal((await api(farmerPath, { user: verified, method: "POST", body: { updatedAt: (await archivedCorrection.json()).record.updatedAt, archived: false } })).status, 200, "record can be restored before reopening");
   const reopened = await api(`/api/passports/${passportId}/reopen`, { user: operator, method: "POST", body: { version } });
   assert.equal(reopened.status, 200);
   version = (await reopened.json()).passport.version;
@@ -159,8 +189,15 @@ try {
   version = (await finalSubmission.json()).passport.version;
   assert.equal((await api(`/api/admin/passports/${passportId}/decision`, { user: verified, method: "POST", body: { version, decision: "APPROVED", note: "Corrected" } })).status, 200);
   assert.equal((await db.passport.findUniqueOrThrow({ where: { id: passportId } })).status, "APPROVED");
+  const approvedFarmer = (await (await api(farmerPath, { user: verified })).json()).record;
+  const archived = await api(farmerPath, { user: verified, method: "POST", body: { updatedAt: approvedFarmer.updatedAt, archived: true } });
+  assert.equal(archived.status, 200, "completed farmer can be archived");
+  const restored = await api(farmerPath, { user: verified, method: "POST", body: { updatedAt: (await archived.json()).record.updatedAt, archived: false } });
+  assert.equal(restored.status, 200, "archived farmer can be restored");
+  assert.equal((await db.adminAction.count({ where: { entity: "farmers", entityId: linked.farmerId } })), 5, "record edits and archive actions audited");
+  assert.equal((await db.auditLog.count({ where: { passportId, action: "ADMIN_RECORD_UPDATED" } })), 2, "draft record edits attributed to admin");
   assert.equal((await db.auditLog.count({ where: { passportId, action: { in: ["PASSPORT_SUBMITTED", "REVIEW_ASSIGNED", "CORRECTION_REQUESTED", "PASSPORT_REOPENED", "REVIEW_REJECTED", "REVIEW_APPROVED"] } } })), 13);
-  process.stdout.write("Review smoke passed: MFA, ownership, evidence freeze, submit, assign, conflict, correction, recall, rejection, resubmission, approval, audit.\n");
+  process.stdout.write("Review smoke passed: MFA, owner and admin edits, immutable submissions, archive, evidence freeze, submit, assign, conflict, correction, recall, rejection, resubmission, approval, audit.\n");
 } finally {
   for (const id of files) {
     const file = await db.evidenceFile.findUnique({ where: { id }, select: { objectKey: true } });
@@ -179,6 +216,7 @@ try {
       await db.farmer.delete({ where: { id: row.farmerId } });
     }
   }
+  await db.adminAction.deleteMany({ where: { actor: { email: { in: emails } } } });
   await db.user.deleteMany({ where: { email: { in: emails } } });
   await db.$disconnect(); s3.destroy();
 }

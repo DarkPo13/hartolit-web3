@@ -30,6 +30,7 @@ model User {
   evidenceFiles    EvidenceFile[]
   assignedReviews  Passport[] @relation("AssignedReviewer")
   reviewedPassports Passport[] @relation("DecisionReviewer")
+  adminActions     AdminAction[]
 
   @@unique([email])
   @@map("user")
@@ -145,6 +146,7 @@ enum PublicationStatus {
 enum AuditAction {
   DRAFT_CREATED
   DRAFT_UPDATED
+  ADMIN_RECORD_UPDATED
   EVIDENCE_RESERVED
   EVIDENCE_READY
   EVIDENCE_REJECTED
@@ -343,4 +345,17 @@ model AuditLog {
 
   @@index([passportId, createdAt(sort: Desc)])
   @@index([actorId, createdAt(sort: Desc)])
+}
+
+model AdminAction {
+  id        String   @id @default(uuid()) @db.Uuid
+  actorId   String
+  actor     User     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  action    String   @db.VarChar(40)
+  entity    String   @db.VarChar(20)
+  entityId  String   @db.VarChar(191)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@index([entity, entityId, createdAt(sort: Desc)])
 }
