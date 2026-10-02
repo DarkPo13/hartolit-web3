@@ -8,7 +8,7 @@ import { createJiti } from "jiti";
 nextEnv.loadEnvConfig(process.cwd());
 const base = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
 const jiti = createJiti(import.meta.url);
-const [{ auth }, { getDb }] = await Promise.all([jiti.import("../auth.cli.ts"), jiti.import("../lib/db-core.ts")]);
+const [{ auth }, { getDb }, { publicSnapshotSchema }, { canonicalize, sha256Json }] = await Promise.all([jiti.import("../auth.cli.ts"), jiti.import("../lib/db-core.ts"), jiti.import("../lib/public-snapshot/schema.ts"), jiti.import("../lib/hash.ts")]);
 const db = getDb();
 const s3 = new S3Client({ region: process.env.EVIDENCE_S3_REGION, endpoint: process.env.EVIDENCE_S3_ENDPOINT || undefined, forcePathStyle: Boolean(process.env.EVIDENCE_S3_ENDPOINT), credentials: { accessKeyId: process.env.EVIDENCE_S3_ACCESS_KEY, secretAccessKey: process.env.EVIDENCE_S3_SECRET_KEY } });
 const suffix = randomBytes(8).toString("hex");
@@ -16,6 +16,7 @@ const emails = [`review-operator-${suffix}@example.invalid`, `review-admin-${suf
 const password = `${randomBytes(24).toString("base64url")}aA1!`;
 const ip = `198.51.${parseInt(suffix.slice(0, 2), 16)}.${parseInt(suffix.slice(2, 4), 16)}`;
 const files = [];
+const privateMarker = `PRIVATE_${suffix}`;
 let passportId;
 
 function jar() {
@@ -60,10 +61,10 @@ async function uploadEvidence(user, kind) {
 }
 
 const data = {
-  farmer: { farmerName: "Fictional Review Farm", farmerId: "FICTIONAL-REVIEW", fieldArea: 12.5, gpsCoords: "49.0, 34.0", cadastralNumber: "", crop: "sunflower" },
-  treatment: { treatmentType: "herbicide", treatmentDate: "2026-09-01", treatmentTime: "09:30", droneModel: "Fictional Drone", droneSerial: "", operator: "Test Pilot", pilotCert: "", notes: "" },
+  farmer: { farmerName: "Fictional Review Farm", publicFarmLabel: "Fictional Public Review Farm", farmerId: privateMarker, fieldArea: 12.5, gpsCoords: privateMarker, cadastralNumber: privateMarker, crop: "sunflower" },
+  treatment: { treatmentType: "herbicide", treatmentDate: "2026-09-01", treatmentTime: "09:30", timeZone: "Europe/Kyiv", treatedAreaHectares: 10.25, droneModel: "Fictional Drone", droneSerial: privateMarker, operator: privateMarker, pilotCert: privateMarker, notes: privateMarker },
   meteo: { temperatureCelsius: 22.5, humidityPercent: 60, windSpeedMps: 2.5, rainfallMm: 0, measuredAt: "2026-09-01T09:30:00.000Z" },
-  chemical: { chemical: "Fictional Product", chemicalActive: "", dose: 1.25, workingVolume: 25, manufacturer: "", regNumber: "", supplierName: "", supplierEdrpou: "" },
+  chemical: { chemical: "Fictional Product", chemicalActive: "", dose: 1.25, doseUnit: "L_PER_HA", workingVolume: 25, manufacturer: "", regNumber: "", supplierName: privateMarker, supplierEdrpou: privateMarker },
 };
 
 try {
@@ -91,6 +92,41 @@ try {
   const saved = await api(`/api/drafts/${passportId}`, { user: operator, method: "PATCH", body: { version: 1, data } });
   assert.equal(saved.status, 200);
   let version = (await saved.json()).draft.version;
+  const withoutUnit = await api(`/api/drafts/${passportId}`, { user: operator, method: "PATCH", body: { version, data: { ...data, chemical: { ...data.chemical, doseUnit: "" } } } });
+  assert.equal(withoutUnit.status, 200, "older or incomplete drafts may lack a dose unit");
+  version = (await withoutUnit.json()).draft.version;
+  const unitlessSubmission = await api(`/api/passports/${passportId}/submit`, { user: operator, method: "POST", body: { version } });
+  assert.equal(unitlessSubmission.status, 422);
+  assert.ok((await unitlessSubmission.json()).issues.includes("chemicalDoseUnit"), "unitless dose cannot be submitted");
+  const restoredUnit = await api(`/api/drafts/${passportId}`, { user: operator, method: "PATCH", body: { version, data } });
+  assert.equal(restoredUnit.status, 200);
+  version = (await restoredUnit.json()).draft.version;
+  const withoutFacts = await api(`/api/drafts/${passportId}`, { user: operator, method: "PATCH", body: { version, data: { ...data, farmer: { ...data.farmer, publicFarmLabel: "" }, treatment: { ...data.treatment, timeZone: "", treatedAreaHectares: null } } } });
+  assert.equal(withoutFacts.status, 200, "incomplete drafts remain saveable");
+  version = (await withoutFacts.json()).draft.version;
+  const incompleteFacts = await api(`/api/passports/${passportId}/submit`, { user: operator, method: "POST", body: { version } });
+  assert.equal(incompleteFacts.status, 422);
+  const incompleteIssues = (await incompleteFacts.json()).issues;
+  for (const issue of ["publicFarmLabel", "timeZone", "treatedArea"]) assert.ok(incompleteIssues.includes(issue), `${issue} is required for submission`);
+  const tooMuchArea = await api(`/api/drafts/${passportId}`, { user: operator, method: "PATCH", body: { version, data: { ...data, treatment: { ...data.treatment, treatedAreaHectares: 13 } } } });
+  assert.equal(tooMuchArea.status, 200);
+  version = (await tooMuchArea.json()).draft.version;
+  const overAreaSubmission = await api(`/api/passports/${passportId}/submit`, { user: operator, method: "POST", body: { version } });
+  assert.equal(overAreaSubmission.status, 422);
+  assert.ok((await overAreaSubmission.json()).issues.includes("treatedAreaExceedsField"), "treated area cannot exceed field area");
+  const restoredFacts = await api(`/api/drafts/${passportId}`, { user: operator, method: "PATCH", body: { version, data } });
+  assert.equal(restoredFacts.status, 200);
+  version = (await restoredFacts.json()).draft.version;
+  const invalidCategories = await api(`/api/drafts/${passportId}`, { user: operator, method: "PATCH", body: { version, data: { ...data, farmer: { ...data.farmer, crop: "unrecognized" }, treatment: { ...data.treatment, treatmentType: "unrecognized" }, meteo: { ...data.meteo, measuredAt: null } } } });
+  assert.equal(invalidCategories.status, 200, "incomplete historical draft facts remain saveable");
+  version = (await invalidCategories.json()).draft.version;
+  const categorySubmission = await api(`/api/passports/${passportId}/submit`, { user: operator, method: "POST", body: { version } });
+  assert.equal(categorySubmission.status, 422);
+  const categoryIssues = (await categorySubmission.json()).issues;
+  for (const issue of ["cropCategory", "treatmentCategory", "meteoMeasuredAt"]) assert.ok(categoryIssues.includes(issue), `${issue} must be valid for submission`);
+  const restoredCategories = await api(`/api/drafts/${passportId}`, { user: operator, method: "PATCH", body: { version, data } });
+  assert.equal(restoredCategories.status, 200);
+  version = (await restoredCategories.json()).draft.version;
   const linked = await db.passport.findUniqueOrThrow({ where: { id: passportId }, select: { farmerId: true, fieldId: true } });
   const farmerPath = `/api/admin/records/farmers/${linked.farmerId}`;
   const fieldPath = `/api/admin/records/fields/${linked.fieldId}`;
@@ -119,7 +155,7 @@ try {
   assert.equal(incomplete.status, 422, "verified evidence required");
   assert.deepEqual((await incomplete.json()).issues.sort(), ["chemicalEvidence", "meteoEvidence"]);
   const meteoId = await uploadEvidence(operator, "METEO");
-  await uploadEvidence(operator, "CHEMICAL");
+  const chemicalId = await uploadEvidence(operator, "CHEMICAL");
   assert.equal((await api(submitPath, { user: operator, method: "POST", body: { version }, origin: "https://evil.invalid" })).status, 403);
   const submitted = await api(submitPath, { user: operator, method: "POST", body: { version } });
   assert.equal(submitted.status, 200, `submit: ${await submitted.clone().text()}`);
@@ -130,11 +166,20 @@ try {
   assert.equal((await api(fieldPath, { user: verified, method: "POST", body: { updatedAt: (await fieldChanged.json()).record.updatedAt, archived: true } })).status, 409, "submitted field cannot be archived");
   assert.equal((await api(`/api/drafts/${passportId}/evidence`, { user: operator, method: "POST", body: { kind: "OTHER", filename: "x.txt", contentType: "text/plain", sizeBytes: 1, sha256: "0".repeat(64) } })).status, 404, "submitted evidence cannot change");
   assert.equal((await api(`/api/admin/passports/${passportId}`, { user: operator })).status, 403);
+  const previewPath = `/api/admin/passports/${passportId}/public-preview?${new URLSearchParams({ weatherFileId: meteoId, chemicalFileId: chemicalId })}`;
+  assert.equal((await api(previewPath)).status, 401, "public preview requires authentication");
+  assert.equal((await api(previewPath, { user: operator })).status, 403, "operator cannot inspect public preview");
+  assert.equal((await api(previewPath, { user: verified })).status, 409, "only approved passports have a public preview");
   assert.equal((await api("/api/admin/records?view=users", { user: operator })).status, 403, "operator cannot inspect users");
   assert.equal((await api(`/api/passports/${passportId}/evidence/${meteoId}/preview`, { user: operator })).status, 307, "owner can still view submitted evidence");
   const detail = await api(`/api/admin/passports/${passportId}`, { user: verified });
   assert.equal(detail.status, 200);
-  assert.equal((await detail.json()).passport.status, "SUBMITTED");
+  const reviewedRecord = (await detail.json()).passport;
+  assert.equal(reviewedRecord.status, "SUBMITTED");
+  assert.equal(reviewedRecord.publicFarmLabel, data.farmer.publicFarmLabel);
+  assert.equal(reviewedRecord.treatment.timeZone, data.treatment.timeZone);
+  assert.equal(reviewedRecord.treatment.treatedAreaHectares, data.treatment.treatedAreaHectares);
+  assert.notEqual(reviewedRecord.field.publicReference, reviewedRecord.field.id, "public reference is independent of private field id");
   assert.equal((await api(`/api/admin/passports/${passportId}/evidence/${meteoId}/preview`, { user: verified })).status, 307);
   assert.equal((await api(`/api/admin/passports?status=SUBMITTED&search=Fictional%20Review`, { user: verified })).status, 200);
   for (const view of ["farmers", "fields", "users", "publications", "audit"]) {
@@ -169,6 +214,28 @@ try {
   const approved = await db.passport.findUniqueOrThrow({ where: { id: passportId } });
   assert.equal(approved.status, "APPROVED");
   assert.equal(approved.approvedVersion, approved.submittedVersion, "approval pins the submitted version");
+  assert.equal((await api(`/api/admin/passports/${passportId}/public-preview`, { user: verified })).status, 400, "source selection is required");
+  const wrongSources = await api(`/api/admin/passports/${passportId}/public-preview?${new URLSearchParams({ weatherFileId: chemicalId, chemicalFileId: meteoId })}`, { user: verified });
+  assert.equal(wrongSources.status, 422, "source files must match their kind");
+  const previewResponse = await api(previewPath, { user: verified });
+  assert.equal(previewResponse.status, 200, `public preview: ${await previewResponse.clone().text()}`);
+  const { preview } = await previewResponse.json();
+  const snapshot = preview.snapshot;
+  assert.equal(snapshot.schemaVersion, "2.0.0");
+  assert.equal(snapshot.treatment.treatedAreaHectares, data.treatment.treatedAreaHectares);
+  assert.equal(snapshot.field.areaHectares, data.farmer.fieldArea);
+  assert.equal(snapshot.field.reference, reviewedRecord.field.publicReference);
+  assert.notEqual(snapshot.certificateId, passportId, "certificate ID is independent of private passport ID");
+  assert.equal(snapshot.evidence.weatherSha256, (await db.evidenceFile.findUniqueOrThrow({ where: { id: meteoId } })).sha256);
+  assert.equal(snapshot.evidence.chemicalSha256, (await db.evidenceFile.findUniqueOrThrow({ where: { id: chemicalId } })).sha256);
+  assert.equal(preview.canonicalJson, canonicalize(snapshot));
+  assert.equal(preview.sha256, await sha256Json(JSON.parse(preview.canonicalJson)), "hash matches transported public JSON");
+  assert.deepEqual(Object.keys(snapshot).sort(), ["schemaName", "schemaVersion", "certificateId", "snapshotAt", "issuer", "farm", "field", "treatment", "weather", "chemical", "evidence"].sort());
+  assert.deepEqual(Object.keys(snapshot.treatment).sort(), ["category", "date", "localTime", "timeZone", "treatedAreaHectares", "droneModel"].sort());
+  const serialized = JSON.stringify(preview);
+  for (const secret of [privateMarker, passportId, linked.farmerId, linked.fieldId, meteoId, chemicalId, emails[0], emails[1], "Fictional Review Farm Updated"]) assert.ok(!serialized.includes(secret), `private value leaked: ${secret}`);
+  assert.ok(!publicSnapshotSchema.safeParse({ ...snapshot, farmerId: privateMarker }).success, "unknown private key is rejected");
+  assert.ok(!publicSnapshotSchema.safeParse({ ...snapshot, schemaVersion: "1.0.0" }).success, "legacy demo version is rejected");
   const recalled = await api(`/api/admin/passports/${passportId}/decision`, { user: verified, method: "POST", body: { version: approved.version, decision: "CORRECTION_REQUIRED", note: "Recheck approved record" } });
   assert.equal(recalled.status, 200, "approved passport can be recalled before publication");
   version = (await recalled.json()).passport.version;

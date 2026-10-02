@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FlaskConical, Building2, Hash } from "lucide-react";
 import { BlockCard } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { FileUpload } from "@/components/ui/FileUpload";
 import { useWizardStore } from "@/lib/store";
 import { useT } from "@/lib/i18n/context";
@@ -28,6 +29,7 @@ export function ChemicalBlock({ open, onToggle, done, summary, editLabel, allowU
 
   const {
     register,
+    control,
     formState: { errors },
     watch,
   } = useForm<ChemicalFormInput, unknown, ChemicalFormValues>({
@@ -37,6 +39,7 @@ export function ChemicalBlock({ open, onToggle, done, summary, editLabel, allowU
       chemical: chemical.chemical ?? "",
       chemicalActive: chemical.chemicalActive ?? "",
       dose: chemical.dose ?? undefined,
+      doseUnit: chemical.doseUnit ?? "",
       workingVolume: chemical.workingVolume ?? undefined,
       manufacturer: chemical.manufacturer ?? "",
       regNumber: chemical.regNumber ?? "",
@@ -87,6 +90,21 @@ export function ChemicalBlock({ open, onToggle, done, summary, editLabel, allowU
           error={errors.dose?.message}
           {...register("dose")}
         />
+        {!allowUpload && <Controller
+          control={control}
+          name="doseUnit"
+          render={({ field }) => <Select
+            label={t.chemical.doseUnitLabel}
+            placeholder={t.chemical.doseUnitPlaceholder}
+            value={field.value}
+            onValueChange={field.onChange}
+            options={[
+              { value: "L_PER_HA", label: t.chemical.doseUnitLitres },
+              { value: "KG_PER_HA", label: t.chemical.doseUnitKilograms },
+            ]}
+            error={errors.doseUnit?.message}
+          />}
+        />}
         <Input
           label={t.chemical.volumeLabel}
           type="number"

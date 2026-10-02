@@ -38,6 +38,7 @@ export interface Translations {
     chemicalHint: string;
     invalid: string;
     localImport: string;
+    publicFieldReference: string;
   };
   evidence: {
     title: string;
@@ -85,15 +86,25 @@ export interface Translations {
     evidence: string; audit: string; noEvidence: string; noAudit: string;
     download: string; submittedAt: string; reviewedAt: string;
     name: string; registration: string; crop: string; area: string;
+    publicFarmLabel: string; publicFieldReference: string; treatedArea: string; timeZone: string;
     gps: string; cadastral: string; type: string; date: string; time: string;
     drone: string; operator: string; pilotCert: string; temperature: string;
     humidity: string; wind: string; rainfall: string; product: string;
-    activeSubstance: string; dose: string; volume: string; manufacturer: string;
+    activeSubstance: string; dose: string; doseUnit: string; volume: string; manufacturer: string;
     supplier: string; publicationDisabled: string; users: string;
     records: string; farmers: string; fields: string; publications: string;
     usersTab: string; auditTab: string; role: string; mfa: string;
     active: string; banned: string; created: string; noRecords: string;
     passports: string; status: string; yes: string; no: string;
+    publicPreview: {
+      title: string; hint: string; weatherSource: string; chemicalSource: string; choose: string; show: string; loading: string; loadError: string; temporary: string;
+      certificate: string; schemaName: string; schemaVersion: string; certificateId: string; snapshotAt: string; issuer: string;
+      farm: string; farmLabel: string; field: string; fieldReference: string; fieldArea: string; crop: string;
+      treatment: string; category: string; date: string; localTime: string; timeZone: string; treatedArea: string; droneModel: string;
+      weather: string; temperature: string; humidity: string; wind: string; rainfall: string; measuredAt: string;
+      chemical: string; product: string; activeSubstance: string; dose: string; doseUnit: string; workingVolume: string; manufacturer: string; registrationNumber: string;
+      verification: string; weatherDigest: string; chemicalDigest: string; snapshotDigest: string; exactJson: string;
+    };
   };
   management: {
     actions: string; open: string; close: string; searchHint: string; searchButton: string;
@@ -199,6 +210,9 @@ export interface Translations {
     blockHint: string;
     nameLabel: string;
     namePlaceholder: string;
+    publicFarmLabel: string;
+    publicFarmPlaceholder: string;
+    publicFarmHint: string;
     idLabel: string;
     areaLabel: string;
     areaPlaceholder: string;
@@ -216,6 +230,10 @@ export interface Translations {
     typePlaceholder: string;
     dateLabel: string;
     timeLabel: string;
+    timeZoneLabel: string;
+    timeZoneHint: string;
+    treatedAreaLabel: string;
+    treatedAreaHint: string;
     modelLabel: string;
     modelPlaceholder: string;
     serialLabel: string;
@@ -238,6 +256,8 @@ export interface Translations {
     humidityLabel: string;
     windLabel: string;
     rainLabel: string;
+    measuredAtLabel: string;
+    measuredAtHint: string;
   };
   chemical: {
     blockTitle: string;
@@ -248,6 +268,10 @@ export interface Translations {
     activePlaceholder: string;
     doseLabel: string;
     dosePlaceholder: string;
+    doseUnitLabel: string;
+    doseUnitPlaceholder: string;
+    doseUnitLitres: string;
+    doseUnitKilograms: string;
     volumeLabel: string;
     volumePlaceholder: string;
     manufacturerLabel: string;

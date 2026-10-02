@@ -16,6 +16,7 @@ import {
   isChemicalComplete,
 } from "@/lib/validation";
 import { useT } from "@/lib/i18n/context";
+import { isSupportedTimeZone } from "@/lib/time-zone";
 
 export function Step1Form({ demoMode = true }: { demoMode?: boolean }) {
   const state = useWizardStore();
@@ -28,8 +29,12 @@ export function Step1Form({ demoMode = true }: { demoMode?: boolean }) {
   const t = useT();
   const { complete, missing } = isStep1Complete(state);
 
-  const farmerDone = useMemo(() => isFarmerComplete(farmer), [farmer]);
-  const treatmentDone = useMemo(() => isTreatmentComplete(treatment), [treatment]);
+  const farmerDone = useMemo(() => isFarmerComplete(farmer) && (demoMode || !!farmer.publicFarmLabel?.trim()), [farmer, demoMode]);
+  const treatmentDone = useMemo(() => isTreatmentComplete(treatment) && (demoMode || (
+    !!treatment.timeZone && isSupportedTimeZone(treatment.timeZone) &&
+    treatment.treatedAreaHectares != null && Number(treatment.treatedAreaHectares) > 0 &&
+    (farmer.fieldArea == null || Number(treatment.treatedAreaHectares) <= Number(farmer.fieldArea))
+  )), [treatment, farmer.fieldArea, demoMode]);
   const meteoDone = useMemo(() => isMeteoComplete(meteo), [meteo]);
   const chemicalDone = useMemo(() => isChemicalComplete(chemical), [chemical]);
 
@@ -106,6 +111,7 @@ export function Step1Form({ demoMode = true }: { demoMode?: boolean }) {
   return (
     <div className="space-y-3 fade-in">
       <FarmerBlock
+        capturePublicationDetails={!demoMode}
         open={openBlock === 1}
         onToggle={() => toggle(1)}
         done={farmerDone}
@@ -114,6 +120,7 @@ export function Step1Form({ demoMode = true }: { demoMode?: boolean }) {
       />
 
       <TreatmentBlock
+        capturePublicationDetails={!demoMode}
         open={openBlock === 2}
         onToggle={() => toggle(2)}
         done={treatmentDone}

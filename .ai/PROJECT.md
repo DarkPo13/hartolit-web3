@@ -6,9 +6,11 @@ What this project IS. Stable: change it only when the project changes, and audit
 
 Hartolit performs drone crop-protection treatments in Ukraine. This application records each treatment as a **field passport**: farmer, field, treatment, weather and chemical data plus evidence files. It is built so that a passport can later be published as a non-transferable ERC-721 token on BNB Smart Chain. The token carries the SHA-256 of a canonical public JSON snapshot stored on IPFS, and anyone can re-hash that snapshot at `/verify/{tokenId}` and compare. The intended verifiers are insurers, subsidy offices and EU auditors.
 
+**Product goal, clarified by the user 2026-09-28:** Help farmers present evidence of proper treatment, including products, doses, timing and conditions, when organizations assess crop damage, compliance or compensation. Every public field must be visible on the certificate. Source evidence and private farmer/plot linkage must support the record; integrity verification alone does not assess agronomy or determine compensation. Public-field policies can evolve through new schema versions while published records retain their original contents (D21).
+
 **The stakes:** a published passport is permanent and public. A wrong hash, a private field in the snapshot, or a simulated certificate issued in production cannot be recalled; neither the chain nor pinned IPFS content can be edited. When in doubt, fail closed and do not publish.
 
-Current reality (2026-09-25): an authenticated local MVP covering Phases 1–4 (accounts, drafts, private evidence, review and admin management). Publication is not built; no contract is deployed; no real customer data may be entered. The live frontier is in `.ai/STATE.md`.
+Current reality (2026-10-02): an authenticated local MVP covering Phases 1–4 (accounts, drafts, private evidence, review and admin management), plus Phase 5 fact capture and a read-only public preview. Publication is not built; no contract is deployed; no real customer data may be entered. The live frontier is in `.ai/STATE.md`.
 
 ## Repository structure
 
@@ -19,19 +21,20 @@ Single Next.js application (not a monorepo) plus a Foundry workspace.
 | `app/` | App Router pages. `page.tsx` → `PassportHome.tsx` (signed-in home: drafts, or the demo wizard). `admin/` (MFA admin console), `login/`, `two-factor/`, `forgot-password/`, `reset-password/`, `settings/security/`, `verify/[tokenId]/` (public verification). |
 | `app/api/drafts/…` | Owner-scoped draft CRUD and evidence reserve/complete/preview/remove. |
 | `app/api/passports/…` | Operator: list own submitted passports, submit, reopen, evidence preview. |
-| `app/api/admin/…` | Admin: overview, review queue, passport detail, assign, decision, evidence preview, record editing/archive, operator management, audit lists. |
+| `app/api/admin/…` | Admin: overview, review queue, passport detail, assign, decision, evidence preview, read-only public snapshot preview, record editing/archive, operator management, audit lists. |
 | `app/api/auth/[...all]` | Better Auth handler with an admin-operation allowlist and MFA-enrollment session reset. |
 | `app/api/mint`, `ipfs/pin`, `files/upload` | Legacy demo issuance path. Returns 503 unless in local demo mode (DECISIONS D1, D2). |
 | `app/api/diia/*` | Always returns 501 (D4). |
 | `app/api/passport/[tokenId]` | Public read of on-chain data and IPFS. |
 | `lib/drafts/`, `lib/evidence/`, `lib/review/` | Server services: transactions, optimistic concurrency, audit, storage, scanning, workflow. |
+| `lib/public-snapshot/` | Strict `2.0.0` public schema and allowlisted, approved-passport preview builder. No confirmation or publication writer yet. |
 | `lib/auth*.ts`, `lib/db*.ts`, `lib/demo-mode.ts` | Auth configuration, actor lookup and guards, Prisma client, demo switch. |
 | `lib/hash.ts`, `lib/contract.ts`, `lib/ipfs.ts`, `lib/wagmi.ts` | Canonical JSON + SHA-256, hand-written contract ABI, Pinata REST client, wallet config. |
 | `lib/i18n/` | Ukrainian (default) and English translations behind a typed `Translations` object. |
 | `components/drafts/` | Draft workspace, evidence panel, review status. `components/wizard/`, `form/`, `web3/` belong to the demo wizard. |
-| `prisma/` | `schema.prisma` and seven committed migrations. The client is generated into `generated/prisma/` (gitignored). |
+| `prisma/` | `schema.prisma` and nine migrations, including two additive Phase 5 migrations. The client is generated into `generated/prisma/` (gitignored). |
 | `contracts/` | Foundry: `src/HartolitFieldPassport.sol`, `test/HartolitFieldPassport.t.sol` (22 test functions), `script/Deploy.s.sol`. `contracts/lib/` is gitignored and installed by `forge install`. |
-| `scripts/`, `tests/` | Local setup, fictional seed, evidence cleanup, four live smoke tests, the compiled-contract ABI check, and the JSON hash regression test. |
+| `scripts/`, `tests/` | Local setup, fictional seed, evidence cleanup, four live smoke tests, the compiled-contract ABI check, JSON hash regression and public-preview rendering test. |
 | `compose.yaml` | Local services: PostgreSQL, Mailpit, SeaweedFS, ClamAV, all bound to loopback. |
 | `.github/workflows/ci.yml` | CI: a `web` job (with Postgres, SeaweedFS, ClamAV and Mailpit service containers) and a `contract` job (Foundry). |
 | `docs/` | **Gitignored.** Holds local-only planning and presentation documents; not present in a clone (D12). |

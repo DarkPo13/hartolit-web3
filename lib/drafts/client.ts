@@ -19,6 +19,7 @@ export function toDraftData(state: DraftWizardData): DraftData | null {
   const result = draftDataSchema.safeParse({
     farmer: {
       farmerName: text(state.farmer.farmerName),
+      publicFarmLabel: text(state.farmer.publicFarmLabel),
       farmerId: text(state.farmer.farmerId),
       fieldArea: number(state.farmer.fieldArea),
       gpsCoords: text(state.farmer.gpsCoords),
@@ -29,6 +30,8 @@ export function toDraftData(state: DraftWizardData): DraftData | null {
       treatmentType: text(state.treatment.treatmentType),
       treatmentDate: text(state.treatment.treatmentDate),
       treatmentTime: text(state.treatment.treatmentTime),
+      timeZone: text(state.treatment.timeZone),
+      treatedAreaHectares: number(state.treatment.treatedAreaHectares),
       droneModel: text(state.treatment.droneModel),
       droneSerial: text(state.treatment.droneSerial),
       operator: text(state.treatment.operator),
@@ -46,6 +49,7 @@ export function toDraftData(state: DraftWizardData): DraftData | null {
       chemical: text(state.chemical.chemical),
       chemicalActive: text(state.chemical.chemicalActive),
       dose: number(state.chemical.dose),
+      doseUnit: text(state.chemical.doseUnit),
       workingVolume: number(state.chemical.workingVolume),
       manufacturer: text(state.chemical.manufacturer),
       regNumber: text(state.chemical.regNumber),
@@ -66,7 +70,7 @@ export function fromDraftData(data: DraftData): DraftWizardData {
   };
   return {
     farmer: { ...data.farmer, fieldArea: data.farmer.fieldArea ?? undefined },
-    treatment: { ...data.treatment },
+    treatment: { ...data.treatment, treatedAreaHectares: data.treatment.treatedAreaHectares ?? undefined },
     meteo: Object.keys(meteoData).length ? { meteoData } : {},
     chemical: { ...data.chemical, dose: data.chemical.dose ?? undefined, workingVolume: data.chemical.workingVolume ?? undefined },
   };

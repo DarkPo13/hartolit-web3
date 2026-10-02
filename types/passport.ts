@@ -25,6 +25,7 @@ export interface MeteoData {
 
 export interface FarmerBlockData {
   farmerName: string;
+  publicFarmLabel?: string;
   farmerId: string;
   fieldArea: number;
   gpsCoords: string;
@@ -36,6 +37,8 @@ export interface TreatmentBlockData {
   treatmentType: string;
   treatmentDate: string;
   treatmentTime: string;
+  timeZone?: string;
+  treatedAreaHectares?: number;
   droneModel: string;
   droneSerial: string;
   operator: string;
@@ -53,6 +56,7 @@ export interface ChemicalBlockData {
   chemical: string;
   chemicalActive: string;
   dose: number;
+  doseUnit?: "L_PER_HA" | "KG_PER_HA" | "";
   workingVolume: number;
   manufacturer: string;
   regNumber: string;

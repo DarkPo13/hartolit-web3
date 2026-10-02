@@ -66,8 +66,8 @@ export function isStep1Complete(state: WizardLikeState): Step1Status {
 }
 
 export function buildPayload(state: WizardLikeState): FieldPassportPayload {
-  const farmer = farmerSchema.parse(state.farmer);
-  const treatment = treatmentSchema.parse(state.treatment);
+  const farmer = farmerSchema.omit({ publicFarmLabel: true }).parse(state.farmer);
+  const treatment = treatmentSchema.omit({ timeZone: true, treatedAreaHectares: true }).parse(state.treatment);
   const meteoData = meteoDataSchema.parse(state.meteo.meteoData);
   const chemical = chemicalSchema.parse(state.chemical);
 

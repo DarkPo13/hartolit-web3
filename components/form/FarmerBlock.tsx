@@ -12,6 +12,7 @@ import { useT } from "@/lib/i18n/context";
 import { useEffect } from "react";
 
 interface FarmerBlockProps {
+  capturePublicationDetails?: boolean;
   open?: boolean;
   onToggle?: () => void;
   done?: boolean;
@@ -19,7 +20,7 @@ interface FarmerBlockProps {
   editLabel?: string;
 }
 
-export function FarmerBlock({ open, onToggle, done, summary, editLabel }: FarmerBlockProps = {}) {
+export function FarmerBlock({ open, onToggle, done, summary, editLabel, capturePublicationDetails = false }: FarmerBlockProps = {}) {
   const farmer = useWizardStore((s) => s.farmer);
   const setFarmer = useWizardStore((s) => s.setFarmer);
   const t = useT();
@@ -39,6 +40,7 @@ export function FarmerBlock({ open, onToggle, done, summary, editLabel }: Farmer
     mode: "onBlur",
     defaultValues: {
       farmerName: farmer.farmerName ?? "",
+      publicFarmLabel: farmer.publicFarmLabel ?? "",
       farmerId: farmer.farmerId ?? "",
       fieldArea: farmer.fieldArea ?? undefined,
       gpsCoords: farmer.gpsCoords ?? "",
@@ -75,6 +77,16 @@ export function FarmerBlock({ open, onToggle, done, summary, editLabel }: Farmer
             {...register("farmerName")}
           />
         </div>
+        {capturePublicationDetails && <div className="md:col-span-2">
+          <Input
+            label={t.farmer.publicFarmLabel}
+            placeholder={t.farmer.publicFarmPlaceholder}
+            hint={t.farmer.publicFarmHint}
+            maxLength={200}
+            error={errors.publicFarmLabel?.message}
+            {...register("publicFarmLabel")}
+          />
+        </div>}
         <Input
           label={t.farmer.idLabel}
           placeholder="12345678"

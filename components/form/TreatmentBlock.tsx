@@ -12,6 +12,7 @@ import { useWizardStore } from "@/lib/store";
 import { useT } from "@/lib/i18n/context";
 
 interface TreatmentBlockProps {
+  capturePublicationDetails?: boolean;
   open?: boolean;
   onToggle?: () => void;
   done?: boolean;
@@ -19,7 +20,7 @@ interface TreatmentBlockProps {
   editLabel?: string;
 }
 
-export function TreatmentBlock({ open, onToggle, done, summary, editLabel }: TreatmentBlockProps = {}) {
+export function TreatmentBlock({ open, onToggle, done, summary, editLabel, capturePublicationDetails = false }: TreatmentBlockProps = {}) {
   const treatment = useWizardStore((s) => s.treatment);
   const setTreatment = useWizardStore((s) => s.setTreatment);
   const t = useT();
@@ -41,6 +42,8 @@ export function TreatmentBlock({ open, onToggle, done, summary, editLabel }: Tre
       treatmentType: treatment.treatmentType ?? "",
       treatmentDate: treatment.treatmentDate ?? "",
       treatmentTime: treatment.treatmentTime ?? "",
+      timeZone: treatment.timeZone ?? "",
+      treatedAreaHectares: treatment.treatedAreaHectares ?? undefined,
       droneModel: treatment.droneModel ?? "",
       droneSerial: treatment.droneSerial ?? "",
       operator: treatment.operator ?? "",
@@ -98,6 +101,23 @@ export function TreatmentBlock({ open, onToggle, done, summary, editLabel }: Tre
           error={errors.treatmentTime?.message}
           {...register("treatmentTime")}
         />
+        {capturePublicationDetails && <Input
+          label={t.treatment.timeZoneLabel}
+          placeholder="Europe/Kyiv"
+          hint={t.treatment.timeZoneHint}
+          maxLength={64}
+          error={errors.timeZone?.message}
+          {...register("timeZone")}
+        />}
+        {capturePublicationDetails && <Input
+          label={t.treatment.treatedAreaLabel}
+          type="number"
+          min="0"
+          step="0.0001"
+          hint={t.treatment.treatedAreaHint}
+          error={errors.treatedAreaHectares?.message}
+          {...register("treatedAreaHectares")}
+        />}
         <Input
           label={t.treatment.modelLabel}
           placeholder={t.treatment.modelPlaceholder}

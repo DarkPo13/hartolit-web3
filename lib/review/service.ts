@@ -3,6 +3,8 @@ import "server-only";
 import { Prisma, type PassportStatus } from "@/generated/prisma/client";
 import { getDb } from "@/lib/db";
 import { touchEditablePassport } from "@/lib/drafts/lock";
+import { isSupportedTimeZone } from "@/lib/time-zone";
+import { publicCropSchema, publicTreatmentCategorySchema } from "@/lib/public-snapshot/schema";
 import type { ReviewDecision } from "./schema";
 
 export class WorkflowError extends Error {
@@ -28,6 +30,7 @@ function decimal(value: Prisma.Decimal | null | undefined) { return value?.toNum
 function privateDetail(row: DetailRow) {
   return {
     id: row.id, status: row.status, version: row.version,
+    publicFarmLabel: row.publicFarmLabel,
     owner: row.owner, reviewer: row.reviewer, reviewedBy: row.reviewedBy,
     submittedAt: row.submittedAt?.toISOString() ?? null,
     submittedVersion: row.submittedVersion,
@@ -35,10 +38,10 @@ function privateDetail(row: DetailRow) {
     approvedVersion: row.approvedVersion,
     reviewNote: row.reviewNote,
     farmer: { id: row.farmer.id, legalName: row.farmer.legalName, registrationId: row.farmer.registrationId, contactName: row.farmer.contactName, contactEmail: row.farmer.contactEmail, contactPhone: row.farmer.contactPhone },
-    field: { id: row.field.id, label: row.field.label, areaHectares: decimal(row.field.areaHectares), gpsCoords: row.field.gpsCoords, cadastralNumber: row.field.cadastralNumber, crop: row.field.crop },
-    treatment: row.treatment && { treatmentType: row.treatment.treatmentType, treatmentDate: row.treatment.treatmentDate, treatmentTime: row.treatment.treatmentTime, droneModel: row.treatment.droneModel, droneSerial: row.treatment.droneSerial, operator: row.treatment.operator, pilotCert: row.treatment.pilotCert, notes: row.treatment.notes },
+    field: { id: row.field.id, label: row.field.label, publicReference: row.field.publicReference, areaHectares: decimal(row.field.areaHectares), gpsCoords: row.field.gpsCoords, cadastralNumber: row.field.cadastralNumber, crop: row.field.crop },
+    treatment: row.treatment && { treatmentType: row.treatment.treatmentType, treatmentDate: row.treatment.treatmentDate, treatmentTime: row.treatment.treatmentTime, timeZone: row.treatment.timeZone, treatedAreaHectares: decimal(row.treatment.treatedAreaHectares), droneModel: row.treatment.droneModel, droneSerial: row.treatment.droneSerial, operator: row.treatment.operator, pilotCert: row.treatment.pilotCert, notes: row.treatment.notes },
     meteo: row.meteo && { temperatureCelsius: decimal(row.meteo.temperatureCelsius), humidityPercent: decimal(row.meteo.humidityPercent), windSpeedMps: decimal(row.meteo.windSpeedMps), rainfallMm: decimal(row.meteo.rainfallMm), measuredAt: row.meteo.measuredAt?.toISOString() ?? null },
-    chemical: row.chemical && { product: row.chemical.product, activeSubstance: row.chemical.activeSubstance, dosePerHa: decimal(row.chemical.dosePerHa), workingVolume: decimal(row.chemical.workingVolume), manufacturer: row.chemical.manufacturer, registrationNo: row.chemical.registrationNo, supplierName: row.chemical.supplierName, supplierEdrpou: row.chemical.supplierEdrpou },
+    chemical: row.chemical && { product: row.chemical.product, activeSubstance: row.chemical.activeSubstance, dosePerHa: decimal(row.chemical.dosePerHa), doseUnit: row.chemical.doseUnit, workingVolume: decimal(row.chemical.workingVolume), manufacturer: row.chemical.manufacturer, registrationNo: row.chemical.registrationNo, supplierName: row.chemical.supplierName, supplierEdrpou: row.chemical.supplierEdrpou },
     evidence: row.evidence.filter((file) => file.rejectionCode !== "REMOVED").map((file) => ({ ...file, createdAt: file.createdAt.toISOString() })),
     audit: row.audit.map((event) => ({ ...event, createdAt: event.createdAt.toISOString() })),
   };
@@ -47,16 +50,24 @@ function privateDetail(row: DetailRow) {
 function missingForSubmission(row: DetailRow): string[] {
   const missing: string[] = [];
   if (!row.farmer.legalName?.trim()) missing.push("farmerName");
+  if (!row.publicFarmLabel?.trim()) missing.push("publicFarmLabel");
   if (!row.field.crop?.trim()) missing.push("crop");
+  else if (!publicCropSchema.safeParse(row.field.crop).success) missing.push("cropCategory");
   if (!row.field.areaHectares || row.field.areaHectares.lte(0)) missing.push("fieldArea");
   if (!row.treatment?.treatmentType?.trim()) missing.push("treatmentType");
+  else if (!publicTreatmentCategorySchema.safeParse(row.treatment.treatmentType).success) missing.push("treatmentCategory");
   if (!row.treatment?.treatmentDate) missing.push("treatmentDate");
   if (!row.treatment?.treatmentTime) missing.push("treatmentTime");
+  if (!row.treatment?.timeZone || !isSupportedTimeZone(row.treatment.timeZone)) missing.push("timeZone");
+  if (!row.treatment?.treatedAreaHectares || row.treatment.treatedAreaHectares.lte(0)) missing.push("treatedArea");
+  else if (row.field.areaHectares && row.treatment.treatedAreaHectares.gt(row.field.areaHectares)) missing.push("treatedAreaExceedsField");
   if (!row.treatment?.droneModel?.trim()) missing.push("droneModel");
   if (!row.treatment?.operator?.trim()) missing.push("operator");
   if (row.meteo?.temperatureCelsius == null || row.meteo.humidityPercent == null || row.meteo.windSpeedMps == null) missing.push("meteoMeasurements");
+  if (!row.meteo?.measuredAt) missing.push("meteoMeasuredAt");
   if (!row.chemical?.product?.trim()) missing.push("chemicalProduct");
   if (!row.chemical?.dosePerHa || row.chemical.dosePerHa.lte(0)) missing.push("chemicalDose");
+  if (!row.chemical?.doseUnit) missing.push("chemicalDoseUnit");
   if (!row.chemical?.workingVolume || row.chemical.workingVolume.lte(0)) missing.push("workingVolume");
   if (!row.evidence.some((file) => file.kind === "METEO" && file.status === "READY")) missing.push("meteoEvidence");
   if (!row.evidence.some((file) => file.kind === "CHEMICAL" && file.status === "READY")) missing.push("chemicalEvidence");

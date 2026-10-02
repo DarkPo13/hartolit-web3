@@ -27,6 +27,7 @@ function toRecord(row: DraftRow): DraftRecord {
   if (row.status !== "DRAFT") throw new DraftError(409, "Draft is no longer editable");
   return {
     id: row.id,
+    publicFieldReference: row.field.publicReference,
     status: "DRAFT",
     version: row.version,
     updatedAt: row.updatedAt.toISOString(),
@@ -34,6 +35,7 @@ function toRecord(row: DraftRow): DraftRecord {
     data: {
       farmer: {
         farmerName: str(row.farmer.legalName),
+        publicFarmLabel: str(row.publicFarmLabel),
         farmerId: str(row.farmer.registrationId),
         fieldArea: num(row.field.areaHectares),
         gpsCoords: str(row.field.gpsCoords),
@@ -44,6 +46,8 @@ function toRecord(row: DraftRow): DraftRecord {
         treatmentType: str(row.treatment?.treatmentType ?? null),
         treatmentDate: str(row.treatment?.treatmentDate ?? null),
         treatmentTime: str(row.treatment?.treatmentTime ?? null),
+        timeZone: str(row.treatment?.timeZone ?? null),
+        treatedAreaHectares: num(row.treatment?.treatedAreaHectares ?? null),
         droneModel: str(row.treatment?.droneModel ?? null),
         droneSerial: str(row.treatment?.droneSerial ?? null),
         operator: str(row.treatment?.operator ?? null),
@@ -61,6 +65,7 @@ function toRecord(row: DraftRow): DraftRecord {
         chemical: str(row.chemical?.product ?? null),
         chemicalActive: str(row.chemical?.activeSubstance ?? null),
         dose: num(row.chemical?.dosePerHa ?? null),
+        doseUnit: row.chemical?.doseUnit ?? "",
         workingVolume: num(row.chemical?.workingVolume ?? null),
         manufacturer: str(row.chemical?.manufacturer ?? null),
         regNumber: str(row.chemical?.registrationNo ?? null),
@@ -128,7 +133,7 @@ export async function saveDraft(ownerId: string, id: string, input: DraftSave): 
 
     const updated = await tx.passport.updateMany({
       where: { id, ownerId, status: "DRAFT", version },
-      data: { version: { increment: 1 } },
+      data: { version: { increment: 1 }, publicFarmLabel: data.farmer.publicFarmLabel || null },
     });
     if (updated.count !== 1) throw new DraftError(409, "Draft changed in another session");
 
@@ -165,6 +170,7 @@ export async function saveDraft(ownerId: string, id: string, input: DraftSave): 
         product: data.chemical.chemical || null,
         activeSubstance: data.chemical.chemicalActive || null,
         dosePerHa: data.chemical.dose,
+        doseUnit: data.chemical.doseUnit || null,
         workingVolume: data.chemical.workingVolume,
         manufacturer: data.chemical.manufacturer || null,
         registrationNo: data.chemical.regNumber || null,
@@ -186,6 +192,8 @@ function nullStrings(value: DraftData["treatment"]) {
     treatmentType: value.treatmentType || null,
     treatmentDate: value.treatmentDate || null,
     treatmentTime: value.treatmentTime || null,
+    timeZone: value.timeZone || null,
+    treatedAreaHectares: value.treatedAreaHectares,
     droneModel: value.droneModel || null,
     droneSerial: value.droneSerial || null,
     operator: value.operator || null,

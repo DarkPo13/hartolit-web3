@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSupportedTimeZone } from "@/lib/time-zone";
 
 const ukNumeric = (min: number, max: number, label: string) =>
   z
@@ -9,6 +10,7 @@ const ukNumeric = (min: number, max: number, label: string) =>
 
 export const farmerSchema = z.object({
   farmerName: z.string().min(2, "Введіть назву ФГ або ПІБ").max(200),
+  publicFarmLabel: z.string().trim().max(200).optional(),
   farmerId: ukNumeric(8, 10, "ЄДРПОУ/ІПН"),
   fieldArea: z.coerce.number().positive("Площа має бути > 0").max(100000),
   gpsCoords: z
@@ -32,6 +34,8 @@ export const treatmentSchema = z.object({
   treatmentType: z.string().min(2),
   treatmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Дата у форматі YYYY-MM-DD"),
   treatmentTime: z.string().regex(/^\d{2}:\d{2}$/, "Час у форматі HH:MM"),
+  timeZone: z.string().trim().max(64).refine((value) => value === "" || isSupportedTimeZone(value), "Вкажіть часовий пояс, наприклад Europe/Kyiv").optional(),
+  treatedAreaHectares: z.coerce.number().positive("Оброблена площа має бути > 0").max(99999999.9999).optional(),
   droneModel: z.string().min(2, "Вкажіть модель дрона"),
   droneSerial: z.string().min(2, "Вкажіть серійний номер"),
   operator: z.string().min(2, "Вкажіть ПІБ оператора"),
@@ -51,6 +55,7 @@ export const chemicalSchema = z.object({
   chemical: z.string().min(2, "Назва препарату"),
   chemicalActive: z.string().min(2, "Діюча речовина"),
   dose: z.coerce.number().positive("Доза > 0"),
+  doseUnit: z.enum(["L_PER_HA", "KG_PER_HA", ""]).optional(),
   workingVolume: z.coerce.number().positive("Робочий об'єм > 0"),
   manufacturer: z.string().min(2, "Виробник"),
   regNumber: z.string().min(2, "№ реєстрації Укрпестицид"),
@@ -74,8 +79,8 @@ export const fieldPassportPayloadSchema = z
     schema: z.literal("hartolit.field-passport.public"),
     version: z.literal("1.0.0"),
     issuedAt: z.string().datetime(),
-    farmer: farmerSchema.strict(),
-    treatment: treatmentSchema.strict(),
+    farmer: farmerSchema.omit({ publicFarmLabel: true }).strict(),
+    treatment: treatmentSchema.omit({ timeZone: true, treatedAreaHectares: true }).strict(),
     meteo: z
       .object({
         file: fileRefSchema,

@@ -51,10 +51,10 @@ async function request(path, { jar, method = "GET", body, origin = base } = {}) 
 }
 
 const data = {
-  farmer: { farmerName: "Fictional Farm", farmerId: "FICTIONAL-1", fieldArea: 12.5, gpsCoords: "49.0, 34.0", cadastralNumber: "", crop: "sunflower" },
-  treatment: { treatmentType: "herbicide", treatmentDate: "2026-09-01", treatmentTime: "09:30", droneModel: "Fictional Drone", droneSerial: "", operator: "Test Pilot", pilotCert: "", notes: "" },
+  farmer: { farmerName: "Fictional Farm", publicFarmLabel: "Fictional Public Farm", farmerId: "FICTIONAL-1", fieldArea: 12.5, gpsCoords: "49.0, 34.0", cadastralNumber: "", crop: "sunflower" },
+  treatment: { treatmentType: "herbicide", treatmentDate: "2026-09-01", treatmentTime: "09:30", timeZone: "Europe/Kyiv", treatedAreaHectares: 10.25, droneModel: "Fictional Drone", droneSerial: "", operator: "Test Pilot", pilotCert: "", notes: "" },
   meteo: { temperatureCelsius: 22.5, humidityPercent: 60, windSpeedMps: 2.5, rainfallMm: 0, measuredAt: "2026-09-01T09:30:00.000Z" },
-  chemical: { chemical: "Fictional Product", chemicalActive: "", dose: 1.25, workingVolume: 25, manufacturer: "", regNumber: "", supplierName: "", supplierEdrpou: "" },
+  chemical: { chemical: "Fictional Product", chemicalActive: "", dose: 1.25, doseUnit: "L_PER_HA", workingVolume: 25, manufacturer: "", regNumber: "", supplierName: "", supplierEdrpou: "" },
 };
 
 try {
@@ -71,16 +71,22 @@ try {
   draftIds.push(created.id);
   assert.equal(created.version, 1);
   assert.equal(created.status, "DRAFT");
+  assert.match(created.publicFieldReference, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, "public field reference generated");
   assert.match(createdResponse.headers.get("cache-control"), /no-store/);
   assert.equal((await request(`/api/drafts/${created.id}`, { jar: b })).status, 404, "other owner cannot read");
   assert.equal((await request(`/api/drafts/${created.id}`, { jar: b, method: "PATCH", body: { version: 1, data } })).status, 404, "other owner cannot write");
   const unsafeBody = { version: 1, data: { ...data, meteoFile: { url: "internal://fake" } } };
   assert.equal((await request(`/api/drafts/${created.id}`, { jar: a, method: "PATCH", body: unsafeBody })).status, 400, "file references rejected");
+  assert.equal((await request(`/api/drafts/${created.id}`, { jar: a, method: "PATCH", body: { version: 1, data: { ...data, farmer: { ...data.farmer, publicFieldReference: "chosen-by-client" } } } })).status, 400, "client cannot choose the public field reference");
+  assert.equal((await request(`/api/drafts/${created.id}`, { jar: a, method: "PATCH", body: { version: 1, data: { ...data, treatment: { ...data.treatment, timeZone: "Invalid/Zone" } } } })).status, 400, "invalid time zone rejected");
+  assert.equal((await request(`/api/drafts/${created.id}`, { jar: a, method: "PATCH", body: { version: 1, data: { ...data, treatment: { ...data.treatment, treatedAreaHectares: 10.12345 } } } })).status, 400, "treated area cannot be silently rounded in storage");
+  assert.equal((await request(`/api/drafts/${created.id}`, { jar: a, method: "PATCH", body: { version: 1, data: { ...data, chemical: { ...data.chemical, doseUnit: "ml/ha" } } } })).status, 400, "unsupported dose unit rejected");
   assert.equal((await request(`/api/drafts/${created.id}`, { jar: a, method: "PATCH", body: { version: 1, data }, origin: null })).status, 403, "missing origin denied");
   const savedResponse = await request(`/api/drafts/${created.id}`, { jar: a, method: "PATCH", body: { version: 1, data } });
   assert.equal(savedResponse.status, 200, "save draft");
   const saved = (await savedResponse.json()).draft;
   assert.equal(saved.version, 2);
+  assert.equal(saved.publicFieldReference, created.publicFieldReference, "public field reference stays stable after save");
   assert.deepEqual(saved.data, data);
   assert.equal((await request(`/api/drafts/${created.id}`, { jar: a, method: "PATCH", body: { version: 1, data } })).status, 409, "stale version rejected");
   const [raceA, raceB] = await Promise.all([
@@ -103,6 +109,12 @@ try {
   assert.equal(row.farmer.ownerId, id);
   assert.equal(row.field.ownerId, id);
   assert.equal(row.chemical.product, data.chemical.chemical);
+  assert.equal(row.chemical.doseUnit, "L_PER_HA", "dose unit persisted separately from amount");
+  assert.equal(row.publicFarmLabel, data.farmer.publicFarmLabel);
+  assert.equal(row.treatment.timeZone, data.treatment.timeZone);
+  assert.equal(row.treatment.treatedAreaHectares.toNumber(), data.treatment.treatedAreaHectares);
+  assert.equal(row.field.publicReference, created.publicFieldReference);
+  assert.notEqual(row.field.publicReference, row.field.id, "public field reference is independent of private field id");
   process.stdout.write("Draft smoke passed: auth, ownership, schema, origin, save/reload, concurrency, ban, audit, second session.\n");
 } finally {
   for (const draftId of draftIds) {

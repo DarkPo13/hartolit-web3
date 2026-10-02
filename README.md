@@ -168,7 +168,7 @@ Future legal review must cover:
 
 ## Data Model
 
-The following example is the legacy local demo payload. It includes farmer identifiers, coordinates, and file references and must not be published for real customers. Phase 5 needs an approved public-field allowlist and retention policy before a real public snapshot is defined. Diia fields are absent.
+The following example is the legacy local demo payload. It includes farmer identifiers, coordinates, and file references and must not be published for real customers. The initial Phase 5 public-field policy and a separate read-only `2.0.0` preview schema are described below; snapshot confirmation, private-data retention and publisher decisions remain incomplete. Diia fields are absent.
 
 ```jsonc
 {
@@ -229,7 +229,7 @@ The following example is the legacy local demo payload. It includes farmer ident
 }
 ```
 
-The SHA-256 of the **canonicalized** JSON is stored on chain as `payloadHash`. The current demo payload reflects the earlier fully public concept and must not be used for real records. The final public snapshot needs a field allowlist and approval. The optional demo still returns `internal://` file references and does not preserve uploaded bytes. The authenticated draft path stores private evidence in object storage; it does not publish those files to IPFS.
+The SHA-256 of the **canonicalized** JSON is stored on chain as `payloadHash`. The current demo payload reflects the earlier fully public concept and must not be used for real records. The separate Phase 5 allowlist and read-only preview require a future confirmation and controlled publication flow. The optional demo still returns `internal://` file references and does not preserve uploaded bytes. The authenticated draft path stores private evidence in object storage; it does not publish those files to IPFS.
 
 ---
 
@@ -238,6 +238,85 @@ The SHA-256 of the **canonicalized** JSON is stored on chain as `payloadHash`. T
 Phase 1 stores individual accounts, sessions, MFA enrollment, password reset tokens, and rate limits in PostgreSQL through Prisma and Better Auth. The shared password gate is removed. Anonymous visitors can still use public certificate verification.
 
 Phase 2 stores farmer, field, passport, treatment, meteo, chemical, and audit records in PostgreSQL. Signed-in users can create and edit their own drafts; autosave uses a version check and shows a conflict if another session saved first. The tab stores structured fields only while edits are unsynced. Phase 3 adds private S3-compatible evidence storage with direct, five-minute upload grants, server-side integrity checks, a malware scan, and one-minute owner-authorized download links. The optional local demo remains separate and still uses tab-scoped state. Phase 4 adds submission, assignment, correction, rejection, and approval with version checks and audit history. The admin console at `/admin` includes a review queue and details, draft-only farmer and field editing, archive and restore for completed records, operator invitations and access control, publication monitoring, and searchable passport and admin audit history. Phase 5 will enable controlled publication of an explicitly approved public snapshot.
+
+---
+
+### Phase 5 public snapshot policy — initial scope approved
+
+**Approved by the user on 2026-09-28**, with treated area added by explicit approval on 2026-10-02. Prepared from the Prisma schema, draft DTOs, review service and legacy public viewer. The public schema, allowlisted builder and read-only admin preview are implemented; snapshot confirmation and publication are not. Private-data retention and publisher access remain separate decisions.
+
+Anyone with an IPFS CID can read an unencrypted snapshot and keep a copy. Deleting our database record or unpinning our copy cannot recall other people's copies. Each exact snapshot therefore needs confirmation before publication, even under this approved field policy. See the [official IPFS privacy documentation](https://docs.ipfs.tech/concepts/privacy-and-encryption/).
+
+#### Certificate purpose and evidence requirements
+
+The primary goal is to help a farmer present evidence of a properly performed treatment when an insurer, compensation provider, auditor or other organization assesses crop damage or compliance. A useful certificate must show which field and crop were treated, when, with which products and doses, under which weather conditions, and what evidence supports that record.
+
+- **Every public snapshot field must appear on the certificate and public verifier.** Treatment facts belong in readable sections with units; schema/version, public references, timestamps and evidence digests belong in a verification appendix. The certificate must use the confirmed snapshot, not mutable private rows. Chain receipt facts are shown separately after confirmation.
+- **Traceability must reach the real farmer and treated land.** Public farm labels and random field references must have a retained private mapping to the verified farmer/plot. An authorized review of that mapping and original evidence is needed when an organization requires precise identity or location; it does not make those private values public. Recipient sharing/export access is not implemented yet.
+- **A dose needs context.** Product instructions or an agronomist recommendation, the relevant crop/use, units, treatment time and conditions must support any claim that the dose was appropriate. The current review service checks required values and verified attachments; it performs no comparison with a product label or agronomic standard. Such supporting records can stay private under this field policy.
+- **Field area and treated area must be distinguished.** The current model records both values separately. Before claiming treatment of an entire plot, obtain supporting evidence of coverage; partial treatments require an explicit treated-area value rather than silently treating field area as coverage. Original flight logs or other source documents can support review; automated telemetry ingestion is outside the current MVP.
+- **Integrity and factual assessment are separate results.** The hash check confirms the published record has not changed. File scanning confirms technical integrity and malware status. The certificate supports an organization's assessment of proper treatment; that organization assesses the evidence, crop-loss cause, coverage and any compensation. The app must not describe a hash match or internal approval as proof of correct agronomy, full-season care or entitlement to a payment. No Diia/KEP claim is made.
+
+As a design reference, the [EU plant-protection record format](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32023R0564) includes product/authorization, time, dose, treated-area identification/size and crop. This informs the evidence checklist; it does not establish compliance or acceptance for this Ukrainian MVP. Validate a sample certificate and its supporting evidence with the selected pilot organization before claiming it accepts them for claims.
+
+#### Approved starting public fields
+
+| Group | Fields to publish | Source and boundary |
+|---|---|---|
+| Certificate | Schema name/version, a random public certificate ID, snapshot timestamp, issuer label `Hartolit` | Generated publication metadata; no account or private passport IDs. Timestamp records snapshot creation, not a confirmed mint. |
+| Farm | A separately entered and explicitly confirmed public farm display label | `Passport.publicFarmLabel` is entered separately from `Farmer.legalName`; never automatically copy contact names or registration IDs. The label may identify the farm, so its exact text must be reviewed. |
+| Field | A random public field reference, area in hectares, crop category | `Field.publicReference` is a random UUID independent of the private field ID; `Field.areaHectares` and normalized `Field.crop` supply the other values. No field label, cadastral number or coordinates. |
+| Treatment | Treatment category, date, local time with an explicit timezone, **treated area in hectares**, drone model | `Treatment.treatmentType`, `treatmentDate`, `treatmentTime`, `timeZone`, `treatedAreaHectares`, `droneModel`. Treated area must be positive and no greater than field area. No drone serial, operator name, pilot certificate or notes. |
+| Weather | Temperature in Celsius, humidity percent, wind speed in m/s, rainfall in mm, measurement timestamp | Only the five measurement fields in `MeteoMeasurement`. No source file metadata or location. |
+| Chemical | Product, active substance, dose per hectare with its unit, working volume in L/ha, manufacturer, product registration number | Only these values from `ChemicalApplication`; `doseUnit` is captured explicitly. Product registration is distinct from farmer/supplier registration. |
+| Evidence integrity | Kind and server-verified SHA-256 of the selected weather and chemical source files | Only the reviewed source files with `READY` status. No bytes, filenames, object keys, URLs or other attachments. A digest can link an identical file held elsewhere; it does not grant access to our private copy. |
+
+The connected publisher and recipient wallet addresses, chain, contract, token, transaction, payload hash and IPFS URI will also be public through the blockchain. The verifier reads these separately; they are not embedded in a snapshot that would need to contain its own hash or URI.
+
+#### Fields kept private
+
+| Group | Excluded fields |
+|---|---|
+| Farmer and field identity | Legal name, tax/registration ID, contact name/email/phone, stored field label, GPS, cadastral number, internal farmer/field/owner IDs |
+| People and equipment | Operator name, pilot certificate, drone serial, account details, reviewer identity and assignment |
+| Supplier | Supplier name and EDRPOU |
+| Notes and operations | Treatment notes, review reasons, audit records, draft versions, archive state, upload/scan state, session and authentication data |
+| Evidence access | Raw files, original filenames, MIME/size metadata, storage keys, source-file IDs, signed links, download URLs |
+
+This summary still reveals agricultural and commercial facts. It is not anonymous. Private identifiers must not be hashed into public identifiers; the public references are random values unrelated to those identifiers.
+
+#### Future policy and schema changes
+
+The user may revise the public-field policy for future certificates. A change to field meanings, required evidence or public scope must introduce a new schema version and require confirmation of the new snapshot. New public fields need explicit approval; private values must never become public automatically during an upgrade.
+
+Already published snapshots, hashes and certificates retain their original contents and version. Historical verification must continue to understand supported old versions. Correcting a published treatment requires a new record with an explicit link to the earlier certificate; the original stays available, and the correction history must be visible. This correction flow is planned, not implemented. Correctable private drafts remain editable through the existing review lifecycle.
+
+#### Implementation gates
+
+**2026-10-02 local progress:** Gate 1 captures an explicit chemical dose unit, separately entered public farm label, random field reference, treatment time zone and distinct treated area. Existing unknown values remain unknown; the migration generates only independent random references for pre-existing fields. Both new migrations applied locally. A strict `2.0.0` public schema, allowlisted server builder and read-only MFA-admin preview now select two explicit verified source files, render all public values and calculate SHA-256 of the canonical JSON. Each preview creates temporary metadata; refreshing changes its ID, timestamp and hash. It does not store confirmation, mint a token or publish to IPFS.
+
+1. Capture explicit public labels/references, dose unit, timezone and treated area through new migrations and validated form fields. Do not guess units, timezones, treated area or labels for existing drafts. **Completed locally on 2026-10-02; browser UI and hosted verification remain open.**
+2. Define a new strict public schema, separate from legacy demo version `1.0.0`, and a server builder that selects each approved field by name. Normalize crop/treatment categories; never spread or serialize raw Prisma rows. Review each remaining public text field for private content. **Builder and category validation implemented locally; human review of free text remains necessary.**
+3. Show the exact public snapshot to an MFA admin, then bind a future confirmation to the approved passport version and snapshot hash. Approval must be invalidated if those bytes change. Derive every public certificate/verifier field from those confirmed bytes and display all of them, including the verification appendix. **Read-only preview implemented; persistent confirmation, issued certificate and public verifier are pending.**
+4. Test private-field exclusion, unknown-field rejection, missing units/timezones, unapproved versions, hash equality after JSON transport and certificate coverage of every public field. Tests must use private markers in excluded source fields and inspect the actual serialized output. Future schema additions must preserve historical verification. **Live review smoke covers preview authorization, source selection, serialized private-marker exclusion, version rejection and transported hash; `test:public` checks readable preview coverage. Issued-certificate coverage and historical verification remain pending.**
+5. Resolve retention (remaining Q1) and publisher authorization (Q3) before adding real IPFS or wallet publication. Keep legacy demo issuance closed for real data.
+
+Public verification will confirm integrity of the published snapshot. It does not prove the treatment happened or provide a Diia/KEP signature. Public certificate and verifier screens must use this new schema, rather than the legacy viewer that exposes the complete demo payload.
+
+#### Private-data retention proposal — remaining Q1 decision
+
+The certificate's claim-support purpose depends on keeping the original evidence and private farmer/field mapping available. **The following periods are proposed product defaults, not adopted policy or a statement of legal requirements.** Confirm them with the user now, then check the chosen pilot organization's record requirements before real-data release.
+
+| Record class | Proposed policy |
+|---|---|
+| Issued certificate support | Keep the private treatment record, necessary farmer/field mapping, referenced original evidence and review history for **five years from publication**. Preserve the reviewed version referenced by each certificate; reprinting does not restart the period. |
+| Final reviews without publication | Keep finalized review records and their supporting evidence for **five years from the final decision**. A later publication starts its own certificate-support period. |
+| Unused drafts | After **90 days of inactivity**, notify the owner before deleting never-submitted drafts and unreferenced attachments. Submitted records, certificate references and active claims are excluded. The notice and deletion workflow must be implemented before any automatic cleanup. |
+| Open claims or disputes | An explicit preservation hold blocks deletion of the relevant records and files until the hold is released and the ordinary retention period has expired. Hold management is not implemented yet. |
+| Private backups | Target a **30-day rolling window** of matched database/object backups. Deletions must age out of backups, and a restore must reapply deletion records and preservation holds before user access resumes. Provider support and restore acceptance remain Q2/S7 work. |
+| Authentication data | Keep the existing session/reset expiry rules separate; this proposal does not extend token or session lifetime to five years. |
+
+Public snapshots and blockchain records remain public after private retention expires. A digest alone cannot recreate the deleted original evidence. Changing a future retention default must account for existing certificates and active claims; it must not silently shorten preservation commitments. Current `evidence:prune` only cleans stale upload/scan/rejected objects; no business-record retention or preservation holds exist in the application.
 
 ---
 

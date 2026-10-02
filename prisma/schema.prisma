@@ -135,6 +135,11 @@ enum EvidenceKind {
   OTHER
 }
 
+enum DoseUnit {
+  L_PER_HA
+  KG_PER_HA
+}
+
 enum PublicationStatus {
   RESERVED
   PINNING
@@ -181,6 +186,7 @@ model Farmer {
 
 model Field {
   id               String   @id @default(uuid()) @db.Uuid
+  publicReference  String   @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ownerId          String
   owner            User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   farmerId         String   @db.Uuid
@@ -202,6 +208,7 @@ model Field {
 
 model Passport {
   id          String         @id @default(uuid()) @db.Uuid
+  publicFarmLabel String?     @db.VarChar(200)
   ownerId     String
   owner       User           @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   farmerId    String         @db.Uuid
@@ -242,6 +249,8 @@ model Treatment {
   treatmentType String?  @db.VarChar(100)
   treatmentDate String?  @db.VarChar(10)
   treatmentTime String?  @db.VarChar(5)
+  timeZone      String?  @db.VarChar(64)
+  treatedAreaHectares Decimal? @db.Decimal(12, 4)
   droneModel    String?  @db.VarChar(200)
   droneSerial   String?  @db.VarChar(200)
   operator      String?  @db.VarChar(200)
@@ -273,6 +282,7 @@ model ChemicalApplication {
   product           String?       @db.VarChar(200)
   activeSubstance   String?       @db.VarChar(200)
   dosePerHa         Decimal?      @db.Decimal(12, 4)
+  doseUnit          DoseUnit?
   workingVolume     Decimal?      @db.Decimal(12, 4)
   manufacturer      String?       @db.VarChar(200)
   registrationNo    String?       @db.VarChar(100)

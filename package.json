@@ -11,6 +11,7 @@
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test:hash": "node --test tests/hash.test.mjs",
+    "test:public": "node --test tests/public-snapshot-view.test.mjs",
     "db:setup": "node scripts/setup-local-auth.mjs",
     "evidence:setup": "node scripts/setup-local-evidence.mjs",
     "evidence:up": "docker compose --env-file .env.db.local --env-file .env.storage.local up -d seaweedfs clamav",

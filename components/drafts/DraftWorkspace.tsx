@@ -24,6 +24,7 @@ export function DraftWorkspace() {
   const setDraftSync = useWizardStore((s) => s.setDraftSync);
   const [drafts, setDrafts] = useState<DraftListItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [publicFieldReference, setPublicFieldReference] = useState<string | null>(null);
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -38,6 +39,7 @@ export function DraftWorkspace() {
 
   const openDraft = useCallback(async (id: string, preserveCache = false) => {
     const record = await getDraft(id);
+    setPublicFieldReference(record.publicFieldReference);
     setSubmitIssues([]);
     setSubmitError(false);
     setDrafts((items) => items.some((item) => item.id === record.id) ? items : [{
@@ -149,6 +151,7 @@ export function DraftWorkspace() {
         farmerName: "", crop: "",
       }, ...items]);
       setSelectedId(record.id);
+      setPublicFieldReference(record.publicFieldReference);
       setLegacyCache(false);
       setStatus("saved");
       if (parsedLocal) {
@@ -204,6 +207,7 @@ export function DraftWorkspace() {
       }
       useWizardStore.getState().reset();
       setSelectedId(null);
+      setPublicFieldReference(null);
       setReviewNote(null);
       setReviewRevision((value) => value + 1);
       await load();
@@ -251,6 +255,7 @@ export function DraftWorkspace() {
             <button type="button" onClick={() => void keepChanges()} disabled={busy} className="text-sm font-medium text-brand-700 underline disabled:opacity-50">{t.drafts.overwrite}</button>
           </>}
         </div>}
+        {selectedId && publicFieldReference && <p className="mt-3 break-all text-sm text-ink-muted">{t.drafts.publicFieldReference}: <span className="font-mono text-ink">{publicFieldReference}</span></p>}
         {selectedId && reviewNote && <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-ink" role="status">{t.review.previousNote}: {reviewNote}</p>}
         {selectedId && !loadError && <div className="mt-4 border-t border-border pt-4">
           <p className="text-sm text-ink-muted">{t.review.submitHint}</p>

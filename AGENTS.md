@@ -53,7 +53,7 @@ Then the general order:
 - **Fail closed.** Production must never return a simulated token, mock CID or placeholder certificate. `isDemoMode()` in `lib/demo-mode.ts` is the only switch (D1, D2).
 - **Authorization lives on the server, in every route handler** (`getActor`/`requireWriteAccess` in `lib/auth-guard.ts`, `draftActor` in `lib/drafts/http.ts`, `reviewActor` in `lib/review/http.ts`). `proxy.ts` only sets response headers; it is not an access check.
 - **No blockchain private key in the web environment** (D3).
-- **Nothing private goes to IPFS or on chain.** A public snapshot must be built from an explicit allowlist that does not exist yet (Phase 5; the allowlist is an open decision in STATE).
+- **Nothing private goes to IPFS or on chain.** The initial public-field policy, including treated area, is approved in README (D21); the strict schema, allowlisted builder and read-only preview are implemented (D24). No confirmation or real publication path exists yet. Every public field must appear on the issued certificate. Policy changes require new schema versions and confirmation; existing published records retain their original contents. Retention and publisher decisions remain open in STATE.
 - **Schema changes go through a new Prisma migration** (`npm run db:migrate`). Never edit a committed migration: CI and hosts apply them with `npm run db:deploy`.
 - **Fixtures are fictional.** Smoke scripts use `@example.invalid` accounts and delete everything they create; the seed refuses a non-local database.
 - **Next.js 16 APIs:** read the relevant guide in `node_modules/next/dist/docs/` before writing Next code (block above).
@@ -74,9 +74,10 @@ Current results, with dates and the machine they were taken on, live only in `.a
 | `npm run drafts:smoke`, `npm run evidence:smoke`, `npm run review:smoke` | PostgreSQL, SeaweedFS and ClamAV (`compose.yaml`), migrations applied, the app running on `http://localhost:3000` | Browser UI, keyboard and mobile; hosted storage; backup and restore. |
 | `npm run auth:smoke` | as above, plus Mailpit (`npm run dev:services:up`) | Browser UI and hosted email delivery. Runs in CI with Mailpit. |
 | `npm run test:hash` | `npm ci` | Browser-specific crypto behavior or real IPFS and chain storage. |
+| `npm run test:public` | `npm ci` | Checks that the readable preview renders the `2.0.0` public values; does not test browser interaction, a confirmed certificate, or future schema versions. |
 | `npm run contracts:build`, `npm run contracts:test` | Foundry, plus `forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.6.0 foundry-rs/forge-std@v1.16.1` run inside `contracts/` (`contracts/lib/` is gitignored) | Whether the hand-written ABI in `lib/contract.ts` matches the contract; the separate ABI check covers its declared subset. |
 | `node --experimental-strip-types scripts/check-contract-abi.mjs` | Node 24+, compiled Foundry artifact at `contracts/out/` | Whether the app declares every compiled function; it checks the 21 entries actually declared in `lib/contract.ts`. |
-| CI, `.github/workflows/ci.yml` (on every push) | a push to GitHub | Runs lint, typecheck, hash tests, build, `db:deploy`, the drafts/evidence/review/auth smokes, `npm audit --omit=dev --audit-level=high`, ABI comparison, and forge build + test. Does not run browser checks or anything hosted. |
+| CI, `.github/workflows/ci.yml` (on every push) | a push to GitHub | Runs lint, typecheck, hash and public-preview rendering tests, build, `db:deploy`, the drafts/evidence/review/auth smokes, `npm audit --omit=dev --audit-level=high`, ABI comparison, and forge build + test. Does not run browser checks or anything hosted. |
 
 Habits:
 

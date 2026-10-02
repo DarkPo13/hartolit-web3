@@ -71,6 +71,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:hash
+      - run: npm run test:public
       - name: Build with isolated test-only auth configuration
         run: npm run build
       - run: npm run db:deploy

@@ -118,6 +118,13 @@ export function MeteoBlock({ open, onToggle, done, summary, editLabel, allowUplo
             leadingIcon={<CloudRain className="h-4 w-4" />}
           />
         </div>
+        {!allowUpload && <Input
+          label={t.meteo.measuredAtLabel}
+          hint={t.meteo.measuredAtHint}
+          type="datetime-local"
+          value={data?.measuredAt ? new Date(data.measuredAt).toISOString().slice(0, 16) : ""}
+          onChange={(event) => setMeteo({ meteoData: { ...data, measuredAt: event.target.value ? `${event.target.value}:00.000Z` : undefined } })}
+        />}
       </div>
     </BlockCard>
   );
