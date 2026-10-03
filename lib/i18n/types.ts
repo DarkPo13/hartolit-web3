@@ -98,6 +98,7 @@ export interface Translations {
     passports: string; status: string; yes: string; no: string;
     publicPreview: {
       title: string; hint: string; weatherSource: string; chemicalSource: string; choose: string; show: string; loading: string; loadError: string; temporary: string;
+      confirmCheck: string; confirm: string; confirming: string; confirmError: string; confirmChanged: string; confirmedTitle: string; confirmedAt: string; confirmedRecord: string; confirmationLoadError: string;
       certificate: string; schemaName: string; schemaVersion: string; certificateId: string; snapshotAt: string; issuer: string;
       farm: string; farmLabel: string; field: string; fieldReference: string; fieldArea: string; crop: string;
       treatment: string; category: string; date: string; localTime: string; timeZone: string; treatedArea: string; droneModel: string;

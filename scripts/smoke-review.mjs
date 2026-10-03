@@ -1,6 +1,6 @@
 // Fictional fixtures only. Removes its users, passports, audit entries, and objects.
 import assert from "node:assert/strict";
-import { createHash, createHmac, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import nextEnv from "@next/env";
 import { DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createJiti } from "jiti";
@@ -236,8 +236,40 @@ try {
   for (const secret of [privateMarker, passportId, linked.farmerId, linked.fieldId, meteoId, chemicalId, emails[0], emails[1], "Fictional Review Farm Updated"]) assert.ok(!serialized.includes(secret), `private value leaked: ${secret}`);
   assert.ok(!publicSnapshotSchema.safeParse({ ...snapshot, farmerId: privateMarker }).success, "unknown private key is rejected");
   assert.ok(!publicSnapshotSchema.safeParse({ ...snapshot, schemaVersion: "1.0.0" }).success, "legacy demo version is rejected");
+  const confirmationPath = `/api/admin/passports/${passportId}/public-confirmation`;
+  const confirmationBody = { passportVersion: approved.version, weatherFileId: meteoId, chemicalFileId: chemicalId, certificateId: snapshot.certificateId, snapshotAt: snapshot.snapshotAt, expectedSha256: preview.sha256 };
+  assert.equal((await api(confirmationPath)).status, 401, "confirmation is private");
+  assert.equal((await api(confirmationPath, { user: operator })).status, 403, "operator cannot read confirmations");
+  assert.equal((await api(confirmationPath, { user: admin })).status, 401, "MFA enrollment revoked the old admin session");
+  assert.equal((await api(confirmationPath, { user: verified })).status, 200);
+  assert.equal((await (await api(confirmationPath, { user: verified })).json()).confirmation, null, "no confirmation before explicit action");
+  assert.equal((await api(confirmationPath, { user: operator, method: "POST", body: confirmationBody })).status, 403);
+  assert.equal((await api(confirmationPath, { user: verified, method: "POST", body: confirmationBody, origin: "https://evil.invalid" })).status, 403);
+  assert.equal((await api(confirmationPath, { user: verified, method: "POST", body: { ...confirmationBody, unexpected: privateMarker } })).status, 400, "confirmation input is strict");
+  assert.equal((await api(confirmationPath, { user: verified, method: "POST", body: { ...confirmationBody, passportVersion: approved.version - 1 } })).status, 409, "stale version cannot be confirmed");
+  assert.equal((await api(confirmationPath, { user: verified, method: "POST", body: { ...confirmationBody, expectedSha256: "0".repeat(64) } })).status, 409, "changed hash cannot be confirmed");
+  assert.equal(await db.publicSnapshotConfirmation.count({ where: { passportId } }), 0, "rejected confirmation does not persist");
+  const confirmedResponse = await api(confirmationPath, { user: verified, method: "POST", body: confirmationBody });
+  assert.equal(confirmedResponse.status, 201, `confirmation: ${await confirmedResponse.clone().text()}`);
+  const confirmed = (await confirmedResponse.json()).confirmation;
+  assert.equal(confirmed.preview.canonicalJson, preview.canonicalJson, "confirmed exact JSON matches preview transport");
+  assert.equal(confirmed.preview.sha256, preview.sha256);
+  for (const secret of [privateMarker, passportId, linked.farmerId, linked.fieldId, meteoId, chemicalId, emails[0], emails[1]]) assert.ok(!JSON.stringify(confirmed).includes(secret), `private value leaked from confirmation: ${secret}`);
+  const storedConfirmation = await db.publicSnapshotConfirmation.findUniqueOrThrow({ where: { id: confirmed.id } });
+  assert.equal(storedConfirmation.canonicalJson, preview.canonicalJson, "DB stores exact preview bytes");
+  assert.equal(storedConfirmation.payloadHash, preview.sha256);
+  assert.equal(storedConfirmation.confirmedById, adminId);
+  assert.equal(storedConfirmation.approvedVersion, approved.approvedVersion);
+  assert.equal((await (await api(confirmationPath, { user: verified })).json()).confirmation.id, confirmed.id, "saved confirmation can be reloaded");
+  assert.equal((await api(confirmationPath, { user: verified, method: "POST", body: confirmationBody })).status, 200, "same confirmation is idempotent");
+  assert.equal((await api(confirmationPath, { user: verified, method: "POST", body: { ...confirmationBody, certificateId: randomUUID() } })).status, 409, "second snapshot cannot replace a confirmation");
+  assert.equal(await db.publicSnapshotConfirmation.count({ where: { passportId } }), 1);
+  assert.equal(await db.auditLog.count({ where: { passportId, action: "PUBLIC_SNAPSHOT_CONFIRMED" } }), 1, "one confirmation audit event");
   const recalled = await api(`/api/admin/passports/${passportId}/decision`, { user: verified, method: "POST", body: { version: approved.version, decision: "CORRECTION_REQUIRED", note: "Recheck approved record" } });
   assert.equal(recalled.status, 200, "approved passport can be recalled before publication");
+  assert.equal((await (await api(confirmationPath, { user: verified })).json()).confirmation, null, "recall hides the old confirmation");
+  assert.ok((await db.publicSnapshotConfirmation.findUniqueOrThrow({ where: { id: confirmed.id } })).invalidatedAt, "recall invalidates in the database");
+  assert.equal((await api(confirmationPath, { user: verified, method: "POST", body: confirmationBody })).status, 409, "recalled confirmation cannot be reused");
   version = (await recalled.json()).passport.version;
   const reopenedAgain = await api(`/api/passports/${passportId}/reopen`, { user: operator, method: "POST", body: { version } });
   assert.equal(reopenedAgain.status, 200);
@@ -264,7 +296,7 @@ try {
   assert.equal((await db.adminAction.count({ where: { entity: "farmers", entityId: linked.farmerId } })), 5, "record edits and archive actions audited");
   assert.equal((await db.auditLog.count({ where: { passportId, action: "ADMIN_RECORD_UPDATED" } })), 2, "draft record edits attributed to admin");
   assert.equal((await db.auditLog.count({ where: { passportId, action: { in: ["PASSPORT_SUBMITTED", "REVIEW_ASSIGNED", "CORRECTION_REQUESTED", "PASSPORT_REOPENED", "REVIEW_REJECTED", "REVIEW_APPROVED"] } } })), 13);
-  process.stdout.write("Review smoke passed: MFA, owner and admin edits, immutable submissions, archive, evidence freeze, submit, assign, conflict, correction, recall, rejection, resubmission, approval, audit.\n");
+  process.stdout.write("Review smoke passed: MFA, owner and admin edits, immutable submissions, archive, evidence freeze, submit, assign, conflict, correction, recall, rejection, resubmission, approval, exact public confirmation, audit.\n");
 } finally {
   for (const id of files) {
     const file = await db.evidenceFile.findUnique({ where: { id }, select: { objectKey: true } });
@@ -273,6 +305,7 @@ try {
   if (passportId) {
     const row = await db.passport.findUnique({ where: { id: passportId }, select: { farmerId: true, fieldId: true } });
     if (row) {
+      await db.publicSnapshotConfirmation.deleteMany({ where: { passportId } });
       await db.auditLog.deleteMany({ where: { passportId } });
       await db.evidenceFile.deleteMany({ where: { passportId } });
       await db.chemicalApplication.deleteMany({ where: { passportId } });

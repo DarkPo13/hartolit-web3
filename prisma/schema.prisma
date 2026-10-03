@@ -30,6 +30,7 @@ model User {
   evidenceFiles    EvidenceFile[]
   assignedReviews  Passport[] @relation("AssignedReviewer")
   reviewedPassports Passport[] @relation("DecisionReviewer")
+  confirmedSnapshots PublicSnapshotConfirmation[]
   adminActions     AdminAction[]
 
   @@unique([email])
@@ -162,6 +163,7 @@ enum AuditAction {
   REVIEW_REJECTED
   CORRECTION_REQUESTED
   PASSPORT_REOPENED
+  PUBLIC_SNAPSHOT_CONFIRMED
 }
 
 model Farmer {
@@ -234,6 +236,7 @@ model Passport {
   chemical    ChemicalApplication?
   evidence    EvidenceFile[]
   publication Publication?
+  confirmedSnapshots PublicSnapshotConfirmation[]
   audit       AuditLog[]
 
   @@unique([id, ownerId])
@@ -315,6 +318,8 @@ model EvidenceFile {
   updatedAt       DateTime              @updatedAt
   meteoSources    MeteoMeasurement[]    @relation("MeteoSource")
   chemicalSources ChemicalApplication[] @relation("ChemicalSource")
+  confirmedWeatherSnapshots PublicSnapshotConfirmation[] @relation("ConfirmedWeatherFile")
+  confirmedChemicalSnapshots PublicSnapshotConfirmation[] @relation("ConfirmedChemicalFile")
 
   @@index([passportId, kind])
   @@index([ownerId, createdAt(sort: Desc)])
@@ -338,6 +343,28 @@ model Publication {
   updatedAt       DateTime          @updatedAt
 
   @@unique([chainId, contractAddress, tokenId])
+}
+
+model PublicSnapshotConfirmation {
+  id               String       @id @default(uuid()) @db.Uuid
+  passportId       String       @db.Uuid
+  passport         Passport     @relation(fields: [passportId], references: [id], onDelete: Restrict)
+  approvedVersion  Int
+  passportVersion  Int
+  certificateId    String       @unique @db.Uuid
+  canonicalJson    String       @db.Text
+  payloadHash      String       @unique @db.Char(64)
+  weatherFileId    String       @db.Uuid
+  weatherFile      EvidenceFile @relation("ConfirmedWeatherFile", fields: [weatherFileId], references: [id], onDelete: Restrict)
+  chemicalFileId   String       @db.Uuid
+  chemicalFile     EvidenceFile @relation("ConfirmedChemicalFile", fields: [chemicalFileId], references: [id], onDelete: Restrict)
+  confirmedById    String
+  confirmedBy      User         @relation(fields: [confirmedById], references: [id], onDelete: Restrict)
+  confirmedAt      DateTime     @default(now())
+  invalidatedAt    DateTime?
+
+  @@unique([passportId, approvedVersion])
+  @@index([passportId, invalidatedAt])
 }
 
 model AuditLog {

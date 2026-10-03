@@ -10,7 +10,7 @@ Hartolit performs drone crop-protection treatments in Ukraine. This application 
 
 **The stakes:** a published passport is permanent and public. A wrong hash, a private field in the snapshot, or a simulated certificate issued in production cannot be recalled; neither the chain nor pinned IPFS content can be edited. When in doubt, fail closed and do not publish.
 
-Current reality (2026-10-02): an authenticated local MVP covering Phases 1–4 (accounts, drafts, private evidence, review and admin management), plus Phase 5 fact capture and a read-only public preview. Publication is not built; no contract is deployed; no real customer data may be entered. The live frontier is in `.ai/STATE.md`.
+Current reality (2026-10-03): an authenticated local MVP covering Phases 1–4 (accounts, drafts, private evidence, review and admin management), plus Phase 5 fact capture, public preview and private snapshot-confirmation code. The confirmation migration and live smoke still need verification. Publication is not built; no contract is deployed; no real customer data may be entered. The live frontier is in `.ai/STATE.md`.
 
 ## Repository structure
 
@@ -21,18 +21,18 @@ Single Next.js application (not a monorepo) plus a Foundry workspace.
 | `app/` | App Router pages. `page.tsx` → `PassportHome.tsx` (signed-in home: drafts, or the demo wizard). `admin/` (MFA admin console), `login/`, `two-factor/`, `forgot-password/`, `reset-password/`, `settings/security/`, `verify/[tokenId]/` (public verification). |
 | `app/api/drafts/…` | Owner-scoped draft CRUD and evidence reserve/complete/preview/remove. |
 | `app/api/passports/…` | Operator: list own submitted passports, submit, reopen, evidence preview. |
-| `app/api/admin/…` | Admin: overview, review queue, passport detail, assign, decision, evidence preview, read-only public snapshot preview, record editing/archive, operator management, audit lists. |
+| `app/api/admin/…` | Admin: overview, review queue, passport detail, assign, decision, evidence preview, public snapshot preview and private confirmation, record editing/archive, operator management, audit lists. |
 | `app/api/auth/[...all]` | Better Auth handler with an admin-operation allowlist and MFA-enrollment session reset. |
 | `app/api/mint`, `ipfs/pin`, `files/upload` | Legacy demo issuance path. Returns 503 unless in local demo mode (DECISIONS D1, D2). |
 | `app/api/diia/*` | Always returns 501 (D4). |
 | `app/api/passport/[tokenId]` | Public read of on-chain data and IPFS. |
 | `lib/drafts/`, `lib/evidence/`, `lib/review/` | Server services: transactions, optimistic concurrency, audit, storage, scanning, workflow. |
-| `lib/public-snapshot/` | Strict `2.0.0` public schema and allowlisted, approved-passport preview builder. No confirmation or publication writer yet. |
+| `lib/public-snapshot/` | Strict `2.0.0` public schema, allowlisted preview builder and private confirmation service. No publication writer yet. |
 | `lib/auth*.ts`, `lib/db*.ts`, `lib/demo-mode.ts` | Auth configuration, actor lookup and guards, Prisma client, demo switch. |
 | `lib/hash.ts`, `lib/contract.ts`, `lib/ipfs.ts`, `lib/wagmi.ts` | Canonical JSON + SHA-256, hand-written contract ABI, Pinata REST client, wallet config. |
 | `lib/i18n/` | Ukrainian (default) and English translations behind a typed `Translations` object. |
 | `components/drafts/` | Draft workspace, evidence panel, review status. `components/wizard/`, `form/`, `web3/` belong to the demo wizard. |
-| `prisma/` | `schema.prisma` and nine migrations, including two additive Phase 5 migrations. The client is generated into `generated/prisma/` (gitignored). |
+| `prisma/` | `schema.prisma` and ten migrations, including three additive Phase 5 migrations. The client is generated into `generated/prisma/` (gitignored). |
 | `contracts/` | Foundry: `src/HartolitFieldPassport.sol`, `test/HartolitFieldPassport.t.sol` (22 test functions), `script/Deploy.s.sol`. `contracts/lib/` is gitignored and installed by `forge install`. |
 | `scripts/`, `tests/` | Local setup, fictional seed, evidence cleanup, four live smoke tests, the compiled-contract ABI check, JSON hash regression and public-preview rendering test. |
 | `compose.yaml` | Local services: PostgreSQL, Mailpit, SeaweedFS, ClamAV, all bound to loopback. |
@@ -77,11 +77,12 @@ Versions are those installed on 2026-09-24. "Pinned" means an exact version in `
 ## Data and storage
 
 - **Better Auth tables** (`user`, `session`, `account`, `verification`, `twoFactor`, `rateLimit`): sessions and rate-limit counters live in PostgreSQL.
-- **Domain models:** `Farmer`, `Field`, `Passport`, `Treatment`, `MeteoMeasurement`, `ChemicalApplication`, `EvidenceFile`, `Publication`, `AuditLog`, `AdminAction`.
+- **Domain models:** `Farmer`, `Field`, `Passport`, `Treatment`, `MeteoMeasurement`, `ChemicalApplication`, `EvidenceFile`, `PublicSnapshotConfirmation`, `Publication`, `AuditLog`, `AdminAction`.
   - Farmer, Field, Passport and EvidenceFile carry `ownerId`. Composite foreign keys `(id, ownerId)` stop cross-owner references at the database level.
   - Deletes are `Restrict`, except that the reviewer links and the meteo/chemical source-file links are `SetNull`.
 - **Audit:** `AuditLog` is append-only in code and records passport actor, action, version, from/to status and an optional note. `AdminAction` records actor, action and entity ID for record and operator access changes without private field values. There is no update or delete path outside smoke-test cleanup.
 - **Publication:** the model exists (idempotency key, snapshot, payload hash, CID, chain, contract, tx, token; unique constraints on the hash and on the chain/contract/token triple). It is only read by the admin record list; nothing writes it yet (Phase 5).
+- **Private confirmation:** an approving MFA reviewer can persist exact allowlisted public JSON, hash and selected evidence IDs for an approved version. Recall invalidates it. No public read or publication side effect exists; this slice needs a live DB smoke before acceptance.
 - **Evidence bytes** live in the private bucket under `EvidenceFile.objectKey`, never in PostgreSQL. `npm run evidence:prune` cleans stale quarantine objects; it previews by default and deletes only with `--execute`.
 - **Configuration:** variable names only are listed in `.env.local.example`. Local values are generated into gitignored `.env.local`, `.env.db.local` and `.env.storage.local` by `npm run db:setup` and `npm run evidence:setup`.
 

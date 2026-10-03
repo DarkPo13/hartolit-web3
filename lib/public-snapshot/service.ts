@@ -13,29 +13,35 @@ const previewSelect = {
   treatment: { select: { treatmentType: true, treatmentDate: true, treatmentTime: true, timeZone: true, treatedAreaHectares: true, droneModel: true } },
   meteo: { select: { temperatureCelsius: true, humidityPercent: true, windSpeedMps: true, rainfallMm: true, measuredAt: true } },
   chemical: { select: { product: true, activeSubstance: true, dosePerHa: true, doseUnit: true, workingVolume: true, manufacturer: true, registrationNo: true } },
-  evidence: { select: { id: true, kind: true, status: true, sha256: true, rejectionCode: true } },
+  evidence: { select: { id: true, kind: true, status: true, sha256: true, rejectionCode: true, objectPurgedAt: true } },
   publication: { select: { id: true } },
 } satisfies Prisma.PassportSelect;
 
 function amount(value: Prisma.Decimal | null | undefined) { return value?.toNumber() ?? null; }
 function optional(value: string | null | undefined) { return value?.trim() || null; }
 
-export async function previewPublicSnapshot(id: string, weatherFileId: string, chemicalFileId: string) {
-  const row = await getDb().passport.findUnique({ where: { id }, select: previewSelect });
+export async function buildPublicSnapshot(
+  db: Prisma.TransactionClient,
+  id: string,
+  weatherFileId: string,
+  chemicalFileId: string,
+  metadata: { certificateId: string; snapshotAt: string },
+) {
+  const row = await db.passport.findUnique({ where: { id }, select: previewSelect });
   if (!row) throw new WorkflowError(404, "Passport not found");
   if (row.status !== "APPROVED" || row.approvedVersion === null || row.approvedVersion !== row.submittedVersion || row.publication) {
     throw new WorkflowError(409, "Only an approved, unpublished passport can be previewed");
   }
-  const weatherFile = row.evidence.find((file) => file.id === weatherFileId && file.kind === "METEO" && file.status === "READY" && file.rejectionCode === null);
-  const chemicalFile = row.evidence.find((file) => file.id === chemicalFileId && file.kind === "CHEMICAL" && file.status === "READY" && file.rejectionCode === null);
+  const weatherFile = row.evidence.find((file) => file.id === weatherFileId && file.kind === "METEO" && file.status === "READY" && file.rejectionCode === null && file.objectPurgedAt === null);
+  const chemicalFile = row.evidence.find((file) => file.id === chemicalFileId && file.kind === "CHEMICAL" && file.status === "READY" && file.rejectionCode === null && file.objectPurgedAt === null);
   if (!weatherFile || !chemicalFile) throw new WorkflowError(422, "Select one verified weather file and one verified chemical file");
 
   // Construct each approved public field by name. Never serialize a private Prisma row.
   const candidate = {
     schemaName: PUBLIC_SNAPSHOT_NAME,
     schemaVersion: PUBLIC_SNAPSHOT_VERSION,
-    certificateId: randomUUID(),
-    snapshotAt: new Date().toISOString(),
+    certificateId: metadata.certificateId,
+    snapshotAt: metadata.snapshotAt,
     issuer: "Hartolit",
     farm: { label: row.publicFarmLabel },
     field: { reference: row.field.publicReference, areaHectares: amount(row.field.areaHectares), crop: row.field.crop },
@@ -72,4 +78,10 @@ export async function previewPublicSnapshot(id: string, weatherFileId: string, c
   const snapshot = parsed.data;
   const canonicalJson = canonicalize(snapshot);
   return { snapshot, canonicalJson, sha256: await sha256Hex(canonicalJson), passportVersion: row.version, approvedVersion: row.approvedVersion };
+}
+
+export async function previewPublicSnapshot(id: string, weatherFileId: string, chemicalFileId: string) {
+  return buildPublicSnapshot(getDb(), id, weatherFileId, chemicalFileId, {
+    certificateId: randomUUID(), snapshotAt: new Date().toISOString(),
+  });
 }

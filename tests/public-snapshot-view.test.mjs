@@ -9,6 +9,7 @@ globalThis.React = React;
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/") }, jsx: { runtime: "automatic" } });
 const { PublicSnapshotView } = await jiti.import("../components/public-snapshot/PublicSnapshotView.tsx");
 const { publicSnapshotSchema } = await jiti.import("../lib/public-snapshot/schema.ts");
+const { uk } = await jiti.import("../lib/i18n/translations/uk.ts");
 
 test("readable preview displays every public scalar in addition to the exact JSON", () => {
   const snapshot = publicSnapshotSchema.parse({
@@ -35,4 +36,7 @@ test("readable preview displays every public scalar in addition to the exact JSO
     snapshot.chemical.manufacturer, snapshot.chemical.registrationNumber, snapshot.evidence.weatherSha256, snapshot.evidence.chemicalSha256,
     preview.sha256,
   ]) assert.ok(readable.includes(expected), `missing readable public value: ${expected}`);
+  const confirmed = renderToStaticMarkup(React.createElement(PublicSnapshotView, { preview, confirmed: true }));
+  assert.ok(confirmed.includes(uk.review.publicPreview.confirmedRecord), "saved snapshot must state that it is unpublished and unissued");
+  assert.ok(!confirmed.includes(uk.review.publicPreview.temporary), "saved snapshot must not be labeled temporary");
 });

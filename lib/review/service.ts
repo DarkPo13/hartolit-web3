@@ -141,6 +141,9 @@ export async function decideReview(adminId: string, id: string, input: ReviewDec
     const fromStatus = row.status;
     const changed = await tx.passport.updateMany({ where: { id, status: fromStatus, version, reviewerId: adminId }, data: { status: decision, version: { increment: 1 }, reviewedById: adminId, reviewedAt: new Date(), reviewNote: note || null, approvedVersion: decision === "APPROVED" ? row.submittedVersion : null } });
     if (!changed.count) throw new WorkflowError(409, "Passport changed; reload before deciding");
+    if (fromStatus === "APPROVED" && decision === "CORRECTION_REQUIRED") {
+      await tx.publicSnapshotConfirmation.updateMany({ where: { passportId: id, invalidatedAt: null }, data: { invalidatedAt: new Date() } });
+    }
     const action = decision === "APPROVED" ? "REVIEW_APPROVED" : decision === "REJECTED" ? "REVIEW_REJECTED" : "CORRECTION_REQUESTED";
     await tx.auditLog.create({ data: { passportId: id, actorId: adminId, action, version: version + 1, fromStatus, toStatus: decision, note: note || null } });
     return { id, status: decision, version: version + 1 };

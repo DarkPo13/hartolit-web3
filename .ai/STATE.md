@@ -1,8 +1,9 @@
 # STATE — the frontier
 
-- **Last updated:** 2026-10-02
+- **Last updated:** 2026-10-03
 - **Branch:** `master`
-- **Phase 4 code:** `da38758` (implementation) and `513bf88` (CI STARTTLS), pushed to `master`. Use `git log -1` for the latest handoff commit.
+- **Phase 5 preview code:** `aab771f` pushed to `master`; its CI web job failed the dependency audit. The user deferred that repair on 2026-10-03. Use `git log -1` for the latest handoff commit.
+- **2026-10-03 push handoff:** The user requested a commit and push of the confirmation slice, policy/context updates and earlier admin-preview race fix. Check `git log -1` and the CI run for the pushed SHA. The unrelated untracked consultation PDF is excluded.
 
 Rules for this file:
 - It is a frontier, not a log. Keep it under about 250 lines; move history to `PROGRESS.md`.
@@ -13,7 +14,7 @@ Rules for this file:
 
 ## Current goal
 
-**User request 2026-09-28:** Complete the next milestone one step at a time. The user approved the initial public-field policy and clarified the certificate's purpose: help farmers present evidence of proper treatments for organizations assessing crop damage, compliance or compensation. Every public field must be on the certificate; future scope changes use new schema versions while published records retain their original contents (D21). ~~Phase 5 runtime implementation has not started.~~ **2026-10-02 correction:** Two capture migrations and a read-only public-preview slice are implemented locally. The preview builds strict `2.0.0` public JSON from approved passports and two explicitly selected verified evidence files (D24). ~~No public snapshot or publication exists.~~ **2026-10-02 correction:** An ephemeral public snapshot can now be previewed; confirmation, issued certificate, public verifier and publication do not exist. **Next user decision: private-data retention (remaining Q1)** using README → "Private-data retention proposal — remaining Q1 decision", then publisher access (Q3). No real customer data until hosting, privacy, backup and release gates pass.
+**User request 2026-09-28:** Complete the next milestone one step at a time. The user approved the initial public-field policy and clarified the certificate's purpose: help farmers present evidence of proper treatments for organizations assessing crop damage, compliance or compensation. Every public field must be on the certificate; future scope changes use new schema versions while published records retain their original contents (D21). ~~Phase 5 runtime implementation has not started.~~ **2026-10-02 correction:** Two capture migrations and a read-only public-preview slice are implemented locally. The preview builds strict `2.0.0` public JSON from approved passports and two explicitly selected verified evidence files (D24). ~~No public snapshot or publication exists.~~ **2026-10-02 correction:** An ephemeral public snapshot can now be previewed; confirmation, issued certificate, public verifier and publication do not exist. ~~Next user decision: private-data retention (remaining Q1), then publisher access (Q3).~~ **2026-10-03 correction:** The user delegated the choice; README now sets V1 engineering defaults for retention and a designated MFA-admin/wallet publisher (D25). A persisted confirmation slice is implemented in source, awaiting live database verification. Counsel/pilot retention review, actual admin/wallet identity, certificate, verifier and publication remain open. No real customer data until hosting, privacy, backup and release gates pass.
 
 **2026-10-02 continuation:** `Passport.publicFarmLabel` (never copied from legal name), DB-generated `Field.publicReference`, `Treatment.timeZone` and `treatedAreaHectares` are implemented. The second migration applied locally; draft and review smokes passed. Submitted records require these facts, with treated area no larger than field area. Old facts remain unknown. ~~The approved public-field table omits treated area; confirmation is pending.~~ **2026-10-02 correction:** The user approved public treated area and the field matrix includes it. The preview is read-only and transient; publication remains absent.
 
@@ -23,24 +24,28 @@ Rules for this file:
 
 This table is the committed summary of the phased plan, whose full text is gitignored (D12).
 
-| Phase | Scope | State as of 2026-10-02 |
+| Phase | Scope | State as of 2026-10-03 |
 |---|---|---|
-| 0 | Approve the boundary: public-field allowlist, retention, providers and regions, who may publish | Initial public fields approved 2026-09-28 and treated area added 2026-10-02 (D21). Retention proposal awaits the user; Q2/Q3 remain open |
+| 0 | Approve the boundary: public-field allowlist, retention, providers and regions, who may publish | Public fields approved (D21). V1 retention and publisher rules chosen as engineering defaults (D25); Q2 providers/regions, legal/pilot review and concrete publisher identity/wallet remain open |
 | 1 | Accounts, DB sessions, admin TOTP, password reset, invite-only | Built. `auth:smoke` passed locally and in CI on 2026-09-25 |
 | 2 | Durable owner-scoped drafts, optimistic concurrency, audit | Built. `drafts:smoke` exit 0 locally and in CI |
 | 3 | Private evidence: direct upload, integrity checks, ClamAV, expiring links | Built locally. `evidence:smoke` exit 0 locally and in CI. Hosted gate open (S7) |
 | 4 | Submit / assign / decide / reopen; admin console | Local pass 2026-09-25. Draft-only record edits, archive/restore, operator invitation/access controls, audit filters, API smokes, desktop and 390px Chrome pass. Hosted/real-device acceptance remains a release gate |
-| 5 | Controlled publication from an allowlisted public snapshot | Public scope including treated area approved. Two capture migrations, strict schema, allowlisted builder and MFA-admin read-only preview passed local smokes on 2026-10-02. Confirmation, issued certificate, public verifier and publication remain open; publication requires Q1 and Q3 |
+| 5 | Controlled publication from an allowlisted public snapshot | Preview passed local smokes 2026-10-02. Confirmation code and additive migration now in working tree; live DB migration/smoke pending. Issued certificate, public verifier and publication remain open |
 | 6 | Release hardening, hosted Testnet pilot | Not started |
 
 ## What is open
 
 | Id | Item | Detail lives in | Unblocked by |
 |---|---|---|---|
-| S6 | Phase 0 decisions: initial public fields including treated area approved; retention, publishers, providers/regions remain open | README → public snapshot policy and retention proposal; PROGRESS → Open questions Q1–Q3 | User decision on retention, then Q3 publishers and Q2 providers/regions. Q1 is only partially closed |
+| S6 | Phase 0 release policy: public fields approved; V1 retention and publisher rules chosen, but legal/pilot review, concrete admin/wallet and providers/regions remain open | README → public snapshot, retention and publisher policies; PROGRESS → Q1–Q3 | Counsel and pilot retention review; designated publisher identity/wallet; Q2 provider/region choice before real-data release |
 | S7 | Phase 3 hosted gate: managed bucket and scanner, hosted auth and expiry checks, matched DB + object backup/restore | README → "Local Setup" §2, last paragraph | Q2 (hosting and provider choice) |
 | S8 | The phased plan and release plan exist only in gitignored `docs/` | D12; PROGRESS Q4 | User: track those two files, or keep them private (their essentials are mirrored here and in DECISIONS) |
-| S9 | Hosted and real-device release acceptance for Phase 4 and the complete MVP | README → "Current Status" | Q2 and a deployed test environment for Phase 4; Q1/Q3 and Phase 5 for full MVP |
+| S9 | Hosted and real-device release acceptance for Phase 4 and the complete MVP | README → "Current Status" | Q2 and a deployed test environment for Phase 4; S6 release checks and Phase 5 for full MVP |
+| S12 | Phase 5 commit `aab771f` has a failed clean-runner web job at `npm audit`; the contract job passed. The user asked to repair it later | [CI run 37028448665](https://github.com/DarkPo13/hartolit-web3/actions/runs/37028448665); PROGRESS → 2026-10-03 | Upgrade the affected Next.js dependency and aligned packages, verify the audit and app checks, then obtain a green CI run before release |
+| S13 | Confirmation code and migration need live DB/HTTP and browser verification | D26; PROGRESS → 2026-10-03 private snapshot confirmation | A working local Docker engine, PostgreSQL/SeaweedFS/ClamAV, `db:deploy`, running app and `review:smoke`; then a focused admin browser pass |
+
+**2026-10-03 ID correction:** ~~The new audit and confirmation gates reused S10/S11.~~ Those IDs already denote older closed items in PROGRESS; the current open gates are S12/S13. Historical S10/S11 entries are unchanged.
 
 S4 and S5 closed locally on 2026-09-25. The in-app browser still could not connect; a separate headless local Chrome pass covered rendered UI, keyboard navigation, English/Ukrainian text, record editing, empty/error states and a 390px viewport. The operator invite and access flows passed local API and Mailpit checks.
 
@@ -55,6 +60,12 @@ S1 closed on 2026-09-25. The current Phase 4 code passed [CI run 36123487787](ht
 **2026-10-02 public-preview slice, Windows 11:** After starting the existing local PostgreSQL, SeaweedFS and ClamAV containers, `npm run review:smoke` exited 0 against the live development server. The smoke checks authorized preview, explicit source-kind selection, strict schema version and unknown-field rejection, private markers absent from the serialized response, selected server-verified digests and hash equality after JSON transport. `npm run test:public` exited 0 for readable preview coverage outside raw JSON; a temporary omission of treated area made it fail with "missing readable public value: 10.25", and restoring the field passed. `npm run lint` and `npm run typecheck` exited 0. `npm run build` first compiled then hit sandbox `spawn EPERM`; the approved rerun exited 0 with 38 routes, including `/api/admin/passports/[id]/public-preview`. No visual/keyboard/mobile or hosted pass; no Phase 5 CI result existed at this local check.
 
 **2026-10-02 push preparation, Windows 11:** Fresh unpiped runs of `npm run lint`, `npm run typecheck`, `npm run test:hash` (2/2), `npm run test:public` (1/1), `npx prisma validate`, `npm run drafts:smoke`, `npm run review:smoke`, and `npm run build` (38 routes) each exited 0. The smoke scripts removed their fictional fixtures. The build ran outside the restricted sandbox because worker spawning previously returned `EPERM`. This does not establish browser, hosted or CI acceptance for the new commit.
+
+**2026-10-03 CI and local follow-up:** [CI run 37028448665](https://github.com/DarkPo13/hartolit-web3/actions/runs/37028448665) for `aab771f` completed with a failed web job at `npm audit --omit=dev --audit-level=high`; the contract job passed. The same local audit exited 1, reporting one critical Next.js advisory on the locked `16.3.5` package and 23 moderate advisories. The [Next.js advisory](https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j) lists `16.3.6` as patched. The user deferred repair; do not call this commit CI-green. A local admin preview request-identity fix is uncommitted: `npm run lint` and `npm run typecheck` exited 0; `npm run test:public` passed 1/1 after an initial sandbox-only `spawn EPERM`. That rendering test does not exercise request races. Browser setup failed before connection, so there is no browser interaction pass for this fix.
+
+**2026-10-03 confirmation slice, Windows 11:** `npx prisma validate`, `npm run db:generate`, `npm run lint`, `npm run typecheck`, `npm run test:hash` (2/2), `npm run test:public` (1/1, including the saved-state disclaimer), `npm run build` (39 routes), `node --check scripts/smoke-review.mjs`, and `git diff --check` exited 0. Node test workers and Google Fonts required an outside-sandbox rerun after sandbox `spawn EPERM`/font-fetch failures. The Docker Desktop engine was unavailable even after launch and a service-start attempt, so `db:deploy`, migration status and the expanded live `review:smoke` were **not run** for this slice. No browser/hosted/CI pass exists for this working tree. The known audit failure is deferred by the user. These results establish compilation and static rendering, not persistence or HTTP behavior.
+
+**2026-10-03 handoff check, Windows 11:** Fresh unpiped `npm run lint`, `npm run typecheck`, `npx prisma validate`, `node --check scripts/smoke-review.mjs` and `git diff --check` each exited 0; no runtime code changed after the passing build/hash/rendering tests above. `docker compose ps` exited 1 because the Docker Desktop Linux engine pipe was absent. The migration and expanded live smoke remain **not run**. No new CI or browser result exists.
 
 All local runs were unpiped, reading each command's exit status. "Local" = Windows 11, Node 26.1.0, npm 11.13.0, Docker 29.7.2 on 2026-09-25. "CI" = GitHub-hosted `ubuntu-latest`, Node 24, [run 36123487787](https://github.com/DarkPo13/hartolit-web3/actions/runs/36123487787) on `513bf88`, completed **success** with `web` and `contract` jobs on 2026-09-25.
 
@@ -82,7 +93,7 @@ Negative controls: `evidence:smoke` against a closed port, the hash regression b
 
 ## Important context
 
-- Do not enter real customer data. The legacy demo payload exposes tax IDs, coordinates and cadastral numbers. ~~The public-field allowlist is undecided (Q1).~~ **2026-09-28 correction:** the initial field policy is approved (D21); its runtime enforcement and Q1 retention are incomplete.
+- Do not enter real customer data. The legacy demo payload exposes tax IDs, coordinates and cadastral numbers. ~~The public-field allowlist is undecided (Q1).~~ **2026-09-28 correction:** the initial field policy is approved (D21); ~~its runtime enforcement and Q1 retention are incomplete.~~ **2026-10-03 correction:** strict preview and V1 engineering retention policy exist, but legal/pilot review and deletion/hold/restore implementation remain release gates.
 - The certificate supports evidence assessment for a specific treatment. It must display every public field, preserve schema history, and retain source evidence/private farmer-plot linkage under an approved policy. Dose appropriateness and compensation are not determined by the current completeness checks or hash verifier.
 - The legacy wizard and `/api/mint` are a prototype path that must stay behind `isDemoMode()` (D1, D2). Phase 5 publication is meant to be done by an approved operator wallet, not a server key (D3).
 - Decisions are made by AI agents under the user's control; there is no other human decision-maker (user, 2026-09-24). Ask the user for anything marked as a user decision.
@@ -91,11 +102,11 @@ Negative controls: `evidence:smoke` against a closed port, the hash regression b
 
 Ordered by leverage.
 
-1. **[User] Approve or amend private-data retention (remaining Q1).** The public-field part is approved (D21). Read README → "Private-data retention proposal — remaining Q1 decision": five-year finalized treatment/evidence retention, 90-day unused drafts with notice, open-claim preservation holds and a 30-day backup target. These periods are proposed, not adopted or legal minima.
-2. **[User with agent proposal] Set publisher access (Q3).** Prepare a concrete recommendation after retention is settled. Do not publish real records on the user's behalf.
-3. **[Agent] Build a persisted confirmation of the exact public snapshot and a certificate/verifier that use those confirmed bytes, after Q1 and Q3.** The transient preview uses a strict `2.0.0` schema and an allowlisted builder but generates new metadata on each request. The future confirmation must bind snapshot bytes and hash to the approved passport version; if content or approval changes, fail closed. Keep demo issuance closed for real records.
-4. **[User with agent proposal] Decide Q2, then perform hosted release verification.** Choose hosting, database, private bucket, scanner and SMTP providers/regions to enable S7 and S9.
+1. **[Agent] Close S13 before building on confirmation.** With a working Docker engine, follow README → Local Setup §2 to start local services and app, apply the new migration with `npm run db:deploy`, check `npx prisma migrate status`, then run `npm run review:smoke`. Inspect its exact stored bytes/hash and recall invalidation assertions; add a focused admin browser pass. Do not mark this slice accepted until these checks pass.
+2. **[Agent] Build a certificate and verifier from only the confirmed bytes.** Display all public schema fields in both, make their unpublished status clear, and keep public access disabled until the publication design and release gates are ready.
+3. **[User with agent preparation] Complete S6/S7/S9 release specifics.** Obtain counsel/pilot review of the V1 retention target; choose Q2 hosting, database, private bucket, scanner and SMTP providers/regions; designate the MFA publisher account and wallet. Then implement and test retention, backup/restore and hosted acceptance. Engineering defaults are in README (D25); they do not authorize real publication.
+4. **[Agent, deferred by user] Repair S12 before release.** Update the affected Next.js dependency and lockfile, rerun the audit and application checks, and verify a green CI run after a requested push.
 
 ## Open questions
 
-Owners and blocking status are recorded in `PROGRESS.md` → Open questions: Q1 public fields including treated area approved, retention pending · Q2 hosting and providers · Q3 who may publish Testnet records · Q4 track the plans in git? · Q5 a "latest stable versions" repo rule? Q6 is settled: the hash regression uses `node --test` with the existing `jiti` dependency.
+Owners and blocking status are recorded in `PROGRESS.md` → Open questions: Q1 V1 retention default chosen, legal/pilot review pending · Q2 hosting and providers · Q3 publisher role chosen, actual admin/wallet pending · Q4 track the plans in git? · Q5 a "latest stable versions" repo rule? Q6 is settled: the hash regression uses `node --test` with the existing `jiti` dependency.
