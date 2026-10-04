@@ -72,6 +72,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:hash
       - run: npm run test:public
+      - run: npm run test:capture
       - name: Build with isolated test-only auth configuration
         run: npm run build
       - run: npm run db:deploy
@@ -117,6 +118,7 @@ jobs:
             cat /tmp/hartolit-next.log
             exit 1
           fi
+          npm run test:public-boundary
           npm run drafts:smoke
           npm run evidence:smoke
           npm run review:smoke

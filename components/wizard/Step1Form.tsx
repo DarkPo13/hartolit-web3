@@ -14,9 +14,12 @@ import {
   isTreatmentComplete,
   isMeteoComplete,
   isChemicalComplete,
+  isCaptureFarmerComplete,
+  isCaptureTreatmentComplete,
+  isCaptureMeteoComplete,
+  isCaptureChemicalComplete,
 } from "@/lib/validation";
 import { useT } from "@/lib/i18n/context";
-import { isSupportedTimeZone } from "@/lib/time-zone";
 
 export function Step1Form({ demoMode = true }: { demoMode?: boolean }) {
   const state = useWizardStore();
@@ -29,14 +32,10 @@ export function Step1Form({ demoMode = true }: { demoMode?: boolean }) {
   const t = useT();
   const { complete, missing } = isStep1Complete(state);
 
-  const farmerDone = useMemo(() => isFarmerComplete(farmer) && (demoMode || !!farmer.publicFarmLabel?.trim()), [farmer, demoMode]);
-  const treatmentDone = useMemo(() => isTreatmentComplete(treatment) && (demoMode || (
-    !!treatment.timeZone && isSupportedTimeZone(treatment.timeZone) &&
-    treatment.treatedAreaHectares != null && Number(treatment.treatedAreaHectares) > 0 &&
-    (farmer.fieldArea == null || Number(treatment.treatedAreaHectares) <= Number(farmer.fieldArea))
-  )), [treatment, farmer.fieldArea, demoMode]);
-  const meteoDone = useMemo(() => isMeteoComplete(meteo), [meteo]);
-  const chemicalDone = useMemo(() => isChemicalComplete(chemical), [chemical]);
+  const farmerDone = useMemo(() => demoMode ? isFarmerComplete(farmer) : isCaptureFarmerComplete(farmer), [farmer, demoMode]);
+  const treatmentDone = useMemo(() => demoMode ? isTreatmentComplete(treatment) : isCaptureTreatmentComplete(treatment, farmer.fieldArea), [treatment, farmer.fieldArea, demoMode]);
+  const meteoDone = useMemo(() => demoMode ? isMeteoComplete(meteo) : isCaptureMeteoComplete(meteo), [meteo, demoMode]);
+  const chemicalDone = useMemo(() => demoMode ? isChemicalComplete(chemical) : isCaptureChemicalComplete(chemical), [chemical, demoMode]);
 
   const [openBlock, setOpenBlock] = useState<number>(1);
   const toggle = (n: number) => setOpenBlock((prev) => (prev === n ? 0 : n));

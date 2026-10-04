@@ -9,13 +9,13 @@ export const en: Translations = {
     badgeErc: "ERC-721 · BNB Chain",
     badgeIpfs: "IPFS · Pinata",
     description:
-      "Try the local demo with test data. The draft is saved only for this browser tab, survives a refresh, and is removed when the tab closes. File storage, IPFS, and minting are simulated; no real passport is issued. A production submission will publish the complete passport permanently through public IPFS and BNB Chain.",
+      "Try the local demo with test data. The draft is saved only for this browser tab, survives a refresh, and is removed when the tab closes. File storage, IPFS, and minting are simulated; no real passport is issued. Future publication will use only approved public fields after review and confirmation.",
     fillMock: "Fill with test data",
     restoringDraft: "Restoring this tab's draft…",
   },
   release: {
     title: "Passport issuance is not available yet",
-    description: "This service is being prepared for a controlled pilot. Existing on-chain passports can be checked through their verification links when the chain and contract are configured.",
+    description: "This service is being prepared for a controlled pilot. Public verification will be available after certificate issuance and the new verifier are implemented.",
   },
   drafts: {
     title: "Passport drafts",

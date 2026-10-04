@@ -28,8 +28,8 @@ export const metadata: Metadata = {
     template: "%s · Hartolit",
   },
   description:
-    "Immutable on-chain certificates (NFTs) for agricultural drone treatments. " +
-    "Public agricultural treatment proofs anchored to BNB Chain and IPFS.",
+    "Private agricultural treatment drafts, evidence, and review. " +
+    "Public passport issuance is being prepared for a controlled pilot.",
   applicationName: "Hartolit Field Passport",
   authors: [{ name: "VANTREXIS" }],
   keywords: [
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "Hartolit Field Passport",
     title: "Hartolit Digital Field Passport",
-    description: "On-chain certificates for every agricultural drone treatment.",
+    description: "Agricultural treatment records and evidence for a controlled pilot.",
   },
 };
 

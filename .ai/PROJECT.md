@@ -10,7 +10,7 @@ Hartolit performs drone crop-protection treatments in Ukraine. This application 
 
 **The stakes:** a published passport is permanent and public. A wrong hash, a private field in the snapshot, or a simulated certificate issued in production cannot be recalled; neither the chain nor pinned IPFS content can be edited. When in doubt, fail closed and do not publish.
 
-Current reality (2026-10-03): an authenticated local MVP covering Phases 1–4 (accounts, drafts, private evidence, review and admin management), plus Phase 5 fact capture, public preview and private snapshot-confirmation code. The confirmation migration and live smoke still need verification. Publication is not built; no contract is deployed; no real customer data may be entered. The live frontier is in `.ai/STATE.md`.
+Current reality (2026-10-04): an authenticated MVP covering Phases 1–4 (accounts, drafts, private evidence, review and admin management), plus Phase 5 fact capture, public preview and private snapshot confirmation. The confirmation migration and live HTTP/DB smoke passed in CI and locally; local Chrome passes covered operator capture and submission plus admin confirmation and recall. Publication is not built; no contract is deployed; no real customer data may be entered. The live frontier is in `.ai/STATE.md`.
 
 ## Repository structure
 
@@ -55,18 +55,18 @@ Single Next.js application (not a monorepo) plus a Foundry workspace.
 
 ## Stack
 
-Versions are those installed on 2026-09-24. "Pinned" means an exact version in `package.json`.
+Versions reflect `package.json` on 2026-10-04. "Pinned" means an exact version in that file.
 
 | Layer | Choice | Why / prohibition / expiry |
 |---|---|---|
-| Web framework | Next.js 16.3.5 (App Router, Turbopack), React 19.2 | APIs differ from older Next; read `node_modules/next/dist/docs/` before writing Next code. `proxy.ts` is the Next 16 name for middleware. |
+| Web framework | Next.js 16.3.8 (App Router, Turbopack), React 19.2 | APIs differ from older Next; read `node_modules/next/dist/docs/` before writing Next code. `proxy.ts` is the Next 16 name for middleware. |
 | Language | TypeScript 5.9, `strict` + `noUncheckedIndexedAccess` | `allowJs` is false, so `scripts/*.mjs` are not type-checked (see AGENTS → Validation). |
 | Database | PostgreSQL 17.6 (local image), Prisma ORM 7.10.0 pinned, driver adapter `@prisma/adapter-pg` | Do not upgrade to Prisma 8 while it is a release candidate (D10). Expiry: re-evaluate when Prisma 8 is stable. |
 | Auth | Better Auth 1.7.5 pinned, with `admin` and `twoFactor` plugins and its Prisma adapter | Use its maintained password, session, rate-limit and TOTP facilities; do not hand-roll password or session cryptography. |
 | Validation | Zod 4.6.5 pinned | Strict DTOs at every request boundary (`z.strictObject`). |
 | Evidence storage | Any S3-compatible private bucket (`@aws-sdk/client-s3` 3.1136.0); SeaweedFS 4.47 locally | The hosted provider and region are **not chosen** (STATE, open decision). |
 | Malware scan | ClamAV 1.5.4 over the clamd TCP protocol | Evidence cannot become `READY` without a clean verdict. |
-| Email | Nodemailer 10.0.8 over SMTP; Mailpit locally | Used for password reset and operator password setup invitations. Reset returns 503 when SMTP is not configured. |
+| Email | Nodemailer 10.0.14 over SMTP; Mailpit locally | Used for password reset and operator password setup invitations. Reset returns 503 when SMTP is not configured. |
 | Client state | Zustand 5 with tab-scoped `sessionStorage` | PostgreSQL is authoritative for signed-in drafts; the tab store only recovers unsynced edits and the demo wizard (D11). |
 | UI | Tailwind CSS 4.3, React Hook Form 7, custom i18n context | No external i18n library. |
 | Chain client | viem 2, wagmi 2, RainbowKit 2 | Wallet UI loads only in demo mode. |
@@ -82,7 +82,7 @@ Versions are those installed on 2026-09-24. "Pinned" means an exact version in `
   - Deletes are `Restrict`, except that the reviewer links and the meteo/chemical source-file links are `SetNull`.
 - **Audit:** `AuditLog` is append-only in code and records passport actor, action, version, from/to status and an optional note. `AdminAction` records actor, action and entity ID for record and operator access changes without private field values. There is no update or delete path outside smoke-test cleanup.
 - **Publication:** the model exists (idempotency key, snapshot, payload hash, CID, chain, contract, tx, token; unique constraints on the hash and on the chain/contract/token triple). It is only read by the admin record list; nothing writes it yet (Phase 5).
-- **Private confirmation:** an approving MFA reviewer can persist exact allowlisted public JSON, hash and selected evidence IDs for an approved version. Recall invalidates it. No public read or publication side effect exists; this slice needs a live DB smoke before acceptance.
+- **Private confirmation:** an approving MFA reviewer can persist exact allowlisted public JSON, hash and selected evidence IDs for an approved version. Recall invalidates it. No public read or publication side effect exists. Migration, live DB smoke and a focused local admin browser pass succeeded on 2026-10-04; hosted acceptance remains open.
 - **Evidence bytes** live in the private bucket under `EvidenceFile.objectKey`, never in PostgreSQL. `npm run evidence:prune` cleans stale quarantine objects; it previews by default and deletes only with `--execute`.
 - **Configuration:** variable names only are listed in `.env.local.example`. Local values are generated into gitignored `.env.local`, `.env.db.local` and `.env.storage.local` by `npm run db:setup` and `npm run evidence:setup`.
 

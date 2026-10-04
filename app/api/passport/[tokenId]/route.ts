@@ -5,10 +5,14 @@ import { HARTOLIT_PASSPORT_ABI } from "@/lib/contract";
 import { fetchJsonFromIpfs } from "@/lib/ipfs";
 import { fieldPassportPayloadSchema } from "@/lib/schemas";
 import type { FieldPassportPayload } from "@/types/passport";
+import { isDemoMode } from "@/lib/demo-mode";
 
 export const runtime = "nodejs";
 
 export async function GET(_: Request, { params }: { params: Promise<{ tokenId: string }> }) {
+  if (!isDemoMode()) {
+    return NextResponse.json({ error: "Public verification is not available until controlled publication" }, { status: 503 });
+  }
   try {
     const { tokenId: rawTokenId } = await params;
     const tokenId = BigInt(rawTokenId);

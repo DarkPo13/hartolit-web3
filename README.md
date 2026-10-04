@@ -2,7 +2,7 @@
 
 > **Prototype for recording agricultural drone treatments and checking a passport payload against a BNB Chain hash.**
 
-**Release status:** This repository is not ready to issue production passports. Local phases 1–4 provide PostgreSQL accounts, owner-scoped drafts, private evidence uploads, review, and audited admin management. The local Phase 4 API and headless Chrome checks at desktop and 390px passed; hosted storage, restore testing, and real-device release acceptance remain. Publication remains disabled outside the local demo. Do not enter real customer data until hosting, privacy, backup, and release gates are completed. Diia signing is deferred until after the core MVP release. Product claims below describe the intended system, not proven current capabilities. See the [phased application architecture](#phased-application-architecture) below for the current implementation.
+**Release status:** This repository is not ready to issue production passports. Local phases 1–4 provide PostgreSQL accounts, owner-scoped drafts, private evidence uploads, review, and audited admin management. Phase 5 captures public facts and allows an MFA reviewer to confirm an exact private `2.0.0` snapshot. Local API and headless Chrome checks passed for operator capture and admin confirmation; hosted storage, restore testing, and real-device release acceptance remain. The issued certificate, public verifier, controlled publication, retention operations and deployment workflow are still to be built. Legacy `1.0.0` public readers are disabled in production because their payload includes private data. Do not enter real customer data until hosting, privacy, backup, and release gates are completed. Diia signing is deferred until after the core MVP release. Product claims below describe the intended system, not proven current capabilities. See the [phased application architecture](#phased-application-architecture) below for the current implementation.
 
 [![Built on BNB Chain](https://img.shields.io/badge/Built%20on-BNB%20Chain-F0B90B?logo=binance&logoColor=black)](https://www.bnbchain.org/)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org/)
@@ -27,12 +27,12 @@ Ukraine is one of the world's top producers of sunflower, corn, and wheat — ye
 
 **Hartolit Digital Field Passport** is designed to mint a unique ERC-721 NFT on BNB Smart Chain for each approved drone treatment. Each token:
 
-1. Contains a cryptographic SHA-256 fingerprint of the complete treatment payload
+1. Will contain a cryptographic SHA-256 fingerprint of the approved public treatment snapshot
 2. Will link to an explicitly approved public passport snapshot on IPFS
-3. Is issued directly by an approved Hartolit operator wallet; the website stores no server minter key
-4. Is publicly verifiable at `/verify/{tokenId}` — anyone can check integrity without a wallet or account
+3. Will be issued directly by an approved Hartolit operator wallet; the website will store no server minter key
+4. Will be publicly verifiable at `/verify/{tokenId}` — anyone will be able to check integrity without a wallet or account
 
-One QR code on a printed certificate points to an immutable on-chain record. Insurers, subsidy offices, and EU auditors scan it and instantly see tamper-proof data.
+The planned certificate QR code will link to the public verifier. A matching hash will show that the published bytes match the on-chain commitment; it will not prove that the treatment happened or met a legal or agronomic standard.
 
 ---
 
@@ -293,9 +293,9 @@ Already published snapshots, hashes and certificates retain their original conte
 
 #### Implementation gates
 
-**2026-10-03 local progress:** Gate 1 captures an explicit chemical dose unit, separately entered public farm label, random field reference, treatment time zone and distinct treated area. Existing unknown values remain unknown. A strict `2.0.0` public schema and allowlisted server builder select two explicit verified source files, render all public values and calculate SHA-256 of canonical JSON. An MFA admin can preview it; the approving reviewer can now save the exact bytes, hash and source selection against the approved version. This confirmation is private and is neither an issued certificate nor a publication. The confirmation migration and live smoke still require a local database run before this slice is accepted.
+**2026-10-04 progress:** Gate 1 captures an explicit chemical dose unit, separately entered public farm label, random field reference, treatment time zone and distinct treated area. Existing unknown values remain unknown. A strict `2.0.0` public schema and allowlisted server builder select two explicit verified source files, render all public values and calculate SHA-256 of canonical JSON. An MFA admin can preview it; the approving reviewer can save the exact bytes, hash and source selection against the approved version. This confirmation is private and is neither an issued certificate nor a publication. The confirmation migration and live smoke passed in CI and locally; a focused desktop/mobile Chrome pass covered the admin confirmation flow. Hosted acceptance remains open.
 
-1. Capture explicit public labels/references, dose unit, timezone and treated area through new migrations and validated form fields. Do not guess units, timezones, treated area or labels for existing drafts. **Completed locally on 2026-10-02; browser UI and hosted verification remain open.**
+1. Capture explicit public labels/references, dose unit, timezone and treated area through new migrations and validated form fields. Do not guess units, timezones, treated area or labels for existing drafts. **Completed locally on 2026-10-02; a local Chrome operator flow verified entry, persistence, evidence upload, reload and submission on 2026-10-04. Hosted verification remains open.**
 2. Define a new strict public schema, separate from legacy demo version `1.0.0`, and a server builder that selects each approved field by name. Normalize crop/treatment categories; never spread or serialize raw Prisma rows. Review each remaining public text field for private content. **Builder and category validation implemented locally; human review of free text remains necessary.**
 3. Show the exact public snapshot to an MFA admin, then bind confirmation to the approved passport version and snapshot hash. Rebuilding server-side must detect changed facts or evidence; recall invalidates the saved confirmation. Derive every future public certificate/verifier field from those confirmed bytes and display all of them, including the verification appendix. **Persistence, reviewer confirmation and recall invalidation are implemented locally; issued certificate and public verifier are pending.**
 4. Test private-field exclusion, unknown-field rejection, missing units/timezones, unapproved versions, hash equality after JSON transport and certificate coverage of every public field. Tests must use private markers in excluded source fields and inspect the actual serialized output. Future schema additions must preserve historical verification. **Live review smoke covers preview authorization, source selection, serialized private-marker exclusion, version rejection and transported hash; `test:public` checks readable preview coverage. Issued-certificate coverage and historical verification remain pending.**

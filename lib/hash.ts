@@ -2,8 +2,6 @@
  * SHA-256 helpers that work in both the browser (Web Crypto) and Node (server routes).
  */
 
-const isBrowser = typeof window !== "undefined";
-
 function toHex(buf: ArrayBuffer): string {
   return Array.from(new Uint8Array(buf))
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -20,17 +18,12 @@ export async function sha256Hex(input: ArrayBuffer | Uint8Array | string): Promi
     bytes = new Uint8Array(input);
   }
 
-  if (isBrowser || (typeof crypto !== "undefined" && "subtle" in crypto)) {
-    // Copy into a fresh ArrayBuffer-backed Uint8Array to satisfy BufferSource typing
-    const copy = new Uint8Array(bytes.byteLength);
-    copy.set(bytes);
-    const digest = await crypto.subtle.digest("SHA-256", copy);
-    return toHex(digest);
-  }
-
-  // Node fallback (server route)
-  const { createHash } = await import("node:crypto");
-  return createHash("sha256").update(bytes).digest("hex");
+  if (!globalThis.crypto?.subtle) throw new Error("Web Crypto SHA-256 is unavailable");
+  // Copy into a fresh ArrayBuffer-backed Uint8Array to satisfy BufferSource typing.
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", copy);
+  return toHex(digest);
 }
 
 export async function sha256File(file: File): Promise<string> {

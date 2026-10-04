@@ -8,7 +8,7 @@ import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 /// @title  Hartolit Digital Field Passport
 /// @notice Immutable on-chain certificates for agricultural drone treatments.
 ///         Each token binds (a) an off-chain SHA-256 hash of the complete
-///         public Version 1 passport payload to (b) its IPFS URI. Verifiers can re-hash the payload
+///         approved public passport payload to (b) its IPFS URI. Verifiers can re-hash the payload
 ///         and compare against `payloadHash[tokenId]` to prove non-tampering.
 /// @dev    ERC-721 + URI storage + role-based minting. Tokens are
 ///         non-transferable by Hartolit policy — see `_update`.

@@ -9,6 +9,7 @@ import { canonicalize, sha256Hex } from "@/lib/hash";
 import { fieldPassportPayloadSchema } from "@/lib/schemas";
 import { VerifyDisplay } from "./VerifyDisplay";
 import type { FieldPassportPayload } from "@/types/passport";
+import { isDemoMode } from "@/lib/demo-mode";
 
 interface PageProps {
   params: Promise<{ tokenId: string }>;
@@ -96,6 +97,9 @@ async function loadPassport(tokenIdStr: string) {
 }
 
 export default async function VerifyPage({ params }: PageProps) {
+  // This reader renders the legacy 1.0.0 demo payload, which contains private
+  // farmer details. The controlled public verifier will use confirmed 2.0.0 bytes.
+  if (!isDemoMode()) notFound();
   const { tokenId } = await params;
   const data = await loadPassport(tokenId);
 
