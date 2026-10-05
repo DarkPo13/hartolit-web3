@@ -10,7 +10,7 @@ Hartolit performs drone crop-protection treatments in Ukraine. This application 
 
 **The stakes:** a published passport is permanent and public. A wrong hash, a private field in the snapshot, or a simulated certificate issued in production cannot be recalled; neither the chain nor pinned IPFS content can be edited. When in doubt, fail closed and do not publish.
 
-Current reality (2026-10-04): an authenticated MVP covering Phases 1–4 (accounts, drafts, private evidence, review and admin management), plus Phase 5 fact capture, public preview and private snapshot confirmation. The confirmation migration and live HTTP/DB smoke passed in CI and locally; local Chrome passes covered operator capture and submission plus admin confirmation and recall. Publication is not built; no contract is deployed; no real customer data may be entered. The live frontier is in `.ai/STATE.md`.
+Current reality (2026-10-04): an authenticated MVP covering Phases 1–4 (accounts, drafts, private evidence, review and admin management), plus Phase 5 fact capture, public preview, private snapshot confirmation and admin-only unissued certificate/saved-hash views. The confirmation migration and live HTTP/DB smoke passed in CI and locally; local Chrome passes covered operator capture and submission plus admin confirmation and recall. The new private views passed a local migrated DB/HTTP smoke and desktop/mobile Chrome checks; hosted and clean-runner verification of this working tree remain open. Publication is not built; no contract is deployed; no real customer data may be entered. The live frontier is in `.ai/STATE.md`.
 
 ## Repository structure
 
@@ -25,7 +25,7 @@ Single Next.js application (not a monorepo) plus a Foundry workspace.
 | `app/api/auth/[...all]` | Better Auth handler with an admin-operation allowlist and MFA-enrollment session reset. |
 | `app/api/mint`, `ipfs/pin`, `files/upload` | Legacy demo issuance path. Returns 503 unless in local demo mode (DECISIONS D1, D2). |
 | `app/api/diia/*` | Always returns 501 (D4). |
-| `app/api/passport/[tokenId]` | Public read of on-chain data and IPFS. |
+| `app/api/passport/[tokenId]` | Legacy `1.0.0` demo read of on-chain data and IPFS; unavailable outside local demo mode. |
 | `lib/drafts/`, `lib/evidence/`, `lib/review/` | Server services: transactions, optimistic concurrency, audit, storage, scanning, workflow. |
 | `lib/public-snapshot/` | Strict `2.0.0` public schema, allowlisted preview builder and private confirmation service. No publication writer yet. |
 | `lib/auth*.ts`, `lib/db*.ts`, `lib/demo-mode.ts` | Auth configuration, actor lookup and guards, Prisma client, demo switch. |
@@ -51,7 +51,7 @@ Single Next.js application (not a monorepo) plus a Foundry workspace.
 - **Concurrency:** passport content and status changes use conditional `updateMany` checks on the current version and increment it. Evidence and archival changes lock the passport row without changing its content version. The passport row is the serialization point (D14, D18).
 - **Evidence:** the browser uploads directly to the private bucket with a presigned POST (5-minute grant). The server then re-reads the object and checks size, declared type against magic bytes, and SHA-256, runs a ClamAV `INSTREAM` scan, and only then marks it `READY`. Download links are owner- or admin-checked redirects that expire after 1 minute. Submission freezes the evidence.
 - **Demo path (legacy):** a 3-step wizard (form → simulated mint → certificate) that works only when `isDemoMode()` is true. The wallet stack (Wagmi, RainbowKit) is loaded by dynamic import only in demo mode.
-- **Public verification:** `/verify/[tokenId]` reads `ownerOf`, `tokenURI` and `payloadHash` from the chain, fetches the JSON from IPFS, runs `canonicalize` + SHA-256 (`lib/hash.ts`) and compares. It uses the same `canonicalize` as mint time; the two must agree byte-for-byte.
+- **Public verification:** `/verify/[tokenId]` is a legacy `1.0.0` demo reader and is unavailable outside local demo mode. It reads `ownerOf`, `tokenURI` and `payloadHash` from the chain, fetches JSON from IPFS, runs `canonicalize` + SHA-256 (`lib/hash.ts`) and compares. The new private `/admin/passports/[id]/verification` view checks saved `2.0.0` canonical JSON/hash only; public `2.0.0` verification awaits controlled publication.
 
 ## Stack
 

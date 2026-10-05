@@ -106,6 +106,15 @@ export interface Translations {
       chemical: string; product: string; activeSubstance: string; dose: string; doseUnit: string; workingVolume: string; manufacturer: string; registrationNumber: string;
       verification: string; weatherDigest: string; chemicalDigest: string; snapshotDigest: string; exactJson: string;
     };
+    confirmedViews: {
+      navigation: string; backToReview: string; unpublished: string;
+      certificateTitle: string; certificateDescription: string;
+      verificationTitle: string; verificationDescription: string;
+      confirmedAt: string; savedIntegrity: string; hashMatches: string; limits: string;
+      openCertificate: string; openVerification: string;
+      unavailableTitle: string; unavailableDescription: string;
+      integrityErrorTitle: string; integrityErrorDescription: string; retry: string;
+    };
   };
   management: {
     actions: string; open: string; close: string; searchHint: string; searchButton: string;

@@ -8,6 +8,7 @@ import { createJiti } from "jiti";
 globalThis.React = React;
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/") }, jsx: { runtime: "automatic" } });
 const { PublicSnapshotView } = await jiti.import("../components/public-snapshot/PublicSnapshotView.tsx");
+const { ConfirmedSnapshotDocument } = await jiti.import("../components/public-snapshot/ConfirmedSnapshotDocument.tsx");
 const { publicSnapshotSchema } = await jiti.import("../lib/public-snapshot/schema.ts");
 const { uk } = await jiti.import("../lib/i18n/translations/uk.ts");
 
@@ -25,7 +26,7 @@ test("readable preview displays every public scalar in addition to the exact JSO
   const preview = { snapshot, canonicalJson: JSON.stringify(snapshot), sha256: "c".repeat(64), passportVersion: 4, approvedVersion: 2 };
   const html = renderToStaticMarkup(React.createElement(PublicSnapshotView, { preview }));
   const readable = html.split("<details")[0];
-  for (const expected of [
+  const publicValues = [
     snapshot.schemaName, snapshot.schemaVersion, snapshot.certificateId, snapshot.snapshotAt, snapshot.issuer,
     snapshot.farm.label, snapshot.field.reference, String(snapshot.field.areaHectares), "Соняшник",
     "Гербіцидна обробка", snapshot.treatment.date, snapshot.treatment.localTime, snapshot.treatment.timeZone,
@@ -35,8 +36,22 @@ test("readable preview displays every public scalar in addition to the exact JSO
     snapshot.chemical.activeSubstance, String(snapshot.chemical.dosePerHa), "L/ha", String(snapshot.chemical.workingVolumeLitersPerHa),
     snapshot.chemical.manufacturer, snapshot.chemical.registrationNumber, snapshot.evidence.weatherSha256, snapshot.evidence.chemicalSha256,
     preview.sha256,
-  ]) assert.ok(readable.includes(expected), `missing readable public value: ${expected}`);
+  ];
+  for (const expected of publicValues) assert.ok(readable.includes(expected), `missing readable public value: ${expected}`);
   const confirmed = renderToStaticMarkup(React.createElement(PublicSnapshotView, { preview, confirmed: true }));
   assert.ok(confirmed.includes(uk.review.publicPreview.confirmedRecord), "saved snapshot must state that it is unpublished and unissued");
   assert.ok(!confirmed.includes(uk.review.publicPreview.temporary), "saved snapshot must not be labeled temporary");
+
+  for (const kind of ["certificate", "verification"]) {
+    const document = renderToStaticMarkup(React.createElement(ConfirmedSnapshotDocument, {
+      kind, passportId: "00000000-0000-4000-8000-000000000001",
+      confirmation: { id: "saved-id", confirmedAt: "2026-10-02T12:35:00.000Z", preview },
+    }));
+    const documentFacts = document.split("<details")[0];
+    for (const expected of publicValues) assert.ok(documentFacts.includes(expected), `${kind} missing readable public value: ${expected}`);
+    assert.ok(document.includes(uk.review.confirmedViews.unpublished), `${kind} must say it is not published`);
+    assert.ok(document.includes(uk.review.publicPreview.confirmedRecord), `${kind} must say it is unissued`);
+    assert.ok(document.includes(uk.review.confirmedViews.limits), `${kind} must state what its integrity check cannot establish`);
+    assert.ok(document.includes(kind === "certificate" ? uk.review.confirmedViews.certificateTitle : uk.review.confirmedViews.verificationTitle));
+  }
 });

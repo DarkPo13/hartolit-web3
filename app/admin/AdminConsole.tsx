@@ -165,7 +165,7 @@ export function AdminConsole({ actorId }: { actorId: string }) {
           <h3 id="public-preview-heading" className="font-semibold">{t.publicPreview.title}</h3>
           {confirmationLoading && <p role="status" className="mt-2 text-sm">{t.loading}</p>}
           {confirmationError && <p role="alert" className="mt-2 text-sm text-danger">{confirmationError} <button type="button" onClick={() => void loadDetail(detail.id)} className="underline">{t.refresh}</button></p>}
-          {publicConfirmation && <div className="mt-4"><h4 className="font-semibold">{t.publicPreview.confirmedTitle}</h4><p className="mt-1 text-sm text-ink-muted">{t.publicPreview.confirmedAt}: {date(publicConfirmation.confirmedAt)}</p><PublicSnapshotView preview={publicConfirmation.preview} confirmed /></div>}
+          {publicConfirmation && <div className="mt-4"><h4 className="font-semibold">{t.publicPreview.confirmedTitle}</h4><p className="mt-1 text-sm text-ink-muted">{t.publicPreview.confirmedAt}: {date(publicConfirmation.confirmedAt)}</p><div className="mt-3 flex flex-wrap gap-4 text-sm"><Link href={`/admin/passports/${encodeURIComponent(detail.id)}/certificate`} className="font-medium text-brand-700 underline">{t.confirmedViews.openCertificate}</Link><Link href={`/admin/passports/${encodeURIComponent(detail.id)}/verification`} className="font-medium text-brand-700 underline">{t.confirmedViews.openVerification}</Link></div><PublicSnapshotView preview={publicConfirmation.preview} confirmed /></div>}
           {!publicConfirmation && !confirmationLoading && !confirmationError && <>
           <p className="mt-2 text-sm text-ink-muted">{t.publicPreview.hint}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">

@@ -89,6 +89,16 @@ export const en: Translations = {
       chemical: "Chemical", product: "Product", activeSubstance: "Active substance", dose: "Dose per ha", doseUnit: "Dose unit", workingVolume: "Working volume (L/ha)", manufacturer: "Manufacturer", registrationNumber: "Product registration number",
       verification: "Verification appendix", weatherDigest: "Weather source SHA-256", chemicalDigest: "Chemical source SHA-256", snapshotDigest: "Snapshot SHA-256", exactJson: "Exact canonical public JSON",
     },
+    confirmedViews: {
+      navigation: "Private record views", backToReview: "Back to review console", unpublished: "Unissued · Unpublished",
+      certificateTitle: "Certificate preview", certificateDescription: "This private preview shows the exact public facts saved by the approving reviewer. It is not an issued certificate and cannot be shared as public verification.",
+      verificationTitle: "Private verification", verificationDescription: "The saved canonical JSON matches its stored SHA-256 and certificate ID. No IPFS or blockchain publication has occurred.",
+      confirmedAt: "Snapshot confirmed", savedIntegrity: "Saved snapshot integrity", hashMatches: "Canonical JSON and SHA-256 match",
+      limits: "This check proves only that these displayed bytes match the saved confirmation. It does not establish that a treatment occurred, was appropriate, or qualifies for compensation.",
+      openCertificate: "Open certificate preview", openVerification: "Check saved snapshot",
+      unavailableTitle: "No active confirmed snapshot", unavailableDescription: "This passport has no current confirmation. It may have been recalled or changed. Return to the review console to inspect its latest state.",
+      integrityErrorTitle: "Saved snapshot could not be verified", integrityErrorDescription: "The certificate preview is unavailable until the saved record can be checked. Do not use this record for verification.", retry: "Try again",
+    },
   },
   management: {
     actions: "Admin actions", open: "Manage", close: "Close", searchHint: "Search records", searchButton: "Search",

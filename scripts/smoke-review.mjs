@@ -237,12 +237,18 @@ try {
   assert.ok(!publicSnapshotSchema.safeParse({ ...snapshot, farmerId: privateMarker }).success, "unknown private key is rejected");
   assert.ok(!publicSnapshotSchema.safeParse({ ...snapshot, schemaVersion: "1.0.0" }).success, "legacy demo version is rejected");
   const confirmationPath = `/api/admin/passports/${passportId}/public-confirmation`;
+  const privateViews = ["certificate", "verification"].map((view) => `/admin/passports/${passportId}/${view}`);
   const confirmationBody = { passportVersion: approved.version, weatherFileId: meteoId, chemicalFileId: chemicalId, certificateId: snapshot.certificateId, snapshotAt: snapshot.snapshotAt, expectedSha256: preview.sha256 };
   assert.equal((await api(confirmationPath)).status, 401, "confirmation is private");
   assert.equal((await api(confirmationPath, { user: operator })).status, 403, "operator cannot read confirmations");
   assert.equal((await api(confirmationPath, { user: admin })).status, 401, "MFA enrollment revoked the old admin session");
   assert.equal((await api(confirmationPath, { user: verified })).status, 200);
   assert.equal((await (await api(confirmationPath, { user: verified })).json()).confirmation, null, "no confirmation before explicit action");
+  for (const path of privateViews) {
+    assert.equal((await api(path)).status, 307, `${path} redirects anonymous visitors`);
+    assert.equal((await api(path, { user: operator })).status, 307, `${path} redirects operators`);
+    assert.equal((await api(path, { user: verified })).status, 404, `${path} needs a saved confirmation`);
+  }
   assert.equal((await api(confirmationPath, { user: operator, method: "POST", body: confirmationBody })).status, 403);
   assert.equal((await api(confirmationPath, { user: verified, method: "POST", body: confirmationBody, origin: "https://evil.invalid" })).status, 403);
   assert.equal((await api(confirmationPath, { user: verified, method: "POST", body: { ...confirmationBody, unexpected: privateMarker } })).status, 400, "confirmation input is strict");
@@ -258,6 +264,16 @@ try {
   const storedConfirmation = await db.publicSnapshotConfirmation.findUniqueOrThrow({ where: { id: confirmed.id } });
   assert.equal(storedConfirmation.canonicalJson, preview.canonicalJson, "DB stores exact preview bytes");
   assert.equal(storedConfirmation.payloadHash, preview.sha256);
+  for (const path of privateViews) {
+    const response = await api(path, { user: verified });
+    assert.equal(response.status, 200, `${path} should render for an MFA admin`);
+    const html = await response.text();
+    for (const publicValue of [snapshot.certificateId, snapshot.farm.label, snapshot.field.reference, snapshot.chemical.product, preview.sha256]) {
+      assert.ok(html.includes(publicValue), `${path} omits confirmed value: ${publicValue}`);
+    }
+    assert.ok(!html.includes(privateMarker), `${path} leaks a private source value`);
+    assert.ok(html.includes("Не опубліковано"), `${path} must show unpublished status`);
+  }
   assert.equal(storedConfirmation.confirmedById, adminId);
   assert.equal(storedConfirmation.approvedVersion, approved.approvedVersion);
   assert.equal((await (await api(confirmationPath, { user: verified })).json()).confirmation.id, confirmed.id, "saved confirmation can be reloaded");
@@ -269,6 +285,7 @@ try {
   assert.equal(recalled.status, 200, "approved passport can be recalled before publication");
   assert.equal((await (await api(confirmationPath, { user: verified })).json()).confirmation, null, "recall hides the old confirmation");
   assert.ok((await db.publicSnapshotConfirmation.findUniqueOrThrow({ where: { id: confirmed.id } })).invalidatedAt, "recall invalidates in the database");
+  for (const path of privateViews) assert.equal((await api(path, { user: verified })).status, 404, `${path} closes after recall`);
   assert.equal((await api(confirmationPath, { user: verified, method: "POST", body: confirmationBody })).status, 409, "recalled confirmation cannot be reused");
   version = (await recalled.json()).passport.version;
   const reopenedAgain = await api(`/api/passports/${passportId}/reopen`, { user: operator, method: "POST", body: { version } });
@@ -296,7 +313,7 @@ try {
   assert.equal((await db.adminAction.count({ where: { entity: "farmers", entityId: linked.farmerId } })), 5, "record edits and archive actions audited");
   assert.equal((await db.auditLog.count({ where: { passportId, action: "ADMIN_RECORD_UPDATED" } })), 2, "draft record edits attributed to admin");
   assert.equal((await db.auditLog.count({ where: { passportId, action: { in: ["PASSPORT_SUBMITTED", "REVIEW_ASSIGNED", "CORRECTION_REQUESTED", "PASSPORT_REOPENED", "REVIEW_REJECTED", "REVIEW_APPROVED"] } } })), 13);
-  process.stdout.write("Review smoke passed: MFA, owner and admin edits, immutable submissions, archive, evidence freeze, submit, assign, conflict, correction, recall, rejection, resubmission, approval, exact public confirmation, audit.\n");
+  process.stdout.write("Review smoke passed: MFA, owner and admin edits, immutable submissions, archive, evidence freeze, submit, assign, conflict, correction, recall, rejection, resubmission, approval, exact public confirmation, private certificate/verification views, audit.\n");
 } finally {
   for (const id of files) {
     const file = await db.evidenceFile.findUnique({ where: { id }, select: { objectKey: true } });
