@@ -2,7 +2,7 @@
 
 - **Last updated:** 2026-10-06
 - **Branch:** `master`
-- **Previously verified application commit:** `9263277` closed the legacy production public readers, corrected capture completion and updated Nodemailer. [CI run 37208962308](https://github.com/DarkPo13/hartolit-web3/actions/runs/37208962308) completed success for both web and contract jobs. The private-view commit `418db6f` and first dependency repair `3cd9b0b` passed application checks but each failed a newly reported production audit finding; see below. Check CI for the second repair separately.
+- **Latest verified application commit:** `e304a77` contains the private views and both transitive dependency repairs. [CI run 37486507646](https://github.com/DarkPo13/hartolit-web3/actions/runs/37486507646) completed success for both web and contract jobs, including the production audit. Earlier runs on `418db6f` and `3cd9b0b` failed separate newly reported audit findings; see below.
 - **2026-10-05 handoff slice:** Private MFA-admin certificate and saved-hash verification views use the confirmed `2.0.0` bytes. Local migrated DB/HTTP smoke and desktop/mobile Chrome passes covered them on 2026-10-04. Fresh source checks and build passed on 2026-10-05; see validation below. No hosted or real-device acceptance exists.
 
 Rules for this file:
@@ -97,6 +97,8 @@ S1 closed on 2026-09-25. The current Phase 4 code passed [CI run 36123487787](ht
 
 **2026-10-06 second audit finding and repair:** `3cd9b0b` was pushed. [CI run 37484915450](https://github.com/DarkPo13/hartolit-web3/actions/runs/37484915450) again passed the contract job and web application checks but failed the production audit. The npm audit registry now reports GHSA-wq5f-xc86-pv6w in Next.js's transitive `sharp@0.35.4`; the job log endpoint returned 403, while a fresh local audit reproduced this exact high finding. The lockfile now selects patched `sharp@0.35.5` and its matching `@img/sharp-*` binaries and libvips packages. A fresh Windows 11 `npm ci`, production audit (exit 0; zero high/critical), production build (exit 0; 41 routes) and `git diff --check` passed. No application source or manifest changed. Check the second repair's CI run after push; hosted and real-device acceptance remain open.
 
+**2026-10-06 clean-runner closure:** `e304a77` passed [CI run 37486507646](https://github.com/DarkPo13/hartolit-web3/actions/runs/37486507646) with web and contract jobs successful. The web job passed `npm ci`, lint, typecheck, tests, production build, migration, live route smokes and `npm audit --omit=dev --audit-level=high`. This closes the pending clean-runner gate for the private views and both lockfile repairs. Hosted and real-device acceptance remain S7/S9.
+
 All local runs were unpiped, reading each command's exit status. "Local" = Windows 11, Node 26.1.0, npm 11.13.0, Docker 29.7.2 on 2026-09-25. "CI" = GitHub-hosted `ubuntu-latest`, Node 24, [run 36123487787](https://github.com/DarkPo13/hartolit-web3/actions/runs/36123487787) on `513bf88`, completed **success** with `web` and `contract` jobs on 2026-09-25.
 
 | Validator | Local, Windows 11, 2026-09-25 | CI run 36123487787 on `513bf88` |
@@ -132,7 +134,7 @@ Negative controls: `evidence:smoke` against a closed port, the hash regression b
 
 Ordered by leverage.
 
-1. **[Agent] Check CI for the second dependency repair commit, then design and implement controlled publication from the stored confirmed bytes.** Extend the existing publication record and add a designated operator-wallet flow, with authorization, failed/retryable states and reconciliation tests. Keep public access disabled until the publication design and release gates are ready. The private views passed local live and browser checks; a clean-runner result for the repaired lockfile is a separate gate.
+1. **[Agent] Design and implement controlled publication from the stored confirmed bytes.** Extend the existing publication record and add a designated operator-wallet flow, with authorization, failed/retryable states and reconciliation tests. Keep public access disabled until the publication design and release gates are ready. The private views passed local live and browser checks plus clean-runner CI on `e304a77`.
 2. **[User with agent preparation] Complete S6/S7/S9 release specifics.** Obtain counsel/pilot review of the V1 retention target; choose Q2 hosting, database, private bucket, scanner and SMTP providers/regions; designate the MFA publisher account and wallet. Then implement and test retention, backup/restore and hosted acceptance. Engineering defaults are in README (D25); they do not authorize real publication. A deployment workflow depends on the Q2 hosting choice.
 
 ## Open questions
