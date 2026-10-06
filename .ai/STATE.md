@@ -1,8 +1,8 @@
 # STATE — the frontier
 
-- **Last updated:** 2026-10-05
+- **Last updated:** 2026-10-06
 - **Branch:** `master`
-- **Previously verified application commit:** `9263277` closed the legacy production public readers, corrected capture completion and updated Nodemailer. [CI run 37208962308](https://github.com/DarkPo13/hartolit-web3/actions/runs/37208962308) completed success for both web and contract jobs. Check the CI run for the private-view handoff commit separately.
+- **Previously verified application commit:** `9263277` closed the legacy production public readers, corrected capture completion and updated Nodemailer. [CI run 37208962308](https://github.com/DarkPo13/hartolit-web3/actions/runs/37208962308) completed success for both web and contract jobs. The private-view commit `418db6f` passed both jobs' application checks but failed the web production dependency audit; the repair is recorded below. Check the repair commit's CI result separately.
 - **2026-10-05 handoff slice:** Private MFA-admin certificate and saved-hash verification views use the confirmed `2.0.0` bytes. Local migrated DB/HTTP smoke and desktop/mobile Chrome passes covered them on 2026-10-04. Fresh source checks and build passed on 2026-10-05; see validation below. No hosted or real-device acceptance exists.
 
 Rules for this file:
@@ -93,6 +93,8 @@ S1 closed on 2026-09-25. The current Phase 4 code passed [CI run 36123487787](ht
 
 **2026-10-05 handoff checks, Windows 11:** `npm run lint`, `npm run typecheck`, `npm run test:public` (1/1), `node --check scripts/smoke-review.mjs`, `npm run build` (41 routes) and `git diff --check` each exited 0. The first test and build attempts stopped on sandbox `spawn EPERM`; their outside-sandbox reruns exited 0. The live review smoke and Chrome pass were not repeated because the same application code passed those checks on 2026-10-04; clean-runner CI and hosted/real-device acceptance must be checked separately. The unrelated `output/` consultation PDF remains untracked and excluded from this handoff.
 
+**2026-10-06 private-view CI and dependency repair:** `418db6f` was pushed to `master`. [CI run 37483397365](https://github.com/DarkPo13/hartolit-web3/actions/runs/37483397365) passed the contract job and the web install, lint, typecheck, tests, build, migration and live route smokes, then failed `npm audit --omit=dev --audit-level=high`. The locked transitive `source-map-js@1.2.1` is affected by GHSA-68fv-2mgg-jv7q; the lockfile alone now selects patched `1.2.2` through Tailwind/PostCSS. On Windows 11, `npm ci`, the production audit (exit 0; zero high or critical findings), production build (exit 0; 41 routes) and `git diff --check` exited 0. The full install still reports five high advisories in development dependencies outside the production gate. No application source changed. The repair commit's CI result must be checked after push.
+
 All local runs were unpiped, reading each command's exit status. "Local" = Windows 11, Node 26.1.0, npm 11.13.0, Docker 29.7.2 on 2026-09-25. "CI" = GitHub-hosted `ubuntu-latest`, Node 24, [run 36123487787](https://github.com/DarkPo13/hartolit-web3/actions/runs/36123487787) on `513bf88`, completed **success** with `web` and `contract` jobs on 2026-09-25.
 
 | Validator | Local, Windows 11, 2026-09-25 | CI run 36123487787 on `513bf88` |
@@ -128,7 +130,7 @@ Negative controls: `evidence:smoke` against a closed port, the hash regression b
 
 Ordered by leverage.
 
-1. **[Agent] Check the CI result for this handoff commit, then design and implement controlled publication from the stored confirmed bytes.** Extend the existing publication record and add a designated operator-wallet flow, with authorization, failed/retryable states and reconciliation tests. Keep public access disabled until the publication design and release gates are ready. The private views passed local live and browser checks; the pushed commit's clean-runner result is a separate gate.
+1. **[Agent] Check CI for the dependency repair commit, then design and implement controlled publication from the stored confirmed bytes.** Extend the existing publication record and add a designated operator-wallet flow, with authorization, failed/retryable states and reconciliation tests. Keep public access disabled until the publication design and release gates are ready. The private views passed local live and browser checks; a clean-runner result for the repaired lockfile is a separate gate.
 2. **[User with agent preparation] Complete S6/S7/S9 release specifics.** Obtain counsel/pilot review of the V1 retention target; choose Q2 hosting, database, private bucket, scanner and SMTP providers/regions; designate the MFA publisher account and wallet. Then implement and test retention, backup/restore and hosted acceptance. Engineering defaults are in README (D25); they do not authorize real publication. A deployment workflow depends on the Q2 hosting choice.
 
 ## Open questions
