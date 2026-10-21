@@ -8,7 +8,7 @@ import { publicCropSchema, publicTreatmentCategorySchema } from "@/lib/public-sn
 import type { ReviewDecision } from "./schema";
 
 export class WorkflowError extends Error {
-  constructor(public readonly status: 403 | 404 | 409 | 422, message: string, public readonly issues?: string[]) { super(message); }
+  constructor(public readonly status: 403 | 404 | 409 | 422 | 503, message: string, public readonly issues?: string[]) { super(message); }
 }
 
 const detailInclude = {
@@ -142,6 +142,23 @@ export async function decideReview(adminId: string, id: string, input: ReviewDec
     const changed = await tx.passport.updateMany({ where: { id, status: fromStatus, version, reviewerId: adminId }, data: { status: decision, version: { increment: 1 }, reviewedById: adminId, reviewedAt: new Date(), reviewNote: note || null, approvedVersion: decision === "APPROVED" ? row.submittedVersion : null } });
     if (!changed.count) throw new WorkflowError(409, "Passport changed; reload before deciding");
     if (fromStatus === "APPROVED" && decision === "CORRECTION_REQUIRED") {
+      // The passport update above holds the same lock used by publication reservation.
+      // Recall is safe only while no public pin or chain operation has begun.
+      const externalPublication = await tx.publication.findFirst({
+        where: { passportId: id, status: { notIn: ["RESERVED", "CANCELLED"] } }, select: { id: true },
+      });
+      if (externalPublication) throw new WorkflowError(409, "Publication has started; use the publication correction process");
+      const reservations = await tx.publication.findMany({ where: { passportId: id, status: "RESERVED" }, select: { id: true } });
+      for (const reservation of reservations) {
+        await tx.publication.update({ where: { id: reservation.id }, data: { status: "CANCELLED", cancelledAt: new Date(), walletVerifiedAt: null } });
+        await tx.publicationWalletChallenge.updateMany({
+          where: { publicationId: reservation.id, invalidatedAt: null }, data: { invalidatedAt: new Date() },
+        });
+        await tx.auditLog.create({ data: {
+          passportId: id, publicationId: reservation.id, actorId: adminId, action: "PUBLICATION_CANCELLED",
+          version: version + 1, fromStatus, toStatus: decision,
+        } });
+      }
       await tx.publicSnapshotConfirmation.updateMany({ where: { passportId: id, invalidatedAt: null }, data: { invalidatedAt: new Date() } });
     }
     const action = decision === "APPROVED" ? "REVIEW_APPROVED" : decision === "REJECTED" ? "REVIEW_REJECTED" : "CORRECTION_REQUESTED";

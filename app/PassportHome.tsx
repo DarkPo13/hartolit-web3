@@ -203,7 +203,8 @@ function Footer() {
           <span>© {new Date().getFullYear()} Hartolit · VANTREXIS</span>
           {isDemoMode() && <ChainBadge />}
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <Link href="/feedback" className="hover:text-ink">{t.feedback.leaveFeedback}</Link>
           <a
             href="https://hartolit-agro.com"
             target="_blank"

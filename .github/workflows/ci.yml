@@ -72,6 +72,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run test:hash
       - run: npm run test:public
+      - run: npm run test:button
+      - run: npm run test:wallet
       - run: npm run test:capture
       - name: Build with isolated test-only auth configuration
         run: npm run build
@@ -122,6 +124,8 @@ jobs:
           npm run drafts:smoke
           npm run evidence:smoke
           npm run review:smoke
+          npm run feedback:smoke
+          npm run publication:smoke
           npm run auth:smoke
       - run: npm audit --omit=dev --audit-level=high
 

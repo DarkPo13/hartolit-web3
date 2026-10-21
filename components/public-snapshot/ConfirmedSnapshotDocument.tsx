@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { PublicSnapshotView, type PublicConfirmation } from "./PublicSnapshotView";
 import { useLocale, useT } from "@/lib/i18n/context";
+import { ResponsibleTreatmentDialog } from "./ResponsibleTreatmentDialog";
 
 export function ConfirmedSnapshotDocument({ kind, confirmation, passportId }: {
   kind: "certificate" | "verification";
@@ -18,6 +19,7 @@ export function ConfirmedSnapshotDocument({ kind, confirmation, passportId }: {
       <Link href="/admin" className="font-medium text-brand-700 underline">{t.backToReview}</Link>
       <button type="button" onClick={() => setLocale(locale === "uk" ? "en" : "uk")} className="font-medium text-brand-700 underline" aria-label={locale === "uk" ? "Switch to English" : "Перейти на українську"}>{locale === "uk" ? "EN" : "УКР"}</button>
     </nav>
+    {certificate && <ResponsibleTreatmentDialog passportId={passportId} />}
     <header className="rounded-2xl border border-border bg-surface p-5 sm:p-7">
       <p className="inline-block rounded-full border border-accent-600 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-accent-700">{t.unpublished}</p>
       <h1 className="mt-4 font-serif text-3xl font-semibold text-ink sm:text-4xl">{certificate ? t.certificateTitle : t.verificationTitle}</h1>

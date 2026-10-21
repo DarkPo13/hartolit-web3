@@ -1,6 +1,35 @@
 export type Locale = "en" | "uk";
 
 export interface Translations {
+  feedback: {
+    responsibility: string;
+    thankYou: string;
+    responsibilityMessage: string;
+    soilReminder: string;
+    leaveFeedback: string;
+    viewCertificate: string;
+    close: string;
+    navigation: string;
+    back: string;
+    title: string;
+    description: string;
+    rating: string;
+    ratingHint: string;
+    comment: string;
+    commentHint: string;
+    privacy: string;
+    send: string;
+    sending: string;
+    success: string;
+    successDescription: string;
+    error: string;
+    limit: string;
+    sessionError: string;
+    inbox: string;
+    inboxHint: string;
+    empty: string;
+    backToAdmin: string;
+  };
   header: {
     title: string;
     subtitle: string;

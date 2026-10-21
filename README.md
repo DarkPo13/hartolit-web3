@@ -465,6 +465,34 @@ The local prototype can run without a wallet when `NEXT_PUBLIC_DEMO_MODE=true` a
 
 ---
 
+## Private publication reservation
+
+The first publication increment reserves the exact active confirmed `2.0.0` bytes in PostgreSQL. MFA admins can read reservation metadata at `GET /api/admin/passports/{id}/publication`. Only the active MFA admin configured by `HARTOLIT_PUBLISHER_USER_ID`, using the wallet allowlisted by `HARTOLIT_PUBLISHER_WALLET`, can POST a reservation. The strict input contains `confirmationId`, `passportVersion`, `expectedSha256` and `walletAddress`. Missing publisher configuration fails closed. These variables belong in the server environment; wallet private keys do not.
+
+Concurrent identical requests converge on one reservation and one audit entry. The server rechecks approval, the active confirmation, canonical bytes/hash and the selected verified evidence. Recalling approval cancels the reservation atomically while retaining its history; recall is blocked once an external stage has started. A configured wallet address is **not proof of ownership**. A separate private wallet-signature API now provides that proof; external-stage execution/reconciliation and admin UI remain unbuilt. These APIs perform no IPFS or blockchain operation.
+
+### Private wallet ownership proof
+
+The same designated service wallet will prove ownership and later sign issuance; a second wallet is not required. Pilots enter facts through their application accounts. The planned public certificate/QR verifier will require neither a wallet nor an account from farmers or readers.
+
+1. POST `/api/admin/passports/{id}/publication/wallet-challenge` with `{ "publicationId": "<reservation UUID>" }`. The designated MFA publisher receives an exact server-created message identifying the application origin, Testnet chain, wallet, certificate, reservation, payload hash, random nonce and five-minute expiry. Concurrent retries reuse the live challenge.
+2. Sign the returned **unchanged message** with that wallet using EIP-191 message signing. It proves wallet control only and does not authorize publication or a blockchain transaction. This step has no chain fee.
+3. POST `/api/admin/passports/{id}/publication/wallet-proof` with `publicationId`, `challengeId` and the 65-byte hex `signature`. The server rechecks current approval, saved bytes, evidence, publisher, wallet and challenge context, verifies the signature locally, then atomically consumes the challenge, stores its private proof and writes audit. Concurrent replays are rejected. Reservation metadata exposes only `walletVerifiedAt`, not the signature/message.
+
+Apply the additive `20261021135954_publication_wallet_proof` migration before starting this version. Expired challenges can be renewed; the previous challenge stays invalid. Recall invalidates pending and consumed challenges and clears active verification while preserving history. Later external stages must recheck the complete current authorization and confirmed-byte conditions; the timestamp alone must never authorize publication.
+
+This slice supports ordinary EOA wallets only, using [Viem's local EIP-191 verifier](https://github.com/wevm/viem/blob/main/src/utils/signature/verifyMessage.ts); contract wallets are not supported. No RPC is used for this proof, and no signing key belongs in the web environment. Wallet connection/signing UI and actual minting remain separate increments.
+
+`npm run publication:smoke` requires the local migrated database, a production build and free port 3001 (override with `PUBLICATION_SMOKE_PORT`). It starts/stops isolated production servers, checks exact PostgreSQL constraints, authorization, private history, source rejection/purging, real test-wallet signatures, message/context binding, expiry, replay, concurrency and recall, then removes its fictional accounts/records. Signing keys are generated only in the test process and never sent to the server or printed. It models already scanned evidence; the separate `review:smoke` checks actual uploads/scanning. `npm run test:wallet` checks local signature recovery independently of the database. A fresh CI result for this uncommitted increment remains pending.
+
+## Product feedback and responsible treatment reminder
+
+Signed-in users can open `/feedback` from the home-page footer. The private confirmed certificate preview opens an accessible responsibility dialog with a reminder to record doses and weather and care for Ukraine's soils; its **Leave feedback** button opens the same form. The dialog can be dismissed and reopened without submitting feedback. It does not claim that a certificate has been issued or that a treatment is environmentally safe.
+
+The form collects a 1–5 usability rating and a concrete comment (10–2000 characters). Responses are stored privately in PostgreSQL, associated with the current account; no passport, evidence or farmer details are copied into feedback or a public snapshot. Only MFA administrators can read the latest 50 responses at `/admin/feedback`, linked from the admin console. Responses are deleted with their account. The form asks users to exclude personal/field/document details. An account can send up to five responses per hour; an identical request retry is idempotent. Apply the additive `20261020120000_product_feedback` migration with `npm run db:deploy` before running this version.
+
+`npm run feedback:smoke` needs the migrated database and production server at `BETTER_AUTH_URL`. It checks authentication/MFA, private page access, origin, input validation, exact stored values, retries, ownership and the concurrent per-account quota, then removes its fictional users and their responses. Browser interaction and real user research are separate checks.
+
 ## Internationalization
 
 The UI ships with full **Ukrainian** (default) and **English** support. The locale toggle (UK/EN pill) is in the app header and persists to `localStorage`. All 20+ components read from a typed `Translations` object via React context — no external i18n library, no restructuring of the Next.js app directory.

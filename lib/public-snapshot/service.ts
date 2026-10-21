@@ -14,7 +14,7 @@ const previewSelect = {
   meteo: { select: { temperatureCelsius: true, humidityPercent: true, windSpeedMps: true, rainfallMm: true, measuredAt: true } },
   chemical: { select: { product: true, activeSubstance: true, dosePerHa: true, doseUnit: true, workingVolume: true, manufacturer: true, registrationNo: true } },
   evidence: { select: { id: true, kind: true, status: true, sha256: true, rejectionCode: true, objectPurgedAt: true } },
-  publication: { select: { id: true } },
+  publications: { where: { status: { notIn: ["RESERVED", "CANCELLED"] } }, select: { id: true }, take: 1 },
 } satisfies Prisma.PassportSelect;
 
 function amount(value: Prisma.Decimal | null | undefined) { return value?.toNumber() ?? null; }
@@ -29,7 +29,7 @@ export async function buildPublicSnapshot(
 ) {
   const row = await db.passport.findUnique({ where: { id }, select: previewSelect });
   if (!row) throw new WorkflowError(404, "Passport not found");
-  if (row.status !== "APPROVED" || row.approvedVersion === null || row.approvedVersion !== row.submittedVersion || row.publication) {
+  if (row.status !== "APPROVED" || row.approvedVersion === null || row.approvedVersion !== row.submittedVersion || row.publications.length) {
     throw new WorkflowError(409, "Only an approved, unpublished passport can be previewed");
   }
   const weatherFile = row.evidence.find((file) => file.id === weatherFileId && file.kind === "METEO" && file.status === "READY" && file.rejectionCode === null && file.objectPurgedAt === null);

@@ -1,6 +1,6 @@
 # Hartolit MVP completion guide
 
-**Status date:** 2026-10-06
+**Status date:** 2026-10-21
 
 **Target:** a controlled, hosted BSC Testnet pilot. Invited staff can create and review treatment records; one designated MFA admin can publish an approved public `2.0.0` snapshot with an allowlisted wallet; a farmer can share or download a readable issued certificate; anyone with its link can verify the published snapshot without an account. A real-data pilot begins only after the privacy, retention, backup, security and legal/pilot gates below pass.
 
@@ -41,6 +41,10 @@ The steps are ordered so that engineering can proceed while provider and legal d
 ### 2. Build the publication state machine around the confirmed bytes
 
 **Owner:** agent. **Owning layers:** Prisma migration, server publication service, route handlers and focused tests.
+
+**First increment accepted locally, 2026-10-21:** Private reservation is implemented and its migration is applied. The production-server/PostgreSQL smoke passes designated MFA publisher/wallet checks, exact saved bytes, cross-passport database constraints, concurrent idempotence, source validity, recall cancellation and retained history. The existing review smoke also passes with real uploads/scanning. This reserves a record only in PostgreSQL; it does not prove wallet ownership or publish anything. Step 2 remains open for wallet proof, external-stage transitions and failure/reconciliation handling. No new CI result is claimed for this uncommitted work.
+
+**Second increment accepted locally, 2026-10-21:** Private EOA wallet ownership proof is implemented through a new additive migration and two guarded APIs. A five-minute, single-use challenge binds the configured publisher, wallet, origin and exact reservation/hash. Actual signatures, expiry, context changes, concurrent replay and recall passed live DB/HTTP checks; the crypto regression test detects deliberately bypassed verification. This proves wallet control only. It does not authorize or perform publication, support contract wallets, or provide browser signing UI. The same one service wallet will later sign issuance; the planned public QR verifier needs no reader wallet/account.
 
 1. Extend the existing `Publication` model through a **new migration**. Bind a publication to one active `PublicSnapshotConfirmation`, its exact `canonicalJson` and `payloadHash`, passport approval/version and reviewer identity. Store operator authorization and audit facts without exposing private data in public output or logs.
 2. Define legal transitions for `RESERVED`, `PINNING`, `CHAIN_PENDING`, `PUBLISHED` and `FAILED_RETRYABLE`. Make reservation idempotent; concurrent requests for the same confirmation must converge on one publication. Decide how recall behaves before and after an irreversible pin or mint.
@@ -143,7 +147,7 @@ The steps are ordered so that engineering can proceed while provider and legal d
 
 ## What can proceed immediately
 
-The next engineering slice is **step 2: publication state machine and idempotent reservation**, using the already confirmed snapshot. It can be implemented and tested with fictional data before buying services or connecting a wallet. After that, implement exact-byte pinning, then Testnet wallet minting and the public certificate/verifier. Keep each slice reviewable with its own focused tests and migration if required.
+The private idempotent-reservation and server wallet-proof slices of **step 2** have passed local database/HTTP acceptance. The next slice is **the admin UI for reservation and wallet proof**, so the user can connect the same designated service wallet, inspect/sign the exact message and understand rejected, expired, retry and success states. Browser/manual wallet acceptance remains open. After that, complete serialized external-stage transitions and retry/reconciliation handling before enabling exact-byte pinning, Testnet minting or the public certificate/verifier. Keep each slice reviewable with focused tests and a new migration when required.
 
 In parallel, prepare a short provider comparison and a sample certificate for pilot/counsel review. The user will need to choose or authorize paid accounts/regions, designate the actual MFA publisher and wallet, and obtain the pilot/legal review before **real-data publication**. These decisions do not block the next local engineering slice.
 

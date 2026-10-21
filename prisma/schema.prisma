@@ -31,7 +31,10 @@ model User {
   assignedReviews  Passport[] @relation("AssignedReviewer")
   reviewedPassports Passport[] @relation("DecisionReviewer")
   confirmedSnapshots PublicSnapshotConfirmation[]
+  publicationReservations Publication[]
+  publicationWalletChallenges PublicationWalletChallenge[]
   adminActions     AdminAction[]
+  productFeedback  ProductFeedback[]
 
   @@unique([email])
   @@map("user")
@@ -147,6 +150,7 @@ enum PublicationStatus {
   CHAIN_PENDING
   PUBLISHED
   FAILED_RETRYABLE
+  CANCELLED
 }
 
 enum AuditAction {
@@ -164,6 +168,10 @@ enum AuditAction {
   CORRECTION_REQUESTED
   PASSPORT_REOPENED
   PUBLIC_SNAPSHOT_CONFIRMED
+  PUBLICATION_RESERVED
+  PUBLICATION_CANCELLED
+  PUBLICATION_WALLET_CHALLENGED
+  PUBLICATION_WALLET_VERIFIED
 }
 
 model Farmer {
@@ -235,7 +243,7 @@ model Passport {
   meteo       MeteoMeasurement?
   chemical    ChemicalApplication?
   evidence    EvidenceFile[]
-  publication Publication?
+  publications Publication[]
   confirmedSnapshots PublicSnapshotConfirmation[]
   audit       AuditLog[]
 
@@ -328,12 +336,19 @@ model EvidenceFile {
 
 model Publication {
   id              String            @id @default(uuid()) @db.Uuid
-  passportId      String            @unique @db.Uuid
+  passportId      String            @db.Uuid
   passport        Passport          @relation(fields: [passportId], references: [id], onDelete: Restrict)
+  confirmationId  String            @unique @db.Uuid
+  confirmation    PublicSnapshotConfirmation @relation(fields: [confirmationId, passportId], references: [id, passportId], onDelete: Restrict)
+  reservedById    String
+  reservedBy      User              @relation(fields: [reservedById], references: [id], onDelete: Restrict)
+  publisherWallet String            @db.VarChar(42)
+  passportVersion Int
+  approvedVersion Int
   status          PublicationStatus @default(RESERVED)
   idempotencyKey  String            @unique @db.VarChar(128)
-  publicSnapshot  Json?
-  payloadHash     String?           @unique @db.Char(64)
+  canonicalJson   String            @db.Text
+  payloadHash     String            @unique @db.Char(64)
   ipfsCid         String?           @db.VarChar(255)
   chainId         Int?
   contractAddress String?           @db.VarChar(42)
@@ -341,8 +356,33 @@ model Publication {
   tokenId         String?           @db.VarChar(78)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  cancelledAt     DateTime?
+  walletVerifiedAt DateTime?
+  walletChallenges PublicationWalletChallenge[]
+  audit           AuditLog[]
 
   @@unique([chainId, contractAddress, tokenId])
+  @@unique([confirmationId, passportId])
+  @@index([passportId, status])
+}
+
+model PublicationWalletChallenge {
+  id            String      @id @default(uuid()) @db.Uuid
+  publicationId String      @db.Uuid
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  actorId       String
+  actor         User        @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  walletAddress String      @db.VarChar(42)
+  origin        String      @db.VarChar(255)
+  nonce         String      @unique @db.Char(64)
+  message       String      @db.Text
+  createdAt     DateTime    @default(now())
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  invalidatedAt DateTime?
+  signature     String?     @db.VarChar(132)
+
+  @@index([publicationId, createdAt(sort: Desc)])
 }
 
 model PublicSnapshotConfirmation {
@@ -362,7 +402,9 @@ model PublicSnapshotConfirmation {
   confirmedBy      User         @relation(fields: [confirmedById], references: [id], onDelete: Restrict)
   confirmedAt      DateTime     @default(now())
   invalidatedAt    DateTime?
+  publication      Publication?
 
+  @@unique([id, passportId])
   @@unique([passportId, approvedVersion])
   @@index([passportId, invalidatedAt])
 }
@@ -378,6 +420,8 @@ model AuditLog {
   toStatus   PassportStatus?
   note       String?     @db.VarChar(1000)
   targetUserId String?
+  publicationId String? @db.Uuid
+  publication Publication? @relation(fields: [publicationId], references: [id], onDelete: Restrict)
   createdAt  DateTime    @default(now())
 
   @@index([passportId, createdAt(sort: Desc)])
@@ -395,4 +439,16 @@ model AdminAction {
 
   @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@index([entity, entityId, createdAt(sort: Desc)])
+}
+
+model ProductFeedback {
+  id        String   @id @db.Uuid
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String   @db.VarChar(2000)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
 }
