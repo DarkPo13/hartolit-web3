@@ -14,6 +14,7 @@
     "test:public": "node --test tests/public-snapshot-view.test.mjs",
     "test:button": "node --test tests/button.test.mjs",
     "test:wallet": "node --test tests/wallet-signature.test.mjs",
+    "test:ipfs": "node --test tests/ipfs-readback.test.mjs",
     "test:capture": "node --test tests/capture-completion.test.mjs",
     "test:public-boundary": "node scripts/check-public-boundary.mjs",
     "db:setup": "node scripts/setup-local-auth.mjs",

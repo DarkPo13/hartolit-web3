@@ -1,6 +1,16 @@
 export type Locale = "en" | "uk";
 
 export interface Translations {
+  publisher: {
+    title: string; hint: string; loading: string; loadError: string; refresh: string;
+    notConfigured: string; otherPublisher: string; allowedWallet: string; blocked: string;
+    verified: string; stillPrivate: string; reserve: string; changed: string; actionError: string;
+    walletHint: string; waiting: string; connect: string; connectedWallet: string; wrongWallet: string;
+    wrongNetwork: string; switchNetwork: string; disconnect: string; expired: string; prepareHint: string;
+    renew: string; prepare: string; message: string; expires: string; checkMessage: string;
+    sign: string; signing: string; saving: string; rejected: string; walletError: string;
+    accessDenied: string; saveUncertain: string;
+  };
   feedback: {
     responsibility: string;
     thankYou: string;

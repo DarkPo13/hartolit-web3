@@ -25,6 +25,17 @@ function publisherConfiguration() {
   return parsed.data;
 }
 
+export function publicationPublisherAccess(adminId: string) {
+  try {
+    const publisher = publisherConfiguration();
+    const canProve = publisher.userId === adminId;
+    return { configured: true, canProve, walletAddress: canProve ? publisher.walletAddress : null, chainId: 97 as const };
+  } catch (error) {
+    if (!(error instanceof WorkflowError) || error.status !== 503) throw error;
+    return { configured: false, canProve: false, walletAddress: null, chainId: 97 as const };
+  }
+}
+
 function reservationResponse(row: ReservationRow) {
   return {
     id: row.id, confirmationId: row.confirmationId, status: row.status,

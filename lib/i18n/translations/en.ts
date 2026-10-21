@@ -1,6 +1,29 @@
 import type { Translations } from "../types";
 
 export const en: Translations = {
+  publisher: {
+    title: "Service wallet",
+    hint: "Prepare the confirmed record and prove control of the allowed wallet. These steps do not publish a certificate.",
+    loading: "Checking status…", loadError: "Unable to load status. Please refresh it.", refresh: "Refresh status",
+    notConfigured: "The designated publisher and service wallet have not been configured.",
+    otherPublisher: "Only the designated publisher can complete this step.",
+    allowedWallet: "Allowed service wallet", blocked: "This record has entered the next stage. Preparation cannot be repeated.",
+    verified: "Wallet ownership verified", stillPrivate: "The record remains private. Certificate issuance will be a separate action.",
+    reserve: "Prepare record", changed: "The data, wallet or message changed. Refresh status and prepare a new message.",
+    actionError: "Unable to complete preparation. Refresh status before trying again.",
+    walletHint: "Connect the allowed wallet in this browser. Only a message signature is needed, with no transfer or chain fee. You do not need to enter a seed phrase or private key.",
+    waiting: "Waiting for the action to finish…", connect: "Connect browser wallet", connectedWallet: "Connected wallet",
+    wrongWallet: "This address is not the allowed wallet. Select the correct account in your wallet, or disconnect and connect another wallet.",
+    wrongNetwork: "Select the BSC Testnet network for this workflow.", switchNetwork: "Switch to BSC Testnet", disconnect: "Disconnect wallet",
+    expired: "The message has expired. Prepare a new one before signing.", prepareHint: "First prepare the message and review its contents.",
+    renew: "Prepare a new message", prepare: "Prepare message", message: "Message to sign", expires: "Expires at",
+    checkMessage: "I reviewed the wallet address and message. This signature proves wallet control only and does not issue a certificate.",
+    sign: "Sign message", signing: "Confirm the signature in your wallet…", saving: "Verifying and saving the signature…",
+    rejected: "You rejected the wallet request. You can try again.",
+    walletError: "Unable to complete the action. Check that your browser wallet is available and unlocked, then try again.",
+    accessDenied: "Access changed or your session ended. Sign in again and refresh status.",
+    saveUncertain: "We did not receive confirmation that the signature was saved. Refresh status before signing again; it may already be saved.",
+  },
   feedback: {
     responsibility: "Responsible farming",
     thankYou: "Thank you for a responsible approach",

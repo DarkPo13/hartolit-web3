@@ -10,6 +10,7 @@ import pg from "pg";
 import { createJiti } from "jiti";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { smokeWalletProof } from "./smoke-publication-wallet.mjs";
+import { smokePinPreparation, smokePinDispatch, smokePinRecallRace } from "./smoke-publication-pinning.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 const database = new URL(process.env.DATABASE_URL);
@@ -161,8 +162,13 @@ try {
   assert.equal((await reserve({}, operator)).status, 403);
   assert.equal((await reserve({}, unverified)).status, 403);
   assert.equal((await reserve()).status, 503, "missing publisher configuration fails closed");
+  const unavailable = await (await api(route, { user: publisher })).json();
+  assert.deepEqual(unavailable.publisher, { configured: false, canProve: false, walletAddress: null, chainId: 97 });
   assert.equal(await db.publication.count({ where: { passportId: id } }), 0);
   await stopServer(); await startServer(publisherId, wallet);
+  // Internal domain tests use the same fictional configuration as the isolated server.
+  process.env.HARTOLIT_PUBLISHER_USER_ID = publisherId;
+  process.env.HARTOLIT_PUBLISHER_WALLET = wallet;
   assert.equal((await reserve({}, other)).status, 403, "other MFA admin is not the designated publisher");
   assert.equal((await reserve({ walletAddress: `0x${"2".repeat(40)}` })).status, 403);
   assert.equal((await reserve({}, publisher, "https://evil.invalid")).status, 403);
@@ -234,6 +240,9 @@ try {
   const listed = await api(route, { user: other }); assert.equal(listed.status, 200);
   assert.equal(listed.headers.get("cache-control"), "private, no-store");
   const listing = await listed.json();
+  assert.deepEqual(listing.publisher, { configured: true, canProve: false, walletAddress: null, chainId: 97 });
+  const publisherView = await (await api(route, { user: publisher })).json();
+  assert.deepEqual(publisherView.publisher, { configured: true, canProve: true, walletAddress: wallet, chainId: 97 });
   assert.equal(listing.reservations.length, 1);
   assert.equal(listing.reservations[0].id, reservationId);
   assert.equal(listing.reservations[0].status, "RESERVED");
@@ -253,18 +262,17 @@ try {
     foreignRoute, foreignReservationId, foreignPassportId: foreign.passport.id,
   });
 
-  await db.publication.update({ where: { id: reservationId }, data: { status: "PINNING" } });
+  const preparedAttemptId = await smokePinPreparation({ db, publisherId, passportId: id, publicationId: reservationId,
+    confirmation, proof, weatherFileId: row.weather.id });
   const recallBody = { version: 4, decision: "CORRECTION_REQUIRED", note: "Fictional correction" };
   const recallRoute = `/api/admin/passports/${id}/decision`;
-  assert.equal((await api(recallRoute, { user: publisher, method: "POST", body: recallBody })).status, 409, "recall blocks after an external stage starts");
-  assert.equal((await db.passport.findUniqueOrThrow({ where: { id } })).status, "APPROVED", "blocked recall rolls back the whole transaction");
-  assert.equal((await db.publicSnapshotConfirmation.findUniqueOrThrow({ where: { id: confirmation.id } })).invalidatedAt, null);
-  await db.publication.update({ where: { id: reservationId }, data: { status: "RESERVED" } });
   const [repeat, recalled] = await Promise.all([reserve(), api(recallRoute, { user: publisher, method: "POST", body: recallBody })]);
   assert.ok([200, 409].includes(repeat.status)); assert.equal(recalled.status, 200);
   const cancelled = await db.publication.findUniqueOrThrow({ where: { id: reservationId } });
   assert.equal(cancelled.status, "CANCELLED"); assert.ok(cancelled.cancelledAt);
   assert.equal(cancelled.walletVerifiedAt, null, "recall revokes the wallet proof");
+  const recalledAttempt = await db.publicationPinAttempt.findUniqueOrThrow({ where: { id: preparedAttemptId } });
+  assert.equal(recalledAttempt.status, "CANCELLED"); assert.equal(recalledAttempt.dispatchedAt, null); assert.ok(recalledAttempt.closedAt);
   assert.ok((await db.publicationWalletChallenge.findUniqueOrThrow({ where: { id: proof.challengeId } })).invalidatedAt);
   assert.equal((await api(`${route}/wallet-proof`, { user: publisher, method: "POST", body: proof.body })).status, 409);
   assert.equal(cancelled.canonicalJson, stored.canonicalJson, "recall preserves historical confirmed bytes");
@@ -277,15 +285,27 @@ try {
   const nextConfirmation = await confirm(publisher, row);
   const next = await reserve({ confirmationId: nextConfirmation.id, passportVersion: 8, expectedSha256: nextConfirmation.preview.sha256 });
   assert.equal(next.status, 201, "a corrected approval can reserve a new snapshot");
+  const nextPublicationId = (await next.json()).reservation.id;
   assert.equal(await db.publication.count({ where: { passportId: id } }), 2, "cancelled reservation history is retained");
   assert.equal((await db.publication.findUniqueOrThrow({ where: { id: reservationId } })).status, "CANCELLED");
-  process.stdout.write("Publication smoke passed: private reservation, exact bytes, source validation, EOA wallet signatures, challenge binding/expiry/replay, concurrent proof/recall, audit and corrected approval. No public side effects.\n");
+  await smokePinDispatch({ api, db, publisherId, publisher, passportId: id, publicationId: nextPublicationId,
+    confirmation: nextConfirmation, signingAccount });
+  const racing = await fixture(ownerId, publisherId);
+  const racingConfirmation = await confirm(publisher, racing);
+  const racingReserved = await api(`/api/admin/passports/${racing.passport.id}/publication`, { user: publisher, method: "POST", body: {
+    confirmationId: racingConfirmation.id, passportVersion: 4, expectedSha256: racingConfirmation.preview.sha256, walletAddress: wallet,
+  } });
+  assert.equal(racingReserved.status, 201);
+  await smokePinRecallRace({ api, db, publisherId, publisher, passportId: racing.passport.id,
+    publicationId: (await racingReserved.json()).reservation.id, confirmation: racingConfirmation, signingAccount });
+  process.stdout.write("Publication smoke passed: exact bytes, private EOA proof, durable attempts, single dispatch, unknown recovery, verified readback receipts, concurrency, recall, constraints and audit. No public side effects.\n");
 } finally {
   await stopServer();
   for (const id of passportIds) {
     const row = await db.passport.findUnique({ where: { id }, select: { farmerId: true, fieldId: true } });
     if (!row) continue;
     await db.auditLog.deleteMany({ where: { passportId: id } });
+    await db.publicationPinAttempt.deleteMany({ where: { publication: { passportId: id } } });
     await db.publication.deleteMany({ where: { passportId: id } });
     await db.publicSnapshotConfirmation.deleteMany({ where: { passportId: id } });
     await db.evidenceFile.deleteMany({ where: { passportId: id } });

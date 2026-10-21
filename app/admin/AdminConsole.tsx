@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useT } from "@/lib/i18n/context";
 import { PublicSnapshotView, type PublicConfirmation, type PublicPreview } from "@/components/public-snapshot/PublicSnapshotView";
 import { AdminRecords } from "./AdminRecords";
+import { PublicationPanel } from "./PublicationPanel";
 
 type Person = { id: string; name: string; email: string };
 type Item = { id: string; status: string; version: number; submittedAt: string | null; farmer: { legalName: string | null }; field: { crop: string | null }; owner: Person; reviewer: Person | null };
@@ -61,18 +62,21 @@ export function AdminConsole({ actorId }: { actorId: string }) {
   const [confirmationBusy, setConfirmationBusy] = useState(false);
   const [confirmationChecked, setConfirmationChecked] = useState(false);
   const detailRequestId = useRef(0);
+  const queueRequestId = useRef(0);
   const previewRequestId = useRef(0);
   const labels: Record<string, string> = { SUBMITTED: t.submitted, APPROVED: t.approved, REJECTED: t.rejected, CORRECTION_REQUIRED: t.correctionRequired, PUBLISHING: t.publishing, PUBLISHED: t.published, FAILED_RETRYABLE: t.failed };
   const date = (value: string | null) => value ? new Date(value).toLocaleString(locale === "uk" ? "uk-UA" : "en-US") : "—";
 
   const loadQueue = useCallback(async () => {
+    const requestId = ++queueRequestId.current;
     setLoading(true);
     try {
       const params = new URLSearchParams({ status: filter, search: query, page: String(page) });
       const [queue, summary] = await Promise.all([getJson<{ items: Item[]; total: number }>(`/api/admin/passports?${params}`), getJson<Overview>("/api/admin/overview")]);
+      if (requestId !== queueRequestId.current) return;
       setItems(queue.items); setTotal(queue.total); setOverview(summary); setError(false);
-    } catch { setError(true); }
-    finally { setLoading(false); }
+    } catch { if (requestId === queueRequestId.current) setError(true); }
+    finally { if (requestId === queueRequestId.current) setLoading(false); }
   }, [filter, query, page]);
 
   const loadDetail = useCallback(async (id: string) => {
@@ -93,7 +97,7 @@ export function AdminConsole({ actorId }: { actorId: string }) {
     finally { if (requestId === detailRequestId.current) { setDetailLoading(false); setConfirmationLoading(false); } }
   }, [t.publicPreview.confirmationLoadError]);
 
-  useEffect(() => { void loadQueue(); }, [loadQueue]);
+  useEffect(() => { void loadQueue(); return () => { queueRequestId.current += 1; }; }, [loadQueue]);
   useEffect(() => { if (selectedId) void loadDetail(selectedId); }, [selectedId, loadDetail]);
 
   async function post(path: "assign" | "decision", body: object) {
@@ -168,6 +172,7 @@ export function AdminConsole({ actorId }: { actorId: string }) {
           {confirmationLoading && <p role="status" className="mt-2 text-sm">{t.loading}</p>}
           {confirmationError && <p role="alert" className="mt-2 text-sm text-danger">{confirmationError} <button type="button" onClick={() => void loadDetail(detail.id)} className="underline">{t.refresh}</button></p>}
           {publicConfirmation && <div className="mt-4"><h4 className="font-semibold">{t.publicPreview.confirmedTitle}</h4><p className="mt-1 text-sm text-ink-muted">{t.publicPreview.confirmedAt}: {date(publicConfirmation.confirmedAt)}</p><div className="mt-3 flex flex-wrap gap-4 text-sm"><Link href={`/admin/passports/${encodeURIComponent(detail.id)}/certificate`} className="font-medium text-brand-700 underline">{t.confirmedViews.openCertificate}</Link><Link href={`/admin/passports/${encodeURIComponent(detail.id)}/verification`} className="font-medium text-brand-700 underline">{t.confirmedViews.openVerification}</Link></div><PublicSnapshotView preview={publicConfirmation.preview} confirmed /></div>}
+          {publicConfirmation && <PublicationPanel key={`${detail.id}:${publicConfirmation.id}`} passportId={detail.id} confirmation={publicConfirmation} disabled={busy || confirmationBusy} />}
           {!publicConfirmation && !confirmationLoading && !confirmationError && <>
           <p className="mt-2 text-sm text-ink-muted">{t.publicPreview.hint}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">

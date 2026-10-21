@@ -20,3 +20,9 @@ export const walletProofInputSchema = z.strictObject({
   signature: z.string().regex(/^0x[0-9a-fA-F]{130}$/),
 });
 export type WalletProofInput = z.infer<typeof walletProofInputSchema>;
+
+export const walletChallengeResponseSchema = z.strictObject({
+  id: z.uuid(), publicationId: z.uuid(), walletAddress: publisherWalletSchema,
+  chainId: z.literal(97), message: z.string().min(1).max(4096), expiresAt: z.iso.datetime(),
+});
+export type WalletChallenge = z.infer<typeof walletChallengeResponseSchema>;

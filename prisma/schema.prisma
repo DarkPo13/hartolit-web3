@@ -147,10 +147,19 @@ enum DoseUnit {
 enum PublicationStatus {
   RESERVED
   PINNING
+  PINNED
   CHAIN_PENDING
   PUBLISHED
   FAILED_RETRYABLE
   CANCELLED
+}
+
+enum PublicationPinAttemptStatus {
+  PREPARED
+  DISPATCHING
+  UNKNOWN
+  CANCELLED
+  VERIFIED
 }
 
 enum AuditAction {
@@ -172,6 +181,11 @@ enum AuditAction {
   PUBLICATION_CANCELLED
   PUBLICATION_WALLET_CHALLENGED
   PUBLICATION_WALLET_VERIFIED
+  PUBLICATION_PIN_PREPARED
+  PUBLICATION_PIN_DISPATCH_STARTED
+  PUBLICATION_PIN_OUTCOME_UNKNOWN
+  PUBLICATION_PIN_CANCELLED
+  PUBLICATION_PIN_VERIFIED
 }
 
 model Farmer {
@@ -359,6 +373,7 @@ model Publication {
   cancelledAt     DateTime?
   walletVerifiedAt DateTime?
   walletChallenges PublicationWalletChallenge[]
+  pinAttempts     PublicationPinAttempt[]
   audit           AuditLog[]
 
   @@unique([chainId, contractAddress, tokenId])
@@ -381,8 +396,31 @@ model PublicationWalletChallenge {
   consumedAt    DateTime?
   invalidatedAt DateTime?
   signature     String?     @db.VarChar(132)
+  pinAttempts   PublicationPinAttempt[]
+
+  @@unique([id, publicationId])
+  @@index([publicationId, createdAt(sort: Desc)])
+}
+
+model PublicationPinAttempt {
+  id                String @id @default(uuid()) @db.Uuid
+  publicationId     String @db.Uuid
+  publication       Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  walletChallengeId String @db.Uuid
+  walletChallenge   PublicationWalletChallenge @relation(fields: [walletChallengeId, publicationId], references: [id, publicationId], onDelete: Restrict)
+  requestId         String @unique @db.Uuid
+  status            PublicationPinAttemptStatus @default(PREPARED)
+  createdAt         DateTime @default(now())
+  dispatchedAt      DateTime?
+  deadlineAt        DateTime?
+  closedAt          DateTime?
+  expectedCid       String? @db.VarChar(255)
+  verifiedCid       String? @db.VarChar(255)
+  providerPinId     String? @db.VarChar(128)
+  verifiedAt        DateTime?
 
   @@index([publicationId, createdAt(sort: Desc)])
+  @@index([status, deadlineAt])
 }
 
 model PublicSnapshotConfirmation {

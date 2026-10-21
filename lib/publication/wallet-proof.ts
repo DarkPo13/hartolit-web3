@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomBytes, randomUUID } from "node:crypto";
-import type { PublicationWalletChallenge } from "@/generated/prisma/client";
+import type { Prisma, Publication, PublicSnapshotConfirmation, PublicationWalletChallenge } from "@/generated/prisma/client";
 import { getDb } from "@/lib/db";
 import { WorkflowError } from "@/lib/review/service";
 import { lockReservedPublication } from "./service";
@@ -47,6 +47,26 @@ function matchesContext(row: PublicationWalletChallenge, actorId: string, wallet
   return row.actorId === actorId && row.walletAddress === wallet && row.origin === applicationOrigin() &&
     row.expiresAt.getTime() - row.createdAt.getTime() === lifetimeMs &&
     row.message === ownershipMessage(row, certificateId, hash);
+}
+
+/** A stored timestamp alone is not proof. Revalidate the consumed, unrevoked signature. */
+export async function requireStoredWalletProof(
+  tx: Prisma.TransactionClient, adminId: string, reservation: Publication, confirmation: PublicSnapshotConfirmation,
+) {
+  const verifiedAt = reservation.walletVerifiedAt;
+  if (!verifiedAt) throw new WorkflowError(409, "Wallet ownership proof is required");
+  const rows = await tx.publicationWalletChallenge.findMany({
+    where: { publicationId: reservation.id, consumedAt: verifiedAt, invalidatedAt: null }, take: 2,
+  });
+  const row = rows[0];
+  if (rows.length !== 1 || !row || !row.signature || !row.consumedAt || row.createdAt > row.consumedAt ||
+    row.consumedAt >= row.expiresAt || row.consumedAt > new Date() ||
+    !matchesContext(row, adminId, reservation.publisherWallet, confirmation.certificateId, reservation.payloadHash) ||
+    !await verifyPublisherSignature(row.walletAddress, row.message, row.signature)) {
+    throw new WorkflowError(409, "Stored wallet proof is invalid or revoked");
+  }
+  // An already consumed proof stays valid after the challenge's signing deadline.
+  return row;
 }
 
 export async function createWalletChallenge(adminId: string, passportId: string, publicationId: string) {

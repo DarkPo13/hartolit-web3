@@ -150,6 +150,17 @@ export async function decideReview(adminId: string, id: string, input: ReviewDec
       if (externalPublication) throw new WorkflowError(409, "Publication has started; use the publication correction process");
       const reservations = await tx.publication.findMany({ where: { passportId: id, status: "RESERVED" }, select: { id: true } });
       for (const reservation of reservations) {
+        const cancelledAt = new Date();
+        const attempts = await tx.publicationPinAttempt.findMany({
+          where: { publicationId: reservation.id, status: "PREPARED" }, select: { id: true },
+        });
+        await tx.publicationPinAttempt.updateMany({
+          where: { publicationId: reservation.id, status: "PREPARED" }, data: { status: "CANCELLED", closedAt: cancelledAt },
+        });
+        for (const attempt of attempts) await tx.auditLog.create({ data: {
+          passportId: id, publicationId: reservation.id, actorId: adminId, action: "PUBLICATION_PIN_CANCELLED",
+          version: version + 1, fromStatus, toStatus: decision, note: `Pin attempt: ${attempt.id}`,
+        } });
         await tx.publication.update({ where: { id: reservation.id }, data: { status: "CANCELLED", cancelledAt: new Date(), walletVerifiedAt: null } });
         await tx.publicationWalletChallenge.updateMany({
           where: { publicationId: reservation.id, invalidatedAt: null }, data: { invalidatedAt: new Date() },
