@@ -2,8 +2,8 @@
 
 - **Last updated:** 2026-10-21
 - **Branch:** `master`
-- **Checkpoint:** application commit `21be79e` contains the wallet UI, durable publication attempts and verified IPFS readback. The user authorized handoff, commit and push; **push is blocked by GitHub authentication**, not by tests. HTTPS has no usable credential; the available SSH identity lacks repository access. A user login has been requested. No new CI run exists before push.
-- **Last recorded green application CI:** `cdf106a`, [run 39624900884](https://github.com/DarkPo13/hartolit-web3/actions/runs/39624900884), web and contract success. That run does not cover the newer work in this handoff.
+- **Checkpoint:** application commit `21be79e` and handoff commit `f94edf9` are pushed to `origin/master`. **2026-10-21 correction:** the GitHub authentication blocker is resolved; Credential Manager had multiple accounts and a command-local account selector enabled the authorized HTTPS push without changing global settings. No user credential action remains pending.
+- **Recorded green application CI:** `f94edf9`, [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254), completed **success** for both web and contract jobs. It covers the wallet UI build, attempts/readback, both migrations and configured tests. Subsequent context-only commits do not change application code; inspect their CI separately when needed.
 - **2026-10-21 handoff correction:** earlier dated goal/validation paragraphs were archival and contained superseded uncommitted/pending claims. They are consolidated into the dated history in `PROGRESS.md`; this file is the current frontier.
 
 Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D32.
@@ -31,7 +31,7 @@ Real provider/profile compatibility, stable actual-dispatch provenance, pin rete
 | Phase | Scope | Current state |
 |---|---|---|
 | 0 | Public fields, retention, publisher and hosting policy | Public fields approved (D21); retention/publisher defaults chosen (D25). Legal/pilot review, providers/regions and concrete account/wallet remain open |
-| 1 | Invite-only accounts, DB sessions, admin TOTP, reset | Implemented; green checkpoint CI on `cdf106a`; no hosted acceptance |
+| 1 | Invite-only accounts, DB sessions, admin TOTP, reset | Implemented; green checkpoint CI on `f94edf9`; no hosted acceptance |
 | 2 | Owner-scoped drafts, versions, audit | Implemented; local/CI acceptance |
 | 3 | Private uploads, integrity, ClamAV, expiring reads | Local implementation/acceptance; hosted gate S7 open |
 | 4 | Submit, assign, decide, reopen and admin management | Implemented locally; hosted/real-device gate S9 open |
@@ -52,6 +52,8 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 ## Validation
 
 **Handoff run, 2026-10-21, Windows 11, Node 24.18.0.** Each command's own exit status was read unpiped.
+
+**Clean runner, 2026-10-21:** [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254) on exact SHA `f94edf94ab03c6d873b8942bc6be1aae1b24f259` passed web and contract jobs: install, lint, typecheck, configured Node tests including IPFS, production build, all migrations, production boundary/API smokes including auth/STARTTLS, production audit, Foundry build/tests and ABI comparison. This closes the pending clean-runner gate for this application checkpoint. It does not establish installed-extension, hosted, live-provider or issued-certificate acceptance.
 
 | Check | Result | Limit |
 |---|---|---|
@@ -77,10 +79,9 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Next steps
 
-1. **User/agent:** complete GitHub login with repository write access, then push `master` (already authorized; do not force-push) and verify its exact CI result. No code change is required to retry push. Do not ask the user for a token/password in chat or change global Git identity/remote settings.
-2. **Agent:** after the Git checkpoint, implement/test an exact-byte upload boundary and separate publication consent. Bind actual provider identity/configuration and raw storage profile to dispatch; use local positive/negative transport tests first. Preserve current MFA/approval/proof checks and unknown-outcome blocking. No blind resend after a missing readback.
-3. **User with agent preparation:** choose/verify the actual MFA publisher and public Testnet wallet address; manually accept the installed extension via README. Choose hosting/database/private bucket/scanner/SMTP/IPFS providers and regions (Q2); obtain counsel/pilot retention review. No seed/private key sharing. These choices do not block local uploader-boundary code.
-4. **After those gates:** provider upload/readback compatibility and retention acceptance; Testnet mint/receipt/reconciliation; issued certificate and anonymous public verifier; holds/deletion, matched backup/restore, then hosted/device acceptance.
+1. **Agent:** implement/test an exact-byte upload boundary and separate publication consent. Bind actual provider identity/configuration and raw storage profile to dispatch; use local positive/negative transport tests first. Preserve current MFA/approval/proof checks and unknown-outcome blocking. No blind resend after a missing readback.
+2. **User with agent preparation:** choose/verify the actual MFA publisher and public Testnet wallet address; manually accept the installed extension via README. Choose hosting/database/private bucket/scanner/SMTP/IPFS providers and regions (Q2); obtain counsel/pilot retention review. No seed/private key sharing. These choices do not block local uploader-boundary code.
+3. **After those gates:** provider upload/readback compatibility and retention acceptance; Testnet mint/receipt/reconciliation; issued certificate and anonymous public verifier; holds/deletion, matched backup/restore, then hosted/device acceptance.
 
 ## Open questions
 
