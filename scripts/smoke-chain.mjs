@@ -14,6 +14,7 @@ import { fictionalChainSnapshot } from "./fixtures/public-chain.mjs";
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
 const { createMintIntent, mintTransactionRequest, inspectMintReadiness, inspectMintTransaction } = await jiti.import("../lib/publication/chain-mint.ts");
+const { inspectMintCancellation } = await jiti.import("../lib/publication/mint-cancellation.ts");
 const { canonicalize } = await jiti.import("../lib/hash.ts");
 const { rawCidFromSha256 } = await jiti.import("../lib/publication/raw-cid.ts");
 const artifact = JSON.parse(await readFile(new URL("../contracts/out/HartolitFieldPassport.sol/HartolitFieldPassport.json", import.meta.url), "utf8"));
@@ -118,7 +119,26 @@ try {
   await mine(2);
   await denied(inspectMintTransaction(extraCalldata, extraHash, reader));
   assert.equal((await inspectMintTransaction(value, `0x${"f".repeat(64)}`, reader)).status, "UNKNOWN");
-  process.stdout.write("Local chain smoke passed: actual deployment/code, exact mint, pending/depth, duplicate/revert/pause, wrong recipient, lost chain branch and stale receipt. No public network or issued app certificate.\n");
+  const cancellation = await make(), cancellationNonce = await reader.getTransactionCount({ address: account.address, blockTag: "latest" });
+  const beforeCancellation = await reader.request({ method: "evm_snapshot" });
+  await reader.request({ method: "evm_setAutomine", params: [false] });
+  // This test-only self-send is never constructed or broadcast by the app.
+  const cancelHash = await wallet.sendTransaction({ to: account.address, data: "0x", value: 0n, nonce: cancellationNonce, gas: 21_000n });
+  const inspectCancel = (client = reader) => inspectMintCancellation(cancellation, cancelHash, BigInt(cancellationNonce), client);
+  assert.equal((await inspectCancel()).status, "PENDING");
+  await mine(1); assert.equal((await inspectCancel()).status, "CONFIRMING");
+  await mine(2); const cancelled = await inspectCancel();
+  assert.equal(cancelled.status, "CANCELLED"); assert.equal(cancelled.confirmations, "3");
+  assert.equal(cancelled.canResend, false); assert.equal(cancelled.issued, false);
+  await denied(inspectMintCancellation(cancellation, cancelHash, BigInt(cancellationNonce + 1), reader));
+  await denied(inspectMintCancellation(extraCalldata, extraHash, BigInt((await reader.getTransaction({ hash: extraHash })).nonce), reader));
+  const cancelTx = await reader.getTransaction({ hash: cancelHash }), cancelReceipt = await reader.getTransactionReceipt({ hash: cancelHash });
+  assert.equal(await reader.request({ method: "evm_revert", params: [beforeCancellation] }), true);
+  assert.ok(["UNKNOWN", "PENDING"].includes((await inspectCancel()).status));
+  await reader.request({ method: "anvil_dropTransaction", params: [cancelHash] });
+  await mine(4);
+  assert.equal((await inspectCancel({ ...reader, getTransaction: async () => cancelTx, getTransactionReceipt: async () => cancelReceipt })).status, "REORG");
+  process.stdout.write("Local chain smoke passed: actual deployment/code, exact mint, pending/depth, duplicate/revert/pause, wrong recipient, lost chain branch/stale receipt and exact self-send cancellation/depth/rollback. No public network, slot release or issued app certificate.\n");
 } finally {
   clearTimeout(readyTimer);
   if (node.pid && node.exitCode === null && node.signalCode === null) { const exited = once(node, "exit"); node.kill(); await exited; }

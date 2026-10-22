@@ -9,6 +9,7 @@ const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAl
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
 const { discoverMintTransaction } = await jiti.import("../lib/publication/mint-discovery.ts");
 const { observeMintAttempt } = await jiti.import("../lib/publication/mint-observation.ts");
+const { inspectMintCancellation } = await jiti.import("../lib/publication/mint-cancellation.ts");
 const rejects = (promise, status = 409) => assert.rejects(promise, error => error.status === status);
 
 export async function smokeMintDiscovery({ db, publisherId, dispatched, chain }) {
@@ -102,6 +103,12 @@ export async function smokeMintDiscovery({ db, publisherId, dispatched, chain })
     const cancelHash = await chain.cancel(command); await chain.reader.waitForTransactionReceipt({ hash: cancelHash });
     const cancelled = await discover(chain.reader); assert.equal(cancelled.status, "CONFLICT"); assert.equal(cancelled.transactionHash, cancelHash);
     assert.equal(await db.publicationMintTransaction.count({ where: { attemptId, transactionHash: cancelHash } }), 0);
+    assert.equal((await inspectMintCancellation(winner.intent, cancelHash, attempt.nonce, chain.reader)).status, "CONFIRMING");
+    await chain.reader.request({ method: "anvil_mine", params: ["0x2"] });
+    const proof = await inspectMintCancellation(winner.intent, cancelHash, attempt.nonce, chain.reader);
+    assert.equal(proof.status, "CANCELLED"); assert.equal(proof.canResend, false); assert.equal(proof.issued, false);
+    assert.equal((await saved()).status, "UNKNOWN", "read-only cancellation proof cannot close/release an attempt");
+    assert.equal((await db.publication.findUniqueOrThrow({ where: { id: winner.publication.id } })).status, "CHAIN_PENDING");
     assert.equal(await chain.reader.request({ method: "evm_revert", params: [beforeCancel] }), true);
     dispatched.snapshot = await chain.reader.request({ method: "evm_snapshot" });
     dispatched.hash = await chain.send(command, 13_000_000_000n); await chain.reader.waitForTransactionReceipt({ hash: dispatched.hash });
