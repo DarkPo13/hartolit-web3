@@ -29,6 +29,9 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
   await rejects(finalizeMintPublication(passportId, attemptId, { transactionId: randomUUID() }, offline));
   await rejects(finalizeMintPublication(loser.passportId, attemptId, { transactionId }, offline), 404);
   assert.equal(rpc, 0);
+  const prior = await db.publicationMintAttempt.findMany({ where: { chainId: 97, publisherWallet: winner.intent.publisherWallet,
+    id: { not: attemptId }, status: { in: ["FINALIZED", "FAILED_TERMINAL"] } }, include: { finalizedObservation: true, failedObservation: true } });
+  const priorBlocks = new Set(prior.map(row => JSON.parse((row.finalizedObservation ?? row.failedObservation).resultJson).blockNumber));
   for (const [reader, expected] of [
     [offline, "UNAVAILABLE"],
     [{ ...frame.reader, getTransaction: async () => ({ ...frame.tx, blockNumber: null, blockHash: null }) }, "PENDING"],
@@ -37,7 +40,14 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
     [{ ...frame.reader, getBlock: async () => ({ number: 7n, hash: `0x${"f".repeat(64)}` }) }, "REORG"],
     [{ ...frame.reader, getTransaction: async () => ({ ...frame.tx, input: "0x" }) }, "MISMATCH"],
   ]) {
-    const result = await finalize(reader); assert.equal(result.status, expected);
+    if (prior.length && ["UNAVAILABLE", "CONFIRMING", "REORG"].includes(expected)) {
+      await rejects(finalize(reader), 503); // A global RPC/branch failure cannot bypass earlier closed-nonce receipts.
+      assert.equal((await attempt()).finalizedAt, null); assert.equal((await stored()).transactionHash, null);
+      continue;
+    }
+    const isolated = { ...reader, getBlock: args => args?.blockNumber !== undefined && priorBlocks.has(args.blockNumber.toString())
+      ? base.getBlock(args) : reader.getBlock(args) };
+    const result = await finalize(isolated); assert.equal(result.status, expected);
     assert.equal(result.publicationStatus, "CHAIN_PENDING"); assert.equal(result.issued, false); assert.equal(result.canResend, false);
     assert.equal((await attempt()).finalizedAt, null); assert.equal((await stored()).transactionHash, null);
   }

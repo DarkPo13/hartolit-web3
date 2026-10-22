@@ -36,6 +36,7 @@ model User {
   adminActions     AdminAction[]
   productFeedback  ProductFeedback[]
   mintRecoveries   PublicationMintRecovery[]
+  mintFailures     PublicationMintFailure[]
 
   @@unique([email])
   @@map("user")
@@ -151,6 +152,8 @@ enum PublicationStatus {
   PINNED
   CHAIN_PENDING
   CHAIN_SUSPENDED
+  CHAIN_FAILED
+  CHAIN_FAILED_SUSPENDED
   PUBLISHED
   FAILED_RETRYABLE
   CANCELLED
@@ -168,6 +171,7 @@ enum PublicationMintAttemptStatus {
   DISPATCHING
   UNKNOWN
   FINALIZED
+  FAILED_TERMINAL
 }
 
 enum PublicationMintObservationStatus {
@@ -228,6 +232,7 @@ enum AuditAction {
   PUBLICATION_MINT_QUARANTINED
   PUBLICATION_MINT_SEARCHED
   PUBLICATION_MINT_RESTORED
+  PUBLICATION_MINT_FAILED
 }
 
 model Farmer {
@@ -518,9 +523,15 @@ model PublicationMintAttempt {
   monitorUntil    DateTime?
   monitorNextAt   DateTime @default(now())
   recoveries      PublicationMintRecovery[]
+  failedAt        DateTime?
+  failedObservationId String? @unique @db.Uuid
+  failureStatus   PublicationMintObservationStatus?
+  failedObservation PublicationMintObservation? @relation("MintFailureProof", fields: [failedObservationId, id, failureStatus], references: [id, attemptId, status], onDelete: NoAction, map: "PublicationMintAttempt_failure_proof_fkey")
+  failure         PublicationMintFailure?
 
   @@unique([id, nonce])
   @@unique([finalizedObservationId, id, finalizationStatus])
+  @@unique([failedObservationId, id, failureStatus])
   @@unique([chainId, publisherWallet, nonce])
   @@index([status, deadlineAt])
   @@index([monitorNextAt, id])
@@ -559,10 +570,33 @@ model PublicationMintObservation {
   finalizedAttempt PublicationMintAttempt? @relation("MintFinalization")
   recoveryOriginals PublicationMintRecovery[] @relation("MintRecoveryOriginal")
   recoveryVerification PublicationMintRecovery? @relation("MintRecoveryVerification")
+  failedAttempt PublicationMintAttempt? @relation("MintFailureProof")
+  failureClosure PublicationMintFailure? @relation("MintFailureClosure")
 
   @@unique([attemptId, revision])
   @@unique([id, attemptId])
   @@unique([id, attemptId, status])
+  @@unique([id, attemptId, transactionId, status], map: "PublicationMintObservation_failure_binding_key")
+}
+
+// Reviewed consumed-nonce failure; never permission to resend this preparation.
+model PublicationMintFailure {
+  id              String @id @default(uuid()) @db.Uuid
+  attemptId       String @unique @db.Uuid
+  attempt         PublicationMintAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  requestId       String @unique @db.Uuid
+  actorId         String
+  actor           User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  observationId   String @unique @db.Uuid
+  proofStatus     PublicationMintObservationStatus @default(REVERTED)
+  observation     PublicationMintObservation @relation("MintFailureClosure", fields: [observationId, attemptId, transactionId, proofStatus], references: [id, attemptId, transactionId, status], onDelete: Restrict, map: "PublicationMintFailure_proof_fkey")
+  transactionId   String @db.Uuid
+  reviewedObservationVersion Int
+  intentSha256    String @db.Char(64)
+  walletStateSha256 String @db.Char(64)
+  closedAt        DateTime @default(now())
+
+  @@unique([observationId, attemptId, transactionId, proofStatus])
 }
 
 // Append-only explicit review of an unchanged original receipt after quarantine.

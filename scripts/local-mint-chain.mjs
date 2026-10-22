@@ -42,9 +42,9 @@ export async function localMintChain(account) {
     assert.equal(await reader.getCode({ address: deployed.contractAddress }), runtime);
     return { reader, stop, target: { chainId: 97, contractAddress: deployed.contractAddress.toLowerCase(), contractCodeHash: keccak256(runtime),
       publisherWallet: account.address.toLowerCase(), recipientWallet: account.address.toLowerCase(), requiredConfirmations: 3 },
-      async send(command, gasPrice) {
+      async send(command, gasPrice, gas = 500_000n) {
         assert.equal(command.request.from, account.address.toLowerCase()); assert.equal(command.request.chainId, 97);
-        return wallet.sendTransaction({ to: command.request.to, data: command.request.data, nonce: command.request.nonce, value: BigInt(command.request.value), gas: 500_000n,
+        return wallet.sendTransaction({ to: command.request.to, data: command.request.data, nonce: command.request.nonce, value: BigInt(command.request.value), gas,
           ...(gasPrice === undefined ? {} : { gasPrice }) });
       },
       async cancel(command) {

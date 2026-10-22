@@ -8,7 +8,7 @@ import { WorkflowError } from "@/lib/review/service";
 import { createMintIntent, validateMintIntent, requireExactMintTransaction, inspectMintTransaction, type MintReader } from "./chain-mint";
 import { rawCidFromSha256 } from "./raw-cid";
 import { RAW_PIN_PROFILE } from "./target";
-import { finalizedMintReceipt, lockMintWallet, mintWalletHistory, verifyMintWalletAnchors } from "./mint-wallet";
+import { finalizedMintReceipt, failedMintReceipt, lockMintWallet, mintWalletHistory, verifyMintWalletAnchors } from "./mint-wallet";
 import { requireMintMonitorLease, type MintMonitorLease } from "./mint-monitor-lease";
 
 const inputSchema = z.strictObject({ transactionHash: z.string().regex(/^0x[0-9a-f]{64}$/).nullable() });
@@ -20,16 +20,18 @@ export async function lockDispatchedMint(tx: Prisma.TransactionClient, passportI
   const locked = await tx.passport.updateMany({ where: { id: passportId }, data: { updatedAt: new Date() } });
   if (!locked.count) throw new WorkflowError(404, "Passport not found");
   const attempt = await tx.publicationMintAttempt.findFirst({ where: { id: attemptId, preparation: { publication: { passportId } } },
-    include: { finalizedObservation: true, preparation: { include: { pinAttempt: true, publication: { include: { confirmation: true,
+    include: { finalizedObservation: true, failedObservation: true, preparation: { include: { pinAttempt: true, publication: { include: { confirmation: true,
       passport: { select: { status: true, version: true, approvedVersion: true, submittedVersion: true } } } } } } } });
   if (!attempt) throw new WorkflowError(404, "Mint attempt not found");
   const preparation = attempt.preparation, pin = preparation.pinAttempt, publication = preparation.publication;
   const confirmation = publication.confirmation, passport = publication.passport;
   const finalized = attempt.status === "FINALIZED" ? finalizedMintReceipt(attempt.finalizedObservation) : null;
+  const failed = attempt.status === "FAILED_TERMINAL" ? failedMintReceipt(attempt.failedObservation) : null;
+  const closed = finalized ?? failed;
   const stageMatches = finalized
     ? publication.status === (attempt.quarantinedAt ? "CHAIN_SUSPENDED" : "PUBLISHED") && publication.contractAddress === finalized.contractAddress &&
       publication.transactionHash === finalized.transactionHash && publication.tokenId === finalized.tokenId
-    : publication.status === "CHAIN_PENDING" && !publication.contractAddress && !publication.transactionHash && !publication.tokenId;
+    : publication.status === (failed ? attempt.quarantinedAt ? "CHAIN_FAILED_SUSPENDED" : "CHAIN_FAILED" : "CHAIN_PENDING") && !publication.contractAddress && !publication.transactionHash && !publication.tokenId;
   if (!stageMatches || publication.cancelledAt ||
     confirmation.invalidatedAt || passport.status !== "APPROVED" || passport.version !== publication.passportVersion ||
     passport.approvedVersion !== publication.approvedVersion || passport.submittedVersion !== publication.approvedVersion ||
@@ -49,14 +51,14 @@ export async function lockDispatchedMint(tx: Prisma.TransactionClient, passportI
     { canonicalJson: publication.canonicalJson, payloadHash: publication.payloadHash, ipfsCid: pin.verifiedCid! });
     if (canonicalize(intent) !== preparation.intentJson || intent.sha256 !== preparation.intentSha256 ||
       intent.publisherWallet !== attempt.publisherWallet || intent.certificateId !== confirmation.certificateId ||
-      (finalized && (finalized.intentSha256 !== intent.sha256 || finalized.contractAddress !== intent.contractAddress))) throw new Error();
+      (closed && (closed.intentSha256 !== intent.sha256 || closed.contractAddress !== intent.contractAddress))) throw new Error();
   } catch { throw new WorkflowError(409, "Saved mint intent is invalid"); }
   const binding = canonicalize({ preparationId: preparation.id, pinAttemptId: pin.id, intentJson: preparation.intentJson,
     requestId: attempt.requestId, chainId: attempt.chainId, wallet: attempt.publisherWallet, nonce: attempt.nonce.toString(), walletChallengeId: pin.walletChallengeId,
     createdAt: attempt.createdAt.toISOString(), deadlineAt: attempt.deadlineAt.toISOString(),
     pinTarget: pin.providerConfigHash, providerKey: pin.providerKey, pinVerifiedAt: pin.verifiedAt!.toISOString(), providerPinId: pin.providerPinId,
     dispatchBlockNumber: attempt.dispatchBlockNumber?.toString() ?? null, dispatchBlockHash: attempt.dispatchBlockHash });
-  return { attempt, publication, intent, binding, finalized };
+  return { attempt, publication, intent, binding, finalized, failed };
 }
 
 /** Internal historical readback, never authority to send, release a wallet slot or
@@ -102,7 +104,9 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
     return { ...candidate, hash: transaction.transactionHash, history };
   });
   const hash = before.hash;
-  if (before.finalized && hash !== before.finalized.transactionHash) throw new WorkflowError(409, "A finalized transaction cannot be replaced or hidden by another report");
+  const closed = before.finalized || before.failed;
+  if (before.failed && selection.kind === "finalize") throw new WorkflowError(409, "A closed failed send cannot be finalized or resent");
+  if (closed && hash !== closed.transactionHash) throw new WorkflowError(409, "A closed transaction cannot be replaced or hidden by another report");
   const startedAt = Date.now();
   const walletAnchor = before.history ? await verifyMintWalletAnchors(before.history.anchors.filter(row => row.attemptId !== attemptId), reader) : null;
   let matched = false;
@@ -142,11 +146,13 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
       } });
       if (!transaction) throw new WorkflowError(409, "Saved transaction changed during result verification");
     }
-    if (current.finalized && hash !== current.finalized.transactionHash) throw new WorkflowError(409, "Finalized transaction changed");
+    const currentClosed = current.finalized ?? current.failed;
+    if (currentClosed && hash !== currentClosed.transactionHash) throw new WorkflowError(409, "Closed transaction changed");
+    if (current.failed && selection.kind === "finalize") throw new WorkflowError(409, "A closed failed send cannot be finalized");
     if (selection.kind === "finalize") {
       const history = await mintWalletHistory(tx, current.attempt.chainId, current.attempt.publisherWallet);
       if (history.binding !== before.history?.binding) throw new WorkflowError(409, "Wallet history changed during finalization");
-    } else if (current.finalized) {
+    } else if (current.finalized || current.failed) {
       // Quarantine must serialize against other passports consuming the released slot.
       await lockMintWallet(tx, current.attempt.chainId, current.attempt.publisherWallet);
     }
@@ -176,7 +182,7 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
     const previous = await tx.publicationMintResult.findUnique({ where: { attemptId } });
     let resultStatus: "VERIFIED" | "SUSPENDED" | null = null;
     if (selection.kind !== "report" || previous) {
-      resultStatus = selection.kind !== "report" && result.status === "VERIFIED" ? "VERIFIED" : "SUSPENDED";
+      resultStatus = !current.failed && selection.kind !== "report" && result.status === "VERIFIED" ? "VERIFIED" : "SUSPENDED";
       const verifiedObservationId = resultStatus === "VERIFIED" ? row.id : previous?.verifiedObservationId ?? null;
       const data = { status: resultStatus, checkedObservationId: row.id, verifiedObservationId,
         verificationStatus: verifiedObservationId ? "VERIFIED" as const : null };
@@ -185,7 +191,19 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
         version: current.publication.passportVersion, action: "PUBLICATION_MINT_RESULT_CHECKED", fromStatus: "APPROVED", toStatus: "APPROVED", note: `Mint result ${resultStatus}: ${row.id}` } });
     }
     let publicationStatus = current.publication.status;
-    if (current.finalized) {
+    if (current.failed) {
+      const sameFailure = result.status === "REVERTED" && result.transactionHash === current.failed.transactionHash &&
+        result.blockNumber === current.failed.blockNumber && result.blockHash === current.failed.blockHash &&
+        result.contractAddress === current.failed.contractAddress && result.intentSha256 === current.failed.intentSha256 &&
+        BigInt(result.confirmations) >= BigInt(current.failed.confirmations) && Date.now() >= startedAt && Date.now() - startedAt < resultFreshnessMs;
+      if (!sameFailure && !current.attempt.quarantinedAt) {
+        publicationStatus = "CHAIN_FAILED_SUSPENDED";
+        await tx.publicationMintAttempt.update({ where: { id: attemptId }, data: { quarantinedAt: new Date() } });
+        await tx.publication.update({ where: { id: current.publication.id }, data: { status: publicationStatus } });
+        await tx.auditLog.create({ data: { passportId, publicationId: current.publication.id, actorId: "system:publication-recovery",
+          version: current.publication.passportVersion, action: "PUBLICATION_MINT_QUARANTINED", fromStatus: "APPROVED", toStatus: "APPROVED", note: `Closed failed mint check: ${row.id}` } });
+      }
+    } else if (current.finalized) {
       const sameReceipt = result.status === "VERIFIED" && result.transactionHash === current.finalized.transactionHash &&
         result.blockNumber === current.finalized.blockNumber && result.blockHash === current.finalized.blockHash && result.tokenId === current.finalized.tokenId &&
         Date.now() >= startedAt && Date.now() - startedAt < resultFreshnessMs;

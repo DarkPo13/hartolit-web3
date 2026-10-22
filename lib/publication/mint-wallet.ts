@@ -13,7 +13,18 @@ const receiptSchema = z.strictObject({ version: z.literal(1), status: z.literal(
   contractAddress: z.string().regex(/^0x[0-9a-f]{40}$/), intentSha256: z.string().regex(/^[0-9a-f]{64}$/),
   tokenId: z.string().regex(/^[1-9][0-9]{0,77}$/), confirmations: integer.refine(value => BigInt(value) >= 2n),
 });
+const failedReceiptSchema = receiptSchema.omit({ tokenId: true, status: true }).extend({ status: z.literal("REVERTED") });
 export const MAX_MINT_WALLET_RECEIPTS = 64;
+export const CLOSED_MINT_STATUSES = ["FINALIZED", "FAILED_TERMINAL"] as const;
+
+export function failedMintReceipt(row: PublicationMintObservation | null) {
+  try {
+    if (!row || row.status !== "REVERTED" || !row.transactionId) throw new Error();
+    const receipt = failedReceiptSchema.parse(JSON.parse(row.resultJson));
+    if (receipt.transactionHash !== row.reportedHash) throw new Error();
+    return receipt;
+  } catch { throw new WorkflowError(409, "Closed failed mint receipt is invalid"); }
+}
 
 export function finalizedMintReceipt(row: PublicationMintObservation | null) {
   try {
@@ -34,13 +45,14 @@ export async function lockMintWallet(tx: Prisma.TransactionClient, chainId: numb
  */
 export async function mintWalletHistory(tx: Prisma.TransactionClient, chainId: number, wallet: string) {
   await lockMintWallet(tx, chainId, wallet);
-  const rows = await tx.publicationMintAttempt.findMany({ where: { chainId, publisherWallet: wallet, status: "FINALIZED" },
-    orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 1, include: { finalizedObservation: true } });
+  const rows = await tx.publicationMintAttempt.findMany({ where: { chainId, publisherWallet: wallet, status: { in: [...CLOSED_MINT_STATUSES] } },
+    orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 1, include: { finalizedObservation: true, failedObservation: true } });
   if (rows.some(row => row.quarantinedAt)) throw new WorkflowError(409, "Publisher wallet is quarantined; no new send or finalization is allowed");
   if (rows.length > MAX_MINT_WALLET_RECEIPTS) throw new WorkflowError(503, "Wallet history exceeds the bounded verification limit; no new permission is allowed");
-  const anchors = rows.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: finalizedMintReceipt(row.finalizedObservation) }));
+  const anchors = rows.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: row.status === "FAILED_TERMINAL" ? failedMintReceipt(row.failedObservation) : finalizedMintReceipt(row.finalizedObservation) }));
   return { anchors, binding: canonicalize(rows.map(row => ({ id: row.id, nonce: row.nonce.toString(),
-    revision: row.observationVersion, finalizedAt: row.finalizedAt?.toISOString(), proof: row.finalizedObservation?.resultJson }))) };
+    status: row.status, revision: row.observationVersion, finalizedAt: row.finalizedAt?.toISOString() ?? null,
+    failedAt: row.failedAt?.toISOString() ?? null, proof: row.finalizedObservation?.resultJson ?? row.failedObservation?.resultJson }))) };
 }
 
 export async function verifyMintWalletAnchors(anchors: Awaited<ReturnType<typeof mintWalletHistory>>["anchors"], reader: MintReader,

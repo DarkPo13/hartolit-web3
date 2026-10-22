@@ -62,10 +62,10 @@ export async function monitorMintAttempt(passportId: string, attemptId: string, 
       return saved;
     });
     const reader = boundedMintMonitorReader(readerFor(context.intent));
-    if (context.finalized) {
+    if (context.finalized || context.failed) {
       // Preserve the original proof and sticky quarantine; never substitute a
-      // replacement for an already finalized transaction.
-      const transactionId = context.attempt.finalizedObservation!.transactionId!;
+      // replacement for an already closed transaction, successful or failed.
+      const transactionId = (context.attempt.finalizedObservation ?? context.attempt.failedObservation)!.transactionId!;
       status = (await reconcileMintResult(passportId, attemptId, { transactionId }, reader, lease)).status;
     } else {
       const search = await discoverMintTransaction(passportId, attemptId, {}, reader, lease);

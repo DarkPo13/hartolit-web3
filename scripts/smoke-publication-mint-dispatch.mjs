@@ -11,9 +11,10 @@ const jiti = createJiti(import.meta.url, { alias: {
 const { beginMintDispatch, recordUnknownMintOutcome, recoverExpiredMintDispatch } = await jiti.import("../lib/publication/mint-dispatch.ts");
 const rejects = (promise, status = 409) => assert.rejects(promise, error => error.status === status);
 const mock = {
-  getChainId: async () => 97, getCode: async () => "0x60006000", getBlock: async () => ({ number: 5n, hash: `0x${"a".repeat(64)}` }),
+  getChainId: async () => 97, getCode: async () => "0x60006000", getBlock: async args => args?.blockNumber === 5n
+    ? { number: 5n, hash: `0x${"b".repeat(64)}` } : { number: 7n, hash: `0x${"d".repeat(64)}` },
   readContract: async ({ functionName }) => ({ MINTER_ROLE: `0x${"b".repeat(64)}`, paused: false, hasRole: true, hashToTokenId: 0n })[functionName],
-  getTransactionCount: async () => 7,
+  getTransactionCount: async () => 8,
 };
 
 /** Called only by the guarded local DB smoke. Optional chain owns its Anvil node. */
@@ -66,7 +67,7 @@ export async function smokeMintDispatch({ db, publisherId, candidates, chain }) 
   try {
     await rejects(dispatch({}, { ...base, getTransactionCount: async args => { const value = await base.getTransactionCount(args); Date.now = () => initialNow + 20_000; return value; } }));
   } finally { Date.now = originalNow; }
-  assert.equal(await db.publicationMintAttempt.count({ where: { preparation: { publication: { reservedById: publisherId } } } }), 0);
+  assert.equal(await db.publicationMintAttempt.count({ where: { status: { notIn: ["FINALIZED", "FAILED_TERMINAL"] }, preparation: { publication: { reservedById: publisherId } } } }), 0);
 
   // Race independent passport locks using the same publisher wallet/nonce.
   const attempts = candidates.flatMap(candidate => [input(candidate), input(candidate)].map(body => ({ candidate, body })));

@@ -25,7 +25,7 @@ export async function discoverMintTransaction(passportId: string, attemptId: str
     return context;
   });
   const attempt = before.attempt;
-  if (attempt.status === "FINALIZED") throw new WorkflowError(409, "Finalized transactions use canonical readback, not discovery");
+  if (before.finalized || before.failed) throw new WorkflowError(409, "Closed transactions use canonical readback, not discovery");
   if (attempt.dispatchBlockNumber === null || !attempt.dispatchBlockHash) throw new WorkflowError(409, "Historical attempt has no saved dispatch anchor; do not guess one");
   const anchor = { number: attempt.dispatchBlockNumber, hash: attempt.dispatchBlockHash };
   const cursor = { number: attempt.discoveryBlockNumber ?? anchor.number, hash: attempt.discoveryBlockHash ?? anchor.hash };

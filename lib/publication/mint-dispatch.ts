@@ -8,7 +8,7 @@ import { canonicalize } from "@/lib/hash";
 import { WorkflowError } from "@/lib/review/service";
 import { lockMintCandidate } from "./mint-preparation";
 import { inspectMintReadiness, mintTransactionRequest, type MintReader, type MintIntent } from "./chain-mint";
-import { MAX_MINT_WALLET_RECEIPTS, mintWalletHistory, verifyMintWalletAnchors } from "./mint-wallet";
+import { CLOSED_MINT_STATUSES, MAX_MINT_WALLET_RECEIPTS, mintWalletHistory, verifyMintWalletAnchors } from "./mint-wallet";
 
 type DispatchReader = MintReader & Pick<PublicClient, "getTransactionCount">;
 const dispatchSchema = z.strictObject({
@@ -32,7 +32,7 @@ async function load(tx: Prisma.TransactionClient, adminId: string, passportId: s
   if (history.anchors.length >= MAX_MINT_WALLET_RECEIPTS) throw new WorkflowError(503, "Wallet history needs a verified checkpoint before another send");
   const attempt = await tx.publicationMintAttempt.findFirst({ where: { OR: [
     { preparationId: preparation.id }, { requestId: data.requestId },
-    { chainId: candidate.intent.chainId, publisherWallet: candidate.intent.publisherWallet, status: { not: "FINALIZED" } },
+    { chainId: candidate.intent.chainId, publisherWallet: candidate.intent.publisherWallet, status: { notIn: [...CLOSED_MINT_STATUSES] } },
   ] }, select: { id: true } });
   if (attempt) throw new WorkflowError(409, "Resolve the existing wallet attempt; no new send is allowed");
   return { ...candidate, preparation, history };
@@ -112,7 +112,7 @@ async function unknownOutcome(passportId: string, attemptId: string, expiredOnly
     if (!locked.count) throw new WorkflowError(404, "Passport not found");
     const row = await tx.publicationMintAttempt.findFirst({ where: { id: attemptId, preparation: { publication: { passportId, status: "CHAIN_PENDING" } } },
       include: { preparation: { include: { publication: true } } } });
-    if (!row || row.status === "FINALIZED") throw new WorkflowError(409, "Mint attempt is not awaiting an external outcome");
+    if (!row || CLOSED_MINT_STATUSES.some(status => status === row.status)) throw new WorkflowError(409, "Mint attempt is not awaiting an external outcome");
     if (row.status === "UNKNOWN") return metadata(row);
     const now = new Date();
     if (expiredOnly && row.deadlineAt > now) throw new WorkflowError(409, "Mint dispatch is still within its deadline");

@@ -7,7 +7,7 @@ import { canonicalize, sha256Hex } from "@/lib/hash";
 import { WorkflowError } from "@/lib/review/service";
 import { publicationPublisherAccess } from "./service";
 import { lockDispatchedMint } from "./mint-observation";
-import { lockMintWallet, finalizedMintReceipt, MAX_MINT_WALLET_RECEIPTS, verifyMintWalletAnchors } from "./mint-wallet";
+import { CLOSED_MINT_STATUSES, lockMintWallet, finalizedMintReceipt, failedMintReceipt, MAX_MINT_WALLET_RECEIPTS, verifyMintWalletAnchors } from "./mint-wallet";
 import { inspectMintTransaction, type MintReader } from "./chain-mint";
 import { boundedMintMonitorReader } from "./mint-monitor";
 
@@ -38,16 +38,17 @@ async function load(tx: Prisma.TransactionClient, adminId: string, passportId: s
     attemptId, nonce: context.attempt.nonce, transactionHash: context.finalized.transactionHash } });
   if (!transaction) throw new WorkflowError(409, "Original matched transaction changed");
   const rows = await tx.publicationMintAttempt.findMany({ where: { chainId: context.attempt.chainId, publisherWallet: context.attempt.publisherWallet },
-    orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 2, include: { finalizedObservation: true } });
-  const finalized = rows.filter(row => row.status === "FINALIZED");
-  if (rows.length > MAX_MINT_WALLET_RECEIPTS + 1 || finalized.length > MAX_MINT_WALLET_RECEIPTS) {
+    orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 2, include: { finalizedObservation: true, failedObservation: true } });
+  const closed = rows.filter(row => CLOSED_MINT_STATUSES.some(status => status === row.status));
+  if (rows.length > MAX_MINT_WALLET_RECEIPTS + 1 || closed.length > MAX_MINT_WALLET_RECEIPTS) {
     throw new WorkflowError(503, "Wallet recovery exceeds the bounded verification history");
   }
-  const anchors = finalized.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: finalizedMintReceipt(row.finalizedObservation) }));
+  const anchors = closed.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: row.status === "FAILED_TERMINAL" ? failedMintReceipt(row.failedObservation) : finalizedMintReceipt(row.finalizedObservation) }));
   const walletBinding = canonicalize(rows.map(row => ({ id: row.id, nonce: row.nonce.toString(), status: row.status,
     observationVersion: row.observationVersion, discoveryVersion: row.discoveryVersion,
     quarantinedAt: row.quarantinedAt?.toISOString() ?? null, finalizedAt: row.finalizedAt?.toISOString() ?? null,
-    finalizedObservationId: row.finalizedObservationId, proof: row.finalizedObservation?.resultJson ?? null })));
+    finalizedObservationId: row.finalizedObservationId, failedAt: row.failedAt?.toISOString() ?? null,
+    failedObservationId: row.failedObservationId, proof: row.finalizedObservation?.resultJson ?? row.failedObservation?.resultJson ?? null })));
   return { ...context, anchors, walletBinding, walletStateSha256: await sha256Hex(walletBinding) };
 }
 

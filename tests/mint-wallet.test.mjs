@@ -5,12 +5,12 @@ import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
-const { mintWalletHistory, verifyMintWalletAnchors, finalizedMintReceipt } = await jiti.import("../lib/publication/mint-wallet.ts");
+const { mintWalletHistory, verifyMintWalletAnchors, finalizedMintReceipt, failedMintReceipt } = await jiti.import("../lib/publication/mint-wallet.ts");
 const hash = digit => `0x${digit.repeat(64)}`;
 const receipt = { version: 1, status: "VERIFIED", issued: false, canResend: false, transactionHash: hash("a"),
   blockHash: hash("b"), blockNumber: "5", contractAddress: `0x${"1".repeat(40)}`, intentSha256: "c".repeat(64), tokenId: "1", confirmations: "3" };
 const observation = { status: "VERIFIED", transactionId: "fictional-matched-transaction", reportedHash: hash("a"), resultJson: JSON.stringify(receipt) };
-const rows = [{ id: "fictional-attempt", nonce: 7n, observationVersion: 3, finalizedAt: new Date("2026-10-22T10:00:00Z"),
+const rows = [{ id: "fictional-attempt", status: "FINALIZED", nonce: 7n, observationVersion: 3, finalizedAt: new Date("2026-10-22T10:00:00Z"),
   quarantinedAt: null, finalizedObservation: observation }];
 const transaction = selected => ({ $queryRaw: async () => [], publicationMintAttempt: { findMany: async () => selected } });
 
@@ -39,4 +39,21 @@ test("released wallet receipts require stable canonical blocks and at least thei
     { getBlock: async () => { throw new Error("fictional-private-provider-detail"); } },
   ]) await assert.rejects(verifyMintWalletAnchors(anchors, { ...reader, ...patch }),
     error => error.status === 503 && !error.message.includes("fictional-private"));
+});
+
+test("closed reverted sends retain canonical nonce anchors and independently quarantine the wallet", async () => {
+  const { tokenId: ignored, ...failure } = { ...receipt, status: "REVERTED" }; void ignored;
+  const failedObservation = { ...observation, status: "REVERTED", resultJson: JSON.stringify(failure) };
+  const failed = { ...rows[0], status: "FAILED_TERMINAL", finalizedAt: null, finalizedObservation: null,
+    failedAt: new Date("2026-10-22T10:00:00Z"), failedObservation };
+  let queried;
+  const tx = { $queryRaw: async () => [], publicationMintAttempt: { findMany: async args => { queried = args.where.status.in; return [failed]; } } };
+  const history = await mintWalletHistory(tx, 97, "fictional-wallet");
+  assert.deepEqual(queried, ["FINALIZED", "FAILED_TERMINAL"]);
+  assert.equal(history.anchors[0].receipt.status, "REVERTED"); assert.equal(history.anchors[0].nonce, 7n);
+  assert.equal(failedMintReceipt(failedObservation).blockHash, receipt.blockHash);
+  for (const patch of [{ status: "VERIFIED" }, { transactionId: null }, { reportedHash: hash("d") }, { resultJson: JSON.stringify({ ...failure, tokenId: "1" }) }]) {
+    assert.throws(() => failedMintReceipt({ ...failedObservation, ...patch }), error => error.status === 409);
+  }
+  await assert.rejects(mintWalletHistory({ ...tx, publicationMintAttempt: { findMany: async () => [{ ...failed, quarantinedAt: new Date() }] } }, 97, "fictional-wallet"), error => error.status === 409);
 });
