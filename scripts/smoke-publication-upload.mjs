@@ -4,6 +4,8 @@ import { randomUUID, createHash } from "node:crypto";
 import { createJiti } from "jiti";
 import { assertOfflineKubo } from "./local-kubo-tunnel.mjs";
 import { smokeMintPreparation } from "./smoke-publication-mint-preparation.mjs";
+import { smokeMintDispatch } from "./smoke-publication-mint-dispatch.mjs";
+import { localMintChain } from "./local-mint-chain.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -20,7 +22,10 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
   const realLocalNode = process.env.PUBLICATION_LOCAL_KUBO === "1";
   if (realLocalNode) assertOfflineKubo();
   const ownedCids = [];
+  const candidates = [];
+  let chain;
   try {
+    if (process.env.PUBLICATION_LOCAL_CHAIN === "1") chain = await localMintChain(signingAccount);
     for (const scenario of ["success", "lost-ack", "before-write-failure"]) {
       const blocks = new Map();
       let writes = 0;
@@ -99,10 +104,13 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
       assert.equal(stored.ipfsCid, scenario === "before-write-failure" ? null : cid);
       assert.equal(stored.canonicalJson, confirmation.preview.canonicalJson); assert.equal(stored.tokenId, null); assert.equal(stored.transactionHash, null);
       assert.equal((await db.passport.findUniqueOrThrow({ where: { id: passportId } })).version, 4);
-      await smokeMintPreparation({ db, publisherId, passportId, publication: stored, pin: savedAttempt });
+      const candidate = await smokeMintPreparation({ db, publisherId, passportId, publication: stored, pin: savedAttempt, chainTarget: chain?.target });
+      if (candidate) candidates.push(candidate);
     }
+    await smokeMintDispatch({ db, publisherId, candidates, chain });
     process.stdout.write(`Upload driver passed: target binding, explicit intent, single send, lost acknowledgement, failed-before-write and no resend (${realLocalNode ? "isolated offline Kubo" : "injected transport"}).\n`);
   } finally {
+    await chain?.stop();
     if (realLocalNode) for (const cid of ownedCids) {
       await fetch(`http://127.0.0.1:15001/api/v0/pin/rm?arg=${cid}`, { method: "POST" }).then((response) => response.body?.cancel());
       const deleted = await fetch(`http://127.0.0.1:15001/api/v0/block/rm?arg=${cid}&force=true`, { method: "POST" });

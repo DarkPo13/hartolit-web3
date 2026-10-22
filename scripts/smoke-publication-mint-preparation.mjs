@@ -3,6 +3,7 @@ import { randomUUID, createHash } from "node:crypto";
 import path from "node:path";
 import { createJiti } from "jiti";
 import pg from "pg";
+import { keccak256 } from "viem";
 
 const jiti = createJiti(import.meta.url, { alias: {
   "@": process.cwd().replaceAll("\\", "/"),
@@ -14,8 +15,8 @@ const { buildPublicSnapshot } = await jiti.import("../lib/public-snapshot/servic
 const rejects = (promise, status = 409) => assert.rejects(promise, error => error.status === status);
 
 /** Only called from the guarded local PostgreSQL smoke; no RPC dependency or send. */
-export async function smokeMintPreparation({ db, publisherId, passportId, publication, pin }) {
-  const target = { chainId: 97, contractAddress: `0x${"12".repeat(20)}`, contractCodeHash: `0x${"34".repeat(32)}`,
+export async function smokeMintPreparation({ db, publisherId, passportId, publication, pin, chainTarget }) {
+  const target = chainTarget ?? { chainId: 97, contractAddress: `0x${"12".repeat(20)}`, contractCodeHash: keccak256("0x60006000"),
     publisherWallet: publication.publisherWallet, recipientWallet: publication.publisherWallet, requiredConfirmations: 3 };
   const expected = await createMintIntent(target, {
     canonicalJson: publication.canonicalJson, payloadHash: publication.payloadHash, ipfsCid: pin.expectedCid,
@@ -115,4 +116,5 @@ export async function smokeMintPreparation({ db, publisherId, passportId, public
     } finally { await client.query("ROLLBACK"); }
   } finally { await client.end(); }
   process.stdout.write("Private mint preparation passed: exact consent, current authority/facts/proof/pin, concurrent idempotence, immutable binding and SQL constraints. No RPC or send.\n");
+  return { preparationId: saved.id, target, intent: expected, passportId, publication, pin };
 }

@@ -68,6 +68,14 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.6
+      - name: Compile the contract for the database and local-chain publication smoke
+        working-directory: contracts
+        run: |
+          forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.6.0 foundry-rs/forge-std@v1.16.1
+          forge build
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test:hash
@@ -128,7 +136,7 @@ jobs:
           npm run evidence:smoke
           npm run review:smoke
           npm run feedback:smoke
-          npm run publication:smoke
+          PUBLICATION_LOCAL_CHAIN=1 npm run publication:smoke
           npm run auth:smoke
       - run: npm audit --omit=dev --audit-level=high
 

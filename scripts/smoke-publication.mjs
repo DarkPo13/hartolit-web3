@@ -1,6 +1,7 @@
-// Private reservation smoke only. Fictional READY evidence rows model a prior scan;
-// no real evidence upload/scan, public pin, mint or customer data is accepted.
+// Private publication smoke. Fictional READY evidence rows model a prior scan;
+// no real evidence upload/scan, public-network mint or customer data is accepted.
 // The opt-in offline variant writes only fictional public blocks to isolated Kubo.
+// The opt-in chain variant owns non-forked Anvil; it never issues an app certificate.
 import assert from "node:assert/strict";
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -319,6 +320,7 @@ try {
     const row = await db.passport.findUnique({ where: { id }, select: { farmerId: true, fieldId: true } });
     if (!row) continue;
     await db.auditLog.deleteMany({ where: { passportId: id } });
+    await db.publicationMintAttempt.deleteMany({ where: { preparation: { publication: { passportId: id } } } });
     await db.publicationMintPreparation.deleteMany({ where: { publication: { passportId: id } } });
     await db.publicationPinAttempt.deleteMany({ where: { publication: { passportId: id } } });
     await db.publication.deleteMany({ where: { passportId: id } });

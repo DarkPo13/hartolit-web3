@@ -582,9 +582,28 @@ This increment was tested with Foundry `v1.8.6` and solc `0.8.28`; CI pins that 
 
 Under the passport lock, the service rechecks the current designated MFA publisher, approval/version, active confirmation, canonical public bytes, current facts and selected READY evidence, consumed wallet signature and the bound `VERIFIED` pin receipt. Only the exact `PINNED` publication can proceed. Ordinary preview/confirmation remain blocked after external dispatch. Migration 17 stores canonical intent JSON/fingerprint and its pin/publication linkage, with unique request/publication constraints and a composite foreign key preventing cross-publication pin references.
 
-Concurrent identical requests create one preparation and audit event; replay returns that record only after all checks pass again. A different request or changed commitment cannot replace it. There is no amendment/cancellation path yet. Preparation leaves publication `PINNED` and contract/transaction/token fields unset; it grants no send/resend permission. Durable dispatch, nonce/hash/receipt history, replacement/lost-hash recovery and reorg monitoring remain next work.
+Concurrent identical requests create one preparation and audit event; replay returns that record only after all checks pass again. A different request or changed commitment cannot replace it. There is no amendment/cancellation path yet. Preparation leaves publication `PINNED` and contract/transaction/token fields unset; it grants no send/resend permission. The separate internal dispatch boundary below does not have an application caller.
 
-Apply with `npm run db:deploy` and regenerate the client with `npm run db:generate`. The expanded `npm run publication:smoke` tests the actual DB/HTTP workflow plus this internal service with fictional data and injected IPFS transport. It uses an explicit IPv4 loopback listener/address (override `PUBLICATION_SMOKE_PORT` if occupied), cleans its own records and does not call a chain RPC. Existing `chain:smoke` separately checks the read-only verifier on actual local Anvil; combined DB/chain dispatch acceptance is still pending.
+Apply with `npm run db:deploy` and regenerate the client with `npm run db:generate`. The expanded `npm run publication:smoke` tests the actual DB/HTTP workflow plus internal mint services with fictional data and injected IPFS transport. It uses an explicit IPv4 loopback listener/address (override `PUBLICATION_SMOKE_PORT` if occupied) and cleans its own records. Default chain reads are injected; the local-chain variant below additionally exercises actual nonce/send behavior on owned Anvil. Existing `chain:smoke` separately checks receipt/reorg verification.
+
+## Internal single-use mint dispatch permission
+
+`lib/publication/mint-dispatch.ts` consumes a separate strict `SEND_EXACT_MINT` acknowledgement bound to the saved preparation/fingerprint. The trusted read-only dependency checks readiness and the [wallet transaction count](https://viem.sh/docs/actions/public/getTransactionCount): a nonnegative safe nonce at an anchored block must match two pending reads. Pending activity, changed chain/block/code/role, an existing payload or unavailable RPC refuses permission. The observation must be less than 15 seconds old before writing the attempt. No RPC runs while a DB transaction is open.
+
+After reads, reauthorize current MFA publisher, confirmation, version, facts/evidence, consumed proof, verified pin and exact intent under the passport lock. A transaction-scoped [PostgreSQL advisory lock](https://www.postgresql.org/docs/17/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS) serializes that wallet's check/write across passports; SQL independently enforces one active attempt per chain/wallet and unique preparation/request/nonce bindings. Migration 18 commits attempt `DISPATCHING`, its fixed nonce/deadline and audit together with publication `CHAIN_PENDING` **before** returning one zero-value wallet command. Replays never receive it again, including after a lost response.
+
+The five-minute deadline is an uncertainty threshold, not permission expiry that makes retry safe. Internal recovery records `UNKNOWN` idempotently even after initiator/config revocation and retains the wallet slot/nonce. There is no automatic scheduler, cancellation, release or resend path. An exclusive application wallet is required: DB locks cannot prevent unrelated software using its nonce. A later hash/receipt writer must verify that the observed transaction uses the stored nonce as well as the exact mint intent.
+
+This service **does not broadcast** and has no HTTP action, configured RPC, wallet UI caller or signing key. No transaction hash/token/contract success fields or issued certificate are stored. Durable hash/receipt/replacement/reorg reconciliation and safe resolution of the wallet slot remain next work.
+
+With migrated local PostgreSQL, a production build, Foundry/Anvil on PATH (or `ANVIL_BIN`) and the compiled contract, run the combined fixture in PowerShell:
+
+```powershell
+$env:PUBLICATION_LOCAL_CHAIN = "1"
+try { npm run publication:smoke } finally { Remove-Item Env:PUBLICATION_LOCAL_CHAIN }
+```
+
+The test owns a loopback-only, non-forked Anvil, creates no default accounts and deploys the actual contract using the existing ephemeral fictional test signer. The key remains inside test tooling, never in the web environment. Real PostgreSQL races across two passports must grant one command; the test wallet sends it with the fixed nonce, checks actual calldata/success/payload index, then deliberately leaves the hash unreported. Uncertainty/replay tests keep the app blocked and unissued. It stops only its owned child and deletes its own DB fixtures. IPFS transport remains injected; no public IPFS/chain write, hosted RPC, installed-extension acceptance or persistent receipt adoption follows. CI's web job is configured to run this variant; its result is pending until an authorized push.
 
 ## Product feedback and responsible treatment reminder
 

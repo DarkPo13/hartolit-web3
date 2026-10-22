@@ -162,6 +162,11 @@ enum PublicationPinAttemptStatus {
   VERIFIED
 }
 
+enum PublicationMintAttemptStatus {
+  DISPATCHING
+  UNKNOWN
+}
+
 enum AuditAction {
   DRAFT_CREATED
   DRAFT_UPDATED
@@ -187,6 +192,8 @@ enum AuditAction {
   PUBLICATION_PIN_CANCELLED
   PUBLICATION_PIN_VERIFIED
   PUBLICATION_MINT_PREPARED
+  PUBLICATION_MINT_DISPATCH_STARTED
+  PUBLICATION_MINT_OUTCOME_UNKNOWN
 }
 
 model Farmer {
@@ -442,7 +449,25 @@ model PublicationMintPreparation {
   intentSha256  String @db.Char(64)
   createdAt     DateTime @default(now())
 
+  attempt       PublicationMintAttempt?
   @@unique([pinAttemptId, publicationId])
+}
+
+model PublicationMintAttempt {
+  id              String @id @default(uuid()) @db.Uuid
+  preparationId   String @unique @db.Uuid
+  preparation     PublicationMintPreparation @relation(fields: [preparationId], references: [id], onDelete: Restrict)
+  requestId       String @unique @db.Uuid
+  chainId         Int
+  publisherWallet String @db.VarChar(42)
+  nonce           BigInt
+  status          PublicationMintAttemptStatus @default(DISPATCHING)
+  createdAt       DateTime @default(now())
+  deadlineAt      DateTime
+  unknownAt       DateTime?
+
+  @@unique([chainId, publisherWallet, nonce])
+  @@index([status, deadlineAt])
 }
 
 model PublicSnapshotConfirmation {
