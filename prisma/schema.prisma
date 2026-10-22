@@ -174,6 +174,11 @@ enum PublicationMintAttemptStatus {
   FAILED_TERMINAL
 }
 
+enum PublicationMintRecoveryKind {
+  SUCCESS
+  FAILURE
+}
+
 enum PublicationMintObservationStatus {
   UNKNOWN
   UNAVAILABLE
@@ -233,6 +238,7 @@ enum AuditAction {
   PUBLICATION_MINT_SEARCHED
   PUBLICATION_MINT_RESTORED
   PUBLICATION_MINT_FAILED
+  PUBLICATION_MINT_FAILURE_RESTORED
 }
 
 model Farmer {
@@ -569,6 +575,7 @@ model PublicationMintObservation {
   verifiedResult  PublicationMintResult? @relation("MintResultVerification")
   finalizedAttempt PublicationMintAttempt? @relation("MintFinalization")
   recoveryOriginals PublicationMintRecovery[] @relation("MintRecoveryOriginal")
+  failedRecoveryOriginals PublicationMintRecovery[] @relation("MintFailureRecoveryOriginal")
   recoveryVerification PublicationMintRecovery? @relation("MintRecoveryVerification")
   failedAttempt PublicationMintAttempt? @relation("MintFailureProof")
   failureClosure PublicationMintFailure? @relation("MintFailureClosure")
@@ -611,10 +618,13 @@ model PublicationMintRecovery {
   reviewedObservationVersion Int
   intentSha256              String @db.Char(64)
   walletStateSha256         String @db.Char(64)
-  finalizedObservationId    String @db.Uuid
+  kind                      PublicationMintRecoveryKind @default(SUCCESS)
+  finalizedObservationId    String? @db.Uuid
+  failedObservationId       String? @db.Uuid
   verifiedObservationId     String @unique @db.Uuid
   verificationStatus        PublicationMintObservationStatus @default(VERIFIED)
-  original                  PublicationMintObservation @relation("MintRecoveryOriginal", fields: [finalizedObservationId, attemptId, verificationStatus], references: [id, attemptId, status], onDelete: Restrict)
+  original                  PublicationMintObservation? @relation("MintRecoveryOriginal", fields: [finalizedObservationId, attemptId, verificationStatus], references: [id, attemptId, status], onDelete: Restrict)
+  failedOriginal            PublicationMintObservation? @relation("MintFailureRecoveryOriginal", fields: [failedObservationId, attemptId, verificationStatus], references: [id, attemptId, status], onDelete: Restrict, map: "PublicationMintRecovery_failed_original_fkey")
   verification              PublicationMintObservation @relation("MintRecoveryVerification", fields: [verifiedObservationId, attemptId, verificationStatus], references: [id, attemptId, status], onDelete: Restrict)
   restoredAt                DateTime @default(now())
 

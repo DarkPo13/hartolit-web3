@@ -5,6 +5,7 @@ import { createJiti } from "jiti";
 import pg from "pg";
 import { syntheticMintFrame } from "./smoke-publication-mint-observation.mjs";
 import { tickMintMonitor } from "./smoke-publication-mint-monitor.mjs";
+import { smokeLostFailedRecovery } from "./smoke-publication-failed-recovery.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -153,5 +154,6 @@ export async function smokeLateMintFailure({ db, publisherId, failure, chain }) 
   assert.equal(publication.status, "CHAIN_FAILED_SUSPENDED"); assert.equal(publication.transactionHash, null); assert.equal(publication.tokenId, null);
   const historical = await closeRevertedMint(publisherId, passportId, attemptId, failure.data, offline);
   assert.equal(historical.currentlyQuarantined, true); assert.equal(historical.canResend, false);
+  await smokeLostFailedRecovery({ publisherId, failure, chain });
   process.stdout.write("Closed failed-send monitoring passed: late uncertainty/reorg quarantines without reclaiming the active slot, changing first proof or granting success/resend.\n");
 }

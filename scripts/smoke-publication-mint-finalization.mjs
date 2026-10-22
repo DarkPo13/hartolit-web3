@@ -6,6 +6,7 @@ import pg from "pg";
 import { syntheticMintFrame } from "./smoke-publication-mint-observation.mjs";
 import { tickMintMonitor } from "./smoke-publication-mint-monitor.mjs";
 import { smokeMintRecovery, smokeLostOriginalRecovery } from "./smoke-publication-mint-recovery.mjs";
+import { smokeFailedRecovery } from "./smoke-publication-failed-recovery.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -14,7 +15,7 @@ const { beginMintDispatch, recordUnknownMintOutcome } = await jiti.import("../li
 const { discoverMintTransaction } = await jiti.import("../lib/publication/mint-discovery.ts");
 const rejects = (promise, status = 409) => assert.rejects(promise, error => error.status === status);
 
-export async function smokeMintFinalization({ db, publisherId, dispatched, chain, finalizationFixture, probe }) {
+export async function smokeMintFinalization({ db, publisherId, dispatched, chain, finalizationFixture, probe, failure }) {
   const { winner, loser, command } = dispatched, attemptId = command.attemptId, passportId = winner.passportId;
   const { transactionId, hash } = finalizationFixture;
   const code = chain ? await chain.reader.getCode({ address: winner.target.contractAddress }) : "0x60006000";
@@ -162,6 +163,7 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
   const nextCommand = next.find(row => row.status === "fulfilled").value;
   assert.equal(nextCommand.request.nonce, command.request.nonce + 1);
   const recovery = await smokeMintRecovery({ db, publisherId, passportId, attemptId, nextCommand, base });
+  await smokeFailedRecovery({ db, publisherId, failure, active: nextCommand, successful: { passportId, attemptId, hash }, successReader: base, chain });
   const previousQuarantines = await db.auditLog.count({ where: { publicationId: winner.publication.id, action: "PUBLICATION_MINT_QUARANTINED" } });
 
   if (chain) {
