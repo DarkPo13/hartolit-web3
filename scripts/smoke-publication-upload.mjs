@@ -10,6 +10,7 @@ import { smokeMintObservation } from "./smoke-publication-mint-observation.mjs";
 import { smokeMintResult } from "./smoke-publication-mint-result.mjs";
 import { smokeMintFinalization } from "./smoke-publication-mint-finalization.mjs";
 import { smokeMintDiscovery } from "./smoke-publication-mint-discovery.mjs";
+import { smokeMintMonitor } from "./smoke-publication-mint-monitor.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -112,6 +113,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
       if (candidate) candidates.push(candidate);
     }
     const dispatched = await smokeMintDispatch({ db, publisherId, candidates: candidates.slice(0, 2), chain });
+    await smokeMintMonitor({ db, dispatched });
     await smokeMintDiscovery({ db, publisherId, dispatched, chain });
     const resultFixture = await smokeMintObservation({ db, publisherId, dispatched, chain });
     const finalizationFixture = await smokeMintResult({ db, publisherId, dispatched, chain, resultFixture });

@@ -7,6 +7,7 @@ import { WorkflowError } from "@/lib/review/service";
 import { lockDispatchedMint } from "./mint-observation";
 import { searchMintPage } from "./mint-search";
 import type { MintReader } from "./chain-mint";
+import { requireMintMonitorLease, type MintMonitorLease } from "./mint-monitor-lease";
 
 const inputSchema = z.strictObject({});
 const cursorBinding = (row: { discoveryBlockNumber: bigint | null; discoveryBlockHash: string | null }) => canonicalize({
@@ -16,9 +17,13 @@ const cursorBinding = (row: { discoveryBlockNumber: bigint | null; discoveryBloc
 /** Internal bounded historical recovery. Saved server anchors only: no caller
  * range/hash/URL, actor privilege, receipt adoption, finalization or resend.
  */
-export async function discoverMintTransaction(passportId: string, attemptId: string, input: unknown, reader: MintReader) {
+export async function discoverMintTransaction(passportId: string, attemptId: string, input: unknown, reader: MintReader, lease?: MintMonitorLease) {
   if (!inputSchema.safeParse(input).success) throw new WorkflowError(422, "Discovery accepts no caller range, hash or provider");
-  const before = await getDb().$transaction(tx => lockDispatchedMint(tx, passportId, attemptId));
+  const before = await getDb().$transaction(async tx => {
+    const context = await lockDispatchedMint(tx, passportId, attemptId);
+    await requireMintMonitorLease(tx, attemptId, lease);
+    return context;
+  });
   const attempt = before.attempt;
   if (attempt.status === "FINALIZED") throw new WorkflowError(409, "Finalized transactions use canonical readback, not discovery");
   if (attempt.dispatchBlockNumber === null || !attempt.dispatchBlockHash) throw new WorkflowError(409, "Historical attempt has no saved dispatch anchor; do not guess one");
@@ -28,6 +33,7 @@ export async function discoverMintTransaction(passportId: string, attemptId: str
   const result = await searchMintPage(before.intent, attempt.nonce, anchor, cursor, reader);
   return getDb().$transaction(async tx => {
     const current = await lockDispatchedMint(tx, passportId, attemptId);
+    await requireMintMonitorLease(tx, attemptId, lease);
     if (current.attempt.observationVersion !== attempt.observationVersion || current.attempt.discoveryVersion !== attempt.discoveryVersion) {
       return { status: "SUPERSEDED" as const, issued: false as const, canResend: false as const };
     }
@@ -48,6 +54,7 @@ export async function discoverMintTransaction(passportId: string, attemptId: str
     await tx.publicationMintAttempt.update({ where: { id: attemptId }, data: { discoveryVersion: revision, ...progress } });
     await tx.auditLog.create({ data: { passportId, publicationId: current.publication.id, actorId: "system:publication-recovery",
       version: current.publication.passportVersion, action: "PUBLICATION_MINT_SEARCHED", fromStatus: "APPROVED", toStatus: "APPROVED", note: `Mint search ${result.status}: ${row.id}` } });
+    await requireMintMonitorLease(tx, attemptId, lease);
     return { status: row.status, discoveryId: row.id, revision, observedAt: row.observedAt.toISOString(),
       fromBlock: row.fromBlock?.toString() ?? null, throughBlock: row.throughBlock?.toString() ?? null,
       headBlock: row.headBlock?.toString() ?? null, scannedBlocks: row.scannedBlocks, scannedTransactions: row.scannedTransactions,

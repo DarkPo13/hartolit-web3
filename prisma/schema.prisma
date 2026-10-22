@@ -512,11 +512,15 @@ model PublicationMintAttempt {
   discoveryBlockNumber BigInt?
   discoveryBlockHash String? @db.VarChar(66)
   discoveries PublicationMintDiscovery[]
+  monitorToken    String? @db.Uuid
+  monitorUntil    DateTime?
+  monitorNextAt   DateTime @default(now())
 
   @@unique([id, nonce])
   @@unique([finalizedObservationId, id, finalizationStatus])
   @@unique([chainId, publisherWallet, nonce])
   @@index([status, deadlineAt])
+  @@index([monitorNextAt, id])
 }
 
 // A hash enters this table only after exact call AND nonce matching, not from a report alone.

@@ -9,6 +9,7 @@ import { createMintIntent, validateMintIntent, requireExactMintTransaction, insp
 import { rawCidFromSha256 } from "./raw-cid";
 import { RAW_PIN_PROFILE } from "./target";
 import { finalizedMintReceipt, lockMintWallet, mintWalletHistory, verifyMintWalletAnchors } from "./mint-wallet";
+import { requireMintMonitorLease, type MintMonitorLease } from "./mint-monitor-lease";
 
 const inputSchema = z.strictObject({ transactionHash: z.string().regex(/^0x[0-9a-f]{64}$/).nullable() });
 const resultSchema = z.strictObject({ transactionId: z.uuid() });
@@ -72,25 +73,26 @@ export async function observeMintAttempt(passportId: string, attemptId: string, 
  * transaction. Historical VERIFIED rows, caller hashes and observation IDs are
  * never sufficient. This remains private/unissued and retains the wallet slot.
  */
-export async function reconcileMintResult(passportId: string, attemptId: string, input: unknown, reader: MintReader) {
+export async function reconcileMintResult(passportId: string, attemptId: string, input: unknown, reader: MintReader, lease?: MintMonitorLease) {
   const parsed = resultSchema.safeParse(input);
   if (!parsed.success) throw new WorkflowError(422, "A saved matching transaction is required");
-  return readAttempt(passportId, attemptId, { kind: "result", transactionId: parsed.data.transactionId }, reader);
+  return readAttempt(passportId, attemptId, { kind: "result", transactionId: parsed.data.transactionId }, reader, lease);
 }
 
 /** Internal system completion of an already authorized send. No broadcaster or
  * public certificate route. Fresh verification is mandatory, including on replay.
  */
-export async function finalizeMintPublication(passportId: string, attemptId: string, input: unknown, reader: MintReader) {
+export async function finalizeMintPublication(passportId: string, attemptId: string, input: unknown, reader: MintReader, lease?: MintMonitorLease) {
   const parsed = resultSchema.safeParse(input);
   if (!parsed.success) throw new WorkflowError(422, "A saved matching transaction is required");
-  return readAttempt(passportId, attemptId, { kind: "finalize", transactionId: parsed.data.transactionId }, reader);
+  return readAttempt(passportId, attemptId, { kind: "finalize", transactionId: parsed.data.transactionId }, reader, lease);
 }
 
 type Selection = { kind: "report"; hash: string | null } | { kind: "result" | "finalize"; transactionId: string };
-async function readAttempt(passportId: string, attemptId: string, selection: Selection, reader: MintReader) {
+async function readAttempt(passportId: string, attemptId: string, selection: Selection, reader: MintReader, lease?: MintMonitorLease) {
   const before = await getDb().$transaction(async tx => {
     const candidate = await lockDispatchedMint(tx, passportId, attemptId);
+    await requireMintMonitorLease(tx, attemptId, lease);
     if (selection.kind === "report") return { ...candidate, hash: selection.hash, history: null };
     const transaction = await tx.publicationMintTransaction.findFirst({ where: {
       id: selection.transactionId, attemptId, nonce: candidate.attempt.nonce,
@@ -148,6 +150,7 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
       // Quarantine must serialize against other passports consuming the released slot.
       await lockMintWallet(tx, current.attempt.chainId, current.attempt.publisherWallet);
     }
+    await requireMintMonitorLease(tx, attemptId, lease);
     if (selection.kind !== "report" && (Date.now() - startedAt >= resultFreshnessMs || Date.now() < startedAt)) {
       throw new WorkflowError(409, "Mint result read expired; no result was selected");
     }
@@ -202,6 +205,7 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
       await tx.auditLog.create({ data: { passportId, publicationId: current.publication.id, actorId: "system:publication-recovery",
         version: current.publication.passportVersion, action: "PUBLICATION_MINT_FINALIZED", fromStatus: "APPROVED", toStatus: "APPROVED", note: `Finalized mint receipt: ${row.id}` } });
     }
+    await requireMintMonitorLease(tx, attemptId, lease);
     return { ...result, observationId: row.id, revision, observedAt: row.observedAt.toISOString(), matchedTransactionId: transactionId,
       historical: true as const, resultStatus, publicationStatus };
   });

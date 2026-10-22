@@ -4,6 +4,7 @@ import { randomUUID, randomBytes } from "node:crypto";
 import { createJiti } from "jiti";
 import pg from "pg";
 import { syntheticMintFrame } from "./smoke-publication-mint-observation.mjs";
+import { tickMintMonitor } from "./smoke-publication-mint-monitor.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -45,11 +46,34 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
   finally { Date.now = originalNow; }
   assert.equal((await attempt()).observationVersion, beforeExpired);
 
+  const lease = { token: randomUUID() }, beforeLeaseExpiry = (await attempt()).observationVersion;
+  await db.publicationMintAttempt.update({ where: { id: attemptId }, data: { monitorToken: lease.token, monitorUntil: new Date(Date.now() + 90_000) } });
+  try {
+    await rejects(finalizeMintPublication(passportId, attemptId, { transactionId }, { ...base, getTransaction: async args => {
+      await db.publicationMintAttempt.update({ where: { id: attemptId }, data: { monitorUntil: new Date("2000-01-01T00:00:00Z") } });
+      return base.getTransaction(args);
+    } }, lease));
+    assert.equal((await attempt()).observationVersion, beforeLeaseExpiry, "expired receipt worker appends no proof or observation");
+    assert.equal((await attempt()).finalizedAt, null);
+    assert.equal((await stored()).status, "CHAIN_PENDING");
+  } finally { await db.publicationMintAttempt.update({ where: { id: attemptId }, data: { monitorToken: null, monitorUntil: null } }); }
+
   // Recording an already authorized external result survives actor/config revocation.
   const configured = process.env.HARTOLIT_PUBLISHER_USER_ID;
   delete process.env.HARTOLIT_PUBLISHER_USER_ID; await db.user.update({ where: { id: publisherId }, data: { banned: true } });
   let first;
-  try { first = await finalize(); assert.equal(first.publicationStatus, "PUBLISHED"); }
+  try {
+    if (chain) {
+      let outcome;
+      for (let tick = 0; tick < 3; tick++) {
+        outcome = await tickMintMonitor(db, passportId, attemptId, base);
+        if (outcome.status !== "REORG") break;
+      }
+      assert.equal(outcome.status, "VERIFIED", "the worker discovers and finalizes the actual current-branch mint");
+      first = { observationId: (await attempt()).finalizedObservationId, publicationStatus: (await stored()).status };
+    } else first = await finalize();
+    assert.equal(first.publicationStatus, "PUBLISHED");
+  }
   finally { process.env.HARTOLIT_PUBLISHER_USER_ID = configured; await db.user.update({ where: { id: publisherId }, data: { banned: false } }); }
   const published = await stored(), closed = await attempt(), receipt = await base.getTransactionReceipt({ hash });
   assert.equal(closed.status, "FINALIZED"); assert.equal(closed.finalizedObservationId, first.observationId);
@@ -60,6 +84,9 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
   assert.ok(repeats.every(row => row.status === "SUPERSEDED" || row.publicationStatus === "PUBLISHED"));
   assert.equal((await attempt()).finalizedObservationId, first.observationId, "first finalization proof never changes on replay");
   assert.equal(await db.auditLog.count({ where: { publicationId: winner.publication.id, action: "PUBLICATION_MINT_FINALIZED" } }), 1);
+  assert.equal((await tickMintMonitor(db, passportId, attemptId, base)).status, "VERIFIED");
+  assert.equal((await attempt()).finalizedObservationId, first.observationId, "scheduled canonical checks preserve first proof");
+  assert.equal((await db.publicationMintResult.findUniqueOrThrow({ where: { attemptId } })).status, "VERIFIED");
   await rejects(recordUnknownMintOutcome(passportId, attemptId));
   let lateSearchRpc = 0;
   const searches = await db.publicationMintDiscovery.count({ where: { attemptId } });
@@ -132,8 +159,8 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
     assert.equal(cancelled.nonce, command.request.nonce); assert.equal(cancelled.input, "0x");
     assert.equal((await base.waitForTransactionReceipt({ hash: cancellation })).status, "success");
     await base.request({ method: "anvil_mine", params: ["0x2"] });
-    const reorg = await report({ ...base, getTransaction: async () => tx, getTransactionReceipt: async () => receipt });
-    assert.equal(reorg.status, "REORG"); assert.equal(reorg.publicationStatus, "CHAIN_SUSPENDED");
+    const reorg = await tickMintMonitor(db, passportId, attemptId, { ...base, getTransaction: async () => tx, getTransactionReceipt: async () => receipt });
+    assert.equal(reorg.status, "REORG"); assert.equal((await stored()).status, "CHAIN_SUSPENDED");
     // A previously returned command cannot be recalled. Record its result, but
     // do not release another slot while the earlier publication is quarantined.
     const laterHash = await chain.send(nextCommand);
@@ -143,8 +170,8 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
     await assert.rejects(finalizeMintPublication(loser.passportId, nextCommand.attemptId, { transactionId: later.matchedTransactionId }, base),
       error => error.status === 409 && error.message.includes("quarantined"));
   } else {
-    const reorg = await report({ ...base, getBlock: async () => ({ number: 7n, hash: `0x${"f".repeat(64)}` }) });
-    assert.equal(reorg.status, "REORG"); assert.equal(reorg.publicationStatus, "CHAIN_SUSPENDED");
+    const reorg = await tickMintMonitor(db, passportId, attemptId, { ...base, getBlock: async () => ({ number: 7n, hash: `0x${"f".repeat(64)}` }) });
+    assert.equal(reorg.status, "REORG"); assert.equal((await stored()).status, "CHAIN_SUSPENDED");
   }
   const quarantined = await attempt(), suspended = await stored();
   assert.ok(quarantined.quarantinedAt); assert.equal(quarantined.status, "FINALIZED", "quarantine must not compete for an already occupied active slot");
@@ -155,6 +182,8 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
   // Even a later successful private selection cannot clear the sticky quarantine.
   const selectedAgain = await reconcileMintResult(passportId, attemptId, { transactionId }, frame.reader);
   assert.equal(selectedAgain.status, "VERIFIED"); assert.equal(selectedAgain.publicationStatus, "CHAIN_SUSPENDED");
+  assert.equal((await tickMintMonitor(db, passportId, attemptId, frame.reader)).status, "VERIFIED");
+  assert.equal((await stored()).status, "CHAIN_SUSPENDED", "the worker never clears sticky quarantine");
   let probeRpc = 0;
   await assert.rejects(beginMintDispatch(publisherId, probe.passportId, { preparationId: probe.preparationId, requestId: randomUUID(),
     expectedIntentSha256: probe.intent.sha256, acknowledgement: "SEND_EXACT_MINT" }, probe.target,

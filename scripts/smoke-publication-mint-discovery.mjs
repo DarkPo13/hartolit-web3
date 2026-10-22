@@ -25,8 +25,10 @@ export async function smokeMintDiscovery({ db, publisherId, dispatched, chain })
   for (const input of [{ fromBlock: "0" }, { transactionHash: `0x${"a".repeat(64)}` }, { rpcUrl: "https://untrusted.example.invalid" }]) {
     await rejects(discoverMintTransaction(passportId, attemptId, input, offline), 422);
   }
-  await db.publicationMintAttempt.update({ where: { id: attemptId }, data: { dispatchBlockNumber: null, dispatchBlockHash: null } });
-  try { await rejects(discover(offline)); } finally { await db.publicationMintAttempt.update({ where: { id: attemptId }, data: { dispatchBlockNumber: anchor.number, dispatchBlockHash: anchor.hash } }); }
+  await db.publicationMintAttempt.update({ where: { id: attemptId }, data: { dispatchBlockNumber: null, dispatchBlockHash: null, discoveryVersion: 0 } });
+  try { await rejects(discover(offline)); } finally { await db.publicationMintAttempt.update({ where: { id: attemptId }, data: {
+    dispatchBlockNumber: anchor.number, dispatchBlockHash: anchor.hash, discoveryVersion: attempt.discoveryVersion,
+  } }); }
   assert.equal(rpc, 0, "never guess an anchor or use caller search bounds");
   assert.equal((await discover(offline)).status, "UNAVAILABLE"); assert.equal((await saved()).discoveryBlockNumber, null);
   const first = await discover(); assert.equal(first.status, "SCANNED"); assert.equal(first.scannedBlocks, 32);
