@@ -320,6 +320,8 @@ try {
     const row = await db.passport.findUnique({ where: { id }, select: { farmerId: true, fieldId: true } });
     if (!row) continue;
     await db.auditLog.deleteMany({ where: { passportId: id } });
+    await db.publicationMintObservation.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
+    await db.publicationMintTransaction.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
     await db.publicationMintAttempt.deleteMany({ where: { preparation: { publication: { passportId: id } } } });
     await db.publicationMintPreparation.deleteMany({ where: { publication: { passportId: id } } });
     await db.publicationPinAttempt.deleteMany({ where: { publication: { passportId: id } } });

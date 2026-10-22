@@ -6,6 +6,7 @@ import { assertOfflineKubo } from "./local-kubo-tunnel.mjs";
 import { smokeMintPreparation } from "./smoke-publication-mint-preparation.mjs";
 import { smokeMintDispatch } from "./smoke-publication-mint-dispatch.mjs";
 import { localMintChain } from "./local-mint-chain.mjs";
+import { smokeMintObservation } from "./smoke-publication-mint-observation.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -107,7 +108,8 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
       const candidate = await smokeMintPreparation({ db, publisherId, passportId, publication: stored, pin: savedAttempt, chainTarget: chain?.target });
       if (candidate) candidates.push(candidate);
     }
-    await smokeMintDispatch({ db, publisherId, candidates, chain });
+    const dispatched = await smokeMintDispatch({ db, publisherId, candidates, chain });
+    await smokeMintObservation({ db, publisherId, dispatched, chain });
     process.stdout.write(`Upload driver passed: target binding, explicit intent, single send, lost acknowledgement, failed-before-write and no resend (${realLocalNode ? "isolated offline Kubo" : "injected transport"}).\n`);
   } finally {
     await chain?.stop();

@@ -83,6 +83,16 @@ test("receipt requires exact transaction, contract event and anchored state", as
   await rejects(inspectMintTransaction(intent, txHash, reader({ getBlock: async () => { throw new Error("fictional-private-provider-detail"); } })));
 });
 
+test("a durable attempt also requires the exact observed nonce before any receipt or pending adoption", async () => {
+  const observed = reader({ getTransaction: async () => ({ ...tx, nonce: 7 }) });
+  assert.equal((await inspectMintTransaction(intent, txHash, observed, 7n)).status, "VERIFIED");
+  for (const nonce of [8, -1, Number.MAX_SAFE_INTEGER + 1]) {
+    await rejects(inspectMintTransaction(intent, txHash, reader({ getTransaction: async () => ({ ...tx, nonce }) }), 7n));
+    await rejects(inspectMintTransaction(intent, txHash, reader({ getTransaction: async () => ({ ...tx, nonce, blockNumber: null, blockHash: null }) }), 7n));
+  }
+  await rejects(inspectMintTransaction(intent, txHash, observed, -1n));
+});
+
 test("pending, missing, confirming, reverted and reorg results never grant a retry", async () => {
   const cases = [
     ["PENDING", { getTransaction: async () => ({ ...tx, blockNumber: null, blockHash: null }) }],

@@ -167,6 +167,17 @@ enum PublicationMintAttemptStatus {
   UNKNOWN
 }
 
+enum PublicationMintObservationStatus {
+  UNKNOWN
+  UNAVAILABLE
+  MISMATCH
+  PENDING
+  CONFIRMING
+  VERIFIED
+  REVERTED
+  REORG
+}
+
 enum AuditAction {
   DRAFT_CREATED
   DRAFT_UPDATED
@@ -194,6 +205,7 @@ enum AuditAction {
   PUBLICATION_MINT_PREPARED
   PUBLICATION_MINT_DISPATCH_STARTED
   PUBLICATION_MINT_OUTCOME_UNKNOWN
+  PUBLICATION_MINT_OBSERVED
 }
 
 model Farmer {
@@ -465,9 +477,43 @@ model PublicationMintAttempt {
   createdAt       DateTime @default(now())
   deadlineAt      DateTime
   unknownAt       DateTime?
+  observationVersion Int @default(0)
+  transactions    PublicationMintTransaction[]
+  observations    PublicationMintObservation[]
 
+  @@unique([id, nonce])
   @@unique([chainId, publisherWallet, nonce])
   @@index([status, deadlineAt])
+}
+
+// A hash enters this table only after exact call AND nonce matching, not from a report alone.
+model PublicationMintTransaction {
+  id              String @id @default(uuid()) @db.Uuid
+  attemptId       String @db.Uuid
+  nonce           BigInt
+  attempt         PublicationMintAttempt @relation(fields: [attemptId, nonce], references: [id, nonce], onDelete: Restrict)
+  transactionHash String @unique @db.VarChar(66)
+  createdAt       DateTime @default(now())
+  observations    PublicationMintObservation[]
+
+  @@unique([id, attemptId])
+  @@index([attemptId])
+}
+
+// Append-only in application code; every row describes one historical read, never issuance.
+model PublicationMintObservation {
+  id              String @id @default(uuid()) @db.Uuid
+  attemptId       String @db.Uuid
+  attempt         PublicationMintAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  revision        Int
+  reportedHash    String? @db.VarChar(66)
+  transactionId   String? @db.Uuid
+  transaction     PublicationMintTransaction? @relation(fields: [transactionId, attemptId], references: [id, attemptId], onDelete: Restrict)
+  status          PublicationMintObservationStatus
+  resultJson      String @db.Text
+  observedAt      DateTime @default(now())
+
+  @@unique([attemptId, revision])
 }
 
 model PublicSnapshotConfirmation {

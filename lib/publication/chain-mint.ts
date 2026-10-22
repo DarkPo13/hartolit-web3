@@ -1,7 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
-import { encodeFunctionData, keccak256, parseEventLogs, type PublicClient, type Hash } from "viem";
+import { encodeFunctionData, keccak256, parseEventLogs, type PublicClient, type Hash, type Transaction } from "viem";
 import { HARTOLIT_PASSPORT_ABI as abi } from "@/lib/contract";
 import { canonicalize, sha256Hex } from "@/lib/hash";
 import { publicSnapshotSchema } from "@/lib/public-snapshot/schema";
@@ -49,7 +49,7 @@ export async function createMintIntent(targetInput: unknown, input: { canonicalJ
   } catch { throw new ChainVerificationError(); }
 }
 
-async function intent(input: unknown) {
+export async function validateMintIntent(input: unknown) {
   const value = intentSchema.parse(input);
   const { sha256, ...body } = value;
   requireMatch(await sha256Hex(canonicalize(body)) === sha256 && value.data === dataFor(value) && value.ipfsCid === rawCidFromSha256(value.payloadHash));
@@ -59,7 +59,7 @@ async function intent(input: unknown) {
 /** Serializable wallet-call description, not a send command or authorization. */
 export async function mintTransactionRequest(input: unknown) {
   try {
-    const value = await intent(input);
+    const value = await validateMintIntent(input);
     return Object.freeze({ chainId: value.chainId, from: value.publisherWallet, to: value.contractAddress,
       data: value.data as Hash, value: "0" as const });
   } catch { throw new ChainVerificationError(); }
@@ -75,7 +75,7 @@ async function codeAt(reader: MintReader, value: MintIntent, blockNumber: bigint
  */
 export async function inspectMintReadiness(input: unknown, reader: MintReader) {
   try {
-    const value = await intent(input);
+    const value = await validateMintIntent(input);
     requireMatch(await reader.getChainId() === value.chainId);
     const head = await reader.getBlock(); requireMatch(head.number !== null && head.hash);
     await codeAt(reader, value, head.number!);
@@ -92,19 +92,31 @@ export async function inspectMintReadiness(input: unknown, reader: MintReader) {
   } catch { throw new ChainVerificationError(); }
 }
 
-/** Verifies an observed receipt; never writes a DB state, sends, grants a retry or
- * issues a certificate. Confirmation depth is a policy input, not absolute finality.
- * The caller owns RPC credentials/limits; this module accepts a read-only dependency.
+/** Pure equality against an already validated intent; durable adoption also supplies
+ * the stored nonce. A reported hash or a matching event alone is insufficient.
  */
-export async function inspectMintTransaction(input: unknown, transactionHash: string, reader: MintReader) {
+export function requireExactMintTransaction(value: MintIntent, hash: string,
+  tx: Pick<Transaction, "hash" | "chainId" | "from" | "to" | "value" | "input" | "nonce">, expectedNonce?: bigint) {
+  requireMatch(tx.hash === hash && tx.chainId === value.chainId && lower(tx.from) === value.publisherWallet &&
+    lower(tx.to) === value.contractAddress && tx.value === 0n && lower(tx.input) === value.data);
+  if (expectedNonce !== undefined) {
+    requireMatch(typeof expectedNonce === "bigint" && expectedNonce >= 0n && expectedNonce <= BigInt(Number.MAX_SAFE_INTEGER) &&
+      Number.isSafeInteger(tx.nonce) && BigInt(tx.nonce) === expectedNonce);
+  }
+}
+
+/** Read-only receipt evidence, never issuance or retry permission. Durable attempts
+ * must supply their nonce; the older standalone inspector may omit it. Depth is a
+ * policy input, not absolute finality. The caller owns RPC credentials and limits.
+ */
+export async function inspectMintTransaction(input: unknown, transactionHash: string, reader: MintReader, expectedNonce?: bigint) {
   try {
-    const value = await intent(input), hash = hexHash.parse(transactionHash) as Hash;
+    const value = await validateMintIntent(input), hash = hexHash.parse(transactionHash) as Hash;
     requireMatch(await reader.getChainId() === value.chainId);
     let tx;
     try { tx = await reader.getTransaction({ hash }); }
     catch (error) { if (missing(error)) return unknown("UNKNOWN"); throw error; }
-    requireMatch(tx.hash === hash && tx.chainId === value.chainId && lower(tx.from) === value.publisherWallet &&
-      lower(tx.to) === value.contractAddress && tx.value === 0n && lower(tx.input) === value.data);
+    requireExactMintTransaction(value, hash, tx, expectedNonce);
     if (tx.blockNumber === null || tx.blockHash === null) return unknown("PENDING");
     let receipt;
     try { receipt = await reader.getTransactionReceipt({ hash }); }
@@ -145,10 +157,11 @@ export async function inspectMintTransaction(input: unknown, transactionHash: st
       if (again.hash !== receipt.blockHash || tip.hash !== head.hash || chainId !== value.chainId ||
         confirmed.blockHash !== receipt.blockHash || confirmed.status !== receipt.status) return unknown("REORG");
     } catch (error) { if (missing(error)) return unknown("REORG"); throw error; }
-    const evidence = { issued: false as const, canResend: false as const, confirmations: confirmations.toString() };
+    const evidence = { issued: false as const, canResend: false as const, confirmations: confirmations.toString(),
+      transactionHash: hash, blockNumber: receipt.blockNumber.toString(), blockHash: receipt.blockHash,
+      contractAddress: value.contractAddress, intentSha256: value.sha256 };
     if (confirmations < BigInt(value.requiredConfirmations)) return { ...evidence, status: "CONFIRMING" as const };
     if (receipt.status === "reverted") return { ...evidence, status: "REVERTED" as const };
-    return { ...evidence, status: "VERIFIED" as const, tokenId: tokenId!.toString(), transactionHash: hash,
-      blockNumber: receipt.blockNumber.toString(), blockHash: receipt.blockHash, contractAddress: value.contractAddress, intentSha256: value.sha256 };
+    return { ...evidence, status: "VERIFIED" as const, tokenId: tokenId!.toString() };
   } catch { throw new ChainVerificationError(); }
 }

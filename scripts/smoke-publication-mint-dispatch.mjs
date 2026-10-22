@@ -87,8 +87,10 @@ export async function smokeMintDispatch({ db, publisherId, candidates, chain }) 
   assert.equal(pending.status, "CHAIN_PENDING"); assert.equal(pending.contractAddress, null); assert.equal(pending.transactionHash, null); assert.equal(pending.tokenId, null);
   await rejects(recoverExpiredMintDispatch(winner.passportId, row.id));
   await rejects(beginMintDispatch(publisherId, winner.passportId, attempts[index].body, winner.target, counted));
+  let hash, snapshot;
   if (chain) {
-    const hash = await chain.send(command); // Test wallet only, outside the web process.
+    snapshot = await chain.reader.request({ method: "evm_snapshot" });
+    hash = await chain.send(command); // Test wallet only, outside the web process.
     const tx = await chain.reader.getTransaction({ hash });
     assert.equal(tx.nonce, command.request.nonce); assert.equal(tx.input, command.request.data); assert.equal(tx.from.toLowerCase(), command.request.from);
     assert.equal((await chain.reader.waitForTransactionReceipt({ hash })).status, "success");
@@ -131,4 +133,5 @@ export async function smokeMintDispatch({ db, publisherId, candidates, chain }) 
   assert.equal(calls, reads, "unknown wallet slot blocks another passport before RPC or send");
   assert.equal((await db.publication.findUniqueOrThrow({ where: { id: winner.publication.id } })).transactionHash, null);
   process.stdout.write(`Mint dispatch passed: exact separate consent, fresh idle nonce, post-RPC authority, cross-passport single permission, durable uncertainty/no resend and SQL constraints (${chain ? "actual owned local Anvil plus PostgreSQL" : "injected read-only RPC plus PostgreSQL"}).\n`);
+  return { winner, loser, command, hash, snapshot };
 }
