@@ -497,7 +497,7 @@ The interface is available in Ukrainian and English. Local Chromium checks used 
 
 ### Durable pinning boundary — internal foundation
 
-Apply all migrations with `npm run db:deploy`, including `20261021185106_publication_upload_target`. `lib/publication/pinning.ts` is a server-only service with **no HTTP endpoint, Server Action, worker or configured production uploader**. An internal upload driver and an offline-only Kubo fixture now exercise the boundary locally. The ownership panel still cannot start publication. A future authenticated publication action must separately obtain explicit acknowledgement of the exact confirmation ID, version and hash; ownership signing alone is insufficient.
+Apply all migrations with `npm run db:deploy`, including `20261021185106_publication_upload_target`. The MFA-admin panel can now save or cancel a **private preparation** through `POST`/`DELETE /api/admin/passports/{id}/publication/pin-attempts`. There is still **no dispatch endpoint, Server Action, worker or configured production uploader**. An internal upload driver and an offline-only Kubo fixture exercise that separate boundary locally. Ownership signing alone is insufficient: preparation requires separate acknowledgement of the exact confirmation ID, version, data hash and server-owned target fingerprint.
 
 | Attempt state | Meaning | Permitted recovery |
 |---|---|---|
@@ -544,6 +544,16 @@ docker compose --env-file .env.db.local --profile publication-local stop postgre
 The fixture uses Kubo `v0.43.1`, `--offline`, an internal Docker network, no published container ports and an ephemeral repository. The smoke verifies that isolation and opens temporary **loopback-only** tunnels on ports 15001/18080 through `docker exec`; they close in its `finally` block. Port 3001 must also be free. The test covers successful storage, concurrent requests, lost acknowledgement, failure before writing, target mismatch, historical unbound attempts, SQL target constraints and blocked resending. Only its fictional blocks/pins and database records are cleaned; it does not contact the public IPFS network. Stopping the fixture discards its ephemeral repository. These checks do not establish hosted TLS/authentication, provider retention, installed-wallet or public issuance acceptance.
 
 `npm run test:upload` and the default `publication:smoke` use injected transport and do not need Docker Kubo. Both are configured in CI; the optional offline-node check is local only. The current CI result covers only its exact committed SHA, not uncommitted changes.
+
+### Save separate publication consent
+
+1. The designated MFA publisher opens the approved, confirmed record and completes the existing wallet ownership proof. That message signature does not save publication consent.
+2. The server needs a **description**, not a service credential: `HARTOLIT_PUBLICATION_TARGET_KEY`, `HARTOLIT_PUBLICATION_TARGET_SCOPE`, `HARTOLIT_PUBLICATION_API_ORIGIN` and `HARTOLIT_PUBLICATION_GATEWAY_ORIGIN`. The scope is a non-secret account/namespace identifier; the origins have no paths/credentials and describe the current Kubo raw profile. These variables do not activate upload/readback or select an accepted hosted provider. Leave them blank until a target is chosen; local tests use only fictional descriptions.
+3. In **Publication preparation consent**, inspect the selected storage and exact saved public facts. The same complete `2.0.0` renderer is reused. Review the permanence notice, check the separate consent box and choose **Save consent and prepare**. The API rechecks current MFA/designated publisher, approval/version, exact confirmation/hash, consumed wallet proof, READY evidence and the reviewed target fingerprint under the passport lock.
+4. A successful save remains `PREPARED`/`RESERVED`: no upload, token, transaction or issued certificate exists. Refresh/reload reads saved state. Lost responses trigger a status read before offering another action. Repeated identical requests converge; a stale target is rejected rather than silently accepted.
+5. Before dispatch, **Cancel preparation** retains history; a later preparation needs fresh consent. Other MFA admins can inspect state but cannot prepare/cancel. A changed target is visible, and a prepared attempt can still be cancelled without rebinding it. Once internal dispatch starts, cancellation/resend/recall stay blocked; `UNKNOWN` and verified `PINNED` states are distinct from issuance. No UI button starts dispatch in this increment.
+
+`publication:smoke` covers the real private preparation/cancellation HTTP routes and stored values in addition to the internal lifecycle. The optional browser fixture is `PUBLICATION_BROWSER_FIXTURE=1` with that smoke: it pauses with fictional authenticated sessions on a loopback-only helper at port 3103, then resumes/cleans up after `/finish` or a timeout. It is test tooling, not an application authentication route; never run it with real users or expose it remotely.
 
 ## Product feedback and responsible treatment reminder
 

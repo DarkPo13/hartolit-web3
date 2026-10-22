@@ -13,6 +13,14 @@ export const publicationReservationSchema = z.strictObject({
 
 export type PublicationReservationInput = z.infer<typeof publicationReservationSchema>;
 
+export const publicationPreparationSchema = z.strictObject({
+  publicationId: z.uuid(), requestId: z.uuid(), confirmationId: z.uuid(),
+  passportVersion: z.number().int().positive(), expectedSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  expectedTargetSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  acknowledgement: z.literal("PUBLISH_CONFIRMED_SNAPSHOT"),
+});
+export const publicationCancellationSchema = z.strictObject({ publicationId: z.uuid(), attemptId: z.uuid() });
+
 export const walletChallengeInputSchema = z.strictObject({ publicationId: z.uuid() });
 export const walletProofInputSchema = z.strictObject({
   publicationId: z.uuid(),

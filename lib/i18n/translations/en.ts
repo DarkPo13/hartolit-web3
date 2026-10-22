@@ -2,6 +2,7 @@ import type { Translations } from "../types";
 
 export const en: Translations = {
   publisher: {
+    approvalChanged: "This record's confirmation was recalled. Reload the passport to see the current decision. Preparation cannot be restarted.",
     title: "Service wallet",
     hint: "Prepare the confirmed record and prove control of the allowed wallet. These steps do not publish a certificate.",
     loading: "Checking status…", loadError: "Unable to load status. Please refresh it.", refresh: "Refresh status",
@@ -23,6 +24,25 @@ export const en: Translations = {
     walletError: "Unable to complete the action. Check that your browser wallet is available and unlocked, then try again.",
     accessDenied: "Access changed or your session ended. Sign in again and refresh status.",
     saveUncertain: "We did not receive confirmation that the signature was saved. Refresh status before signing again; it may already be saved.",
+  },
+  publicationPreparation: {
+    title: "Publication preparation consent",
+    hint: "Save separate consent for the exact public data. This step stays private and uploads nothing externally.",
+    notConfigured: "Storage for future publication is not configured. Consent cannot be saved yet.",
+    target: "Selected storage", binding: "Data and storage binding", profile: "Storage format",
+    targetHash: "Storage configuration fingerprint", payloadHash: "Approved data SHA-256",
+    changed: "The approved data, storage or record state changed. Refresh and review them again. Preparation can be cancelled before dispatch.",
+    accessDenied: "Access changed or the session ended. Sign in again and refresh the state.",
+    uncertain: "No confirmation was received. Refresh before another action: consent may already have been saved.",
+    saving: "Checking and saving state…", prepared: "Consent saved. Publication is prepared privately.",
+    noDispatch: "Data has not been sent. External publication is not available yet.", cancel: "Cancel preparation",
+    unknown: "Dispatch has started or its outcome is unknown. Resending and recall are blocked until the result is verified.",
+    pinned: "Data storage was verified. The record is not yet an issued blockchain certificate.",
+    cancelled: "Previous preparation was cancelled. A new preparation requires fresh consent.", readOnly: "Read-only status. Only the designated publisher may save consent.",
+    needsProof: "Prove control of the allowed wallet first.", review: "Review exact public data",
+    publicNotice: "After future publication these data will be public and may remain available permanently. Private source files are not published.",
+    consent: "I reviewed the exact data and selected storage and approve preparing this record for future publication. The wallet ownership signature does not replace this consent.",
+    prepare: "Save consent and prepare",
   },
   feedback: {
     responsibility: "Responsible farming",

@@ -22,7 +22,8 @@ const rejects = (promise, status = 409) => assert.rejects(promise, (error) => er
 
 function input(publicationId, confirmation, version) {
   return { publicationId, requestId: randomUUID(), confirmationId: confirmation.id,
-    passportVersion: version, expectedSha256: confirmation.preview.sha256, acknowledgement: "PUBLISH_CONFIRMED_SNAPSHOT" };
+    passportVersion: version, expectedSha256: confirmation.preview.sha256, expectedTargetSha256: target.configurationSha256,
+    acknowledgement: "PUBLISH_CONFIRMED_SNAPSHOT" };
 }
 
 async function constraints(db, publicationId, attemptId, challengeId) {

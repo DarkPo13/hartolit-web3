@@ -10,7 +10,7 @@ Hartolit performs drone crop-protection treatments in Ukraine. This application 
 
 **The stakes:** a published passport is permanent and public. A wrong hash, a private field in the snapshot, or a simulated certificate issued in production cannot be recalled; neither the chain nor pinned IPFS content can be edited. When in doubt, fail closed and do not publish.
 
-Current reality (targeted publication refresh, 2026-10-21): an authenticated MVP covering Phases 1–4, plus Phase 5 fact capture, strict public confirmation/private unissued views, designated-publisher reservation, EOA ownership proof and an isolated browser-wallet UI. The pushed wallet/attempt/readback checkpoint has green CI; the newer local upload increment is uncommitted. Internal services bind a target/profile, dispatch once, and reconcile exact bytes/CID; an actual offline Kubo fixture tests the protocol locally. No app action invokes upload, no hosted provider is accepted, no external contract/passport is deployed, and no real customer data may be entered. User-facing publication consent, chain stages, issued/public views and operations remain open. The live frontier and validator evidence are in `.ai/STATE.md`.
+Current reality (targeted publication refresh, 2026-10-22): an authenticated MVP covering Phases 1–4, plus Phase 5 fact capture, strict public confirmation/private unissued views, designated-publisher reservation, EOA ownership proof, an isolated wallet UI and separate private preparation consent/cancellation. Internal services bind a target/profile, dispatch once, and reconcile exact bytes/CID; an actual offline Kubo fixture tests the protocol locally. The pushed wallet/attempt/readback checkpoint has green CI; later local checkpoints require their own CI after an authorized push. No app action invokes upload, no hosted provider is accepted, no external contract/passport is deployed, and no real customer data may be entered. Chain stages, issued/public views and operations remain open. The live frontier and validator evidence are in `.ai/STATE.md`.
 
 ## Repository structure
 
@@ -28,7 +28,7 @@ Single Next.js application (not a monorepo) plus a Foundry workspace.
 | `app/api/passport/[tokenId]` | Legacy `1.0.0` demo read of on-chain data and IPFS; unavailable outside local demo mode. |
 | `lib/drafts/`, `lib/evidence/`, `lib/review/` | Server services: transactions, optimistic concurrency, audit, storage, scanning, workflow. |
 | `lib/public-snapshot/` | Strict `2.0.0` public schema, allowlisted preview builder and private confirmation service. No publication writer yet. |
-| `lib/publication/` | Private reservation/proof, durable pin attempts, server-owned target/profile binding, internal upload driver and exact-byte readback. Offline-only Kubo fixture; no publication HTTP action or hosted uploader. |
+| `lib/publication/` | Private reservation/proof, preparation/consent metadata, durable attempts, server-owned target/profile binding, internal upload driver and exact-byte readback. Private HTTP preparation/cancellation; offline Kubo fixture; no dispatch HTTP action or hosted uploader. |
 | `lib/auth*.ts`, `lib/db*.ts`, `lib/demo-mode.ts` | Auth configuration, actor lookup and guards, Prisma client, demo switch. |
 | `lib/hash.ts`, `lib/contract.ts`, `lib/ipfs.ts`, `lib/wagmi.ts` | Canonical JSON + SHA-256, hand-written contract ABI, Pinata REST client, wallet config. |
 | `lib/i18n/` | Ukrainian (default) and English translations behind a typed `Translations` object. |

@@ -49,7 +49,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
         publicationId, challengeId: challenge.id, signature: await signingAccount.signMessage({ message: challenge.message }),
       } })).status, 200);
       const data = { publicationId, requestId: randomUUID(), confirmationId: confirmation.id, passportVersion: 4,
-        expectedSha256: confirmation.preview.sha256, acknowledgement: "PUBLISH_CONFIRMED_SNAPSHOT" };
+        expectedSha256: confirmation.preview.sha256, expectedTargetSha256: provider.target.configurationSha256, acknowledgement: "PUBLISH_CONFIRMED_SNAPSHOT" };
       await rejects(preparePinAttempt(publisherId, passportId, { ...data, acknowledgement: undefined }, provider.target), 422);
       const { attempt } = await preparePinAttempt(publisherId, passportId, data, provider.target);
       const changed = await createPublicationTarget({ key: provider.target.key, kind: provider.target.kind,

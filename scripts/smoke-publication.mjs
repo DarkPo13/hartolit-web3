@@ -13,6 +13,7 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { smokeWalletProof } from "./smoke-publication-wallet.mjs";
 import { smokePinPreparation, smokePinDispatch, smokePinRecallRace } from "./smoke-publication-pinning.mjs";
 import { smokePinUploads } from "./smoke-publication-upload.mjs";
+import { smokePublicationPreparation } from "./smoke-publication-preparation.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 const database = new URL(process.env.DATABASE_URL);
@@ -64,10 +65,12 @@ async function stopServer() {
   const exited = once(server, "exit"); server.kill(); await exited;
 }
 
-async function startServer(publisherId = "", configuredWallet = "") {
+async function startServer(publisherId = "", configuredWallet = "", target = {}) {
   server = spawn(process.execPath, [path.resolve("node_modules/next/dist/bin/next"), "start", "--port", String(port)], {
     env: { ...process.env, NODE_ENV: "production", BETTER_AUTH_URL: base,
-      HARTOLIT_PUBLISHER_USER_ID: publisherId, HARTOLIT_PUBLISHER_WALLET: configuredWallet },
+      HARTOLIT_PUBLISHER_USER_ID: publisherId, HARTOLIT_PUBLISHER_WALLET: configuredWallet,
+      HARTOLIT_PUBLICATION_TARGET_KEY: target.key ?? "", HARTOLIT_PUBLICATION_TARGET_SCOPE: target.scope ?? "",
+      HARTOLIT_PUBLICATION_API_ORIGIN: target.apiUrl ?? "", HARTOLIT_PUBLICATION_GATEWAY_ORIGIN: target.gatewayUrl ?? "" },
     stdio: ["ignore", "pipe", "pipe"], windowsHide: true,
   });
   let ready = false;
@@ -301,6 +304,8 @@ try {
   await smokePinRecallRace({ api, db, publisherId, publisher, passportId: racing.passport.id,
     publicationId: (await racingReserved.json()).reservation.id, confirmation: racingConfirmation, signingAccount });
   await smokePinUploads({ api, db, fixture, confirm, ownerId, publisherId, publisher, signingAccount });
+  await smokePublicationPreparation({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, unverified, operator, signingAccount,
+    restart: async target => { await stopServer(); await startServer(publisherId, wallet, target); }, base });
   process.stdout.write("Publication smoke passed: exact bytes, private EOA proof, bound upload target, explicit intent, single send, lost acknowledgement/readback, concurrency, recall, constraints and audit. No public side effects.\n");
 } finally {
   await stopServer();

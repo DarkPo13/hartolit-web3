@@ -4,6 +4,7 @@ import { draftResponse } from "@/lib/drafts/http";
 import { reviewActor, reviewBody, reviewFailure } from "@/lib/review/http";
 import { publicationReservationSchema } from "@/lib/publication/schema";
 import { publicationPublisherAccess, publicationReservations, reservePublication } from "@/lib/publication/service";
+import { publicationPreparationOverview } from "@/lib/publication/preparation";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest, context: Context) {
   if (actor instanceof NextResponse) return actor;
   const { id } = await context.params;
   if (!z.uuid().safeParse(id).success) return draftResponse({ error: "Invalid passport ID" }, 400);
-  try { return draftResponse({ reservations: await publicationReservations(id), publisher: publicationPublisherAccess(actor.id) }); }
+  try { return draftResponse({ reservations: await publicationReservations(id), publisher: publicationPublisherAccess(actor.id), pinning: await publicationPreparationOverview(id) }); }
   catch (error) { return reviewFailure(error); }
 }
 

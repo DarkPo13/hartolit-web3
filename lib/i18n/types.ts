@@ -9,7 +9,14 @@ export interface Translations {
     wrongNetwork: string; switchNetwork: string; disconnect: string; expired: string; prepareHint: string;
     renew: string; prepare: string; message: string; expires: string; checkMessage: string;
     sign: string; signing: string; saving: string; rejected: string; walletError: string;
-    accessDenied: string; saveUncertain: string;
+    accessDenied: string; saveUncertain: string; approvalChanged: string;
+  };
+  publicationPreparation: {
+    title: string; hint: string; notConfigured: string; target: string; binding: string;
+    profile: string; targetHash: string; payloadHash: string; changed: string; accessDenied: string;
+    uncertain: string; saving: string; prepared: string; noDispatch: string; cancel: string;
+    unknown: string; pinned: string; cancelled: string; readOnly: string; needsProof: string;
+    review: string; publicNotice: string; consent: string; prepare: string;
   };
   feedback: {
     responsibility: string;

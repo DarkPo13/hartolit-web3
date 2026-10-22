@@ -1,6 +1,5 @@
 import "server-only";
 
-import { z } from "zod";
 import type { Prisma, PublicationPinAttempt } from "@/generated/prisma/client";
 import { getDb } from "@/lib/db";
 import { WorkflowError } from "@/lib/review/service";
@@ -8,16 +7,12 @@ import { lockReservedPublication } from "./service";
 import { requireStoredWalletProof } from "./wallet-proof";
 import { MAX_PUBLIC_BLOCK_BYTES, rawCidFromSha256 } from "./raw-cid";
 import { validatePublicationTarget, type PublicationTarget } from "./target";
+import { publicationPreparationSchema } from "./schema";
 
-const prepareSchema = z.strictObject({
-  publicationId: z.uuid(), requestId: z.uuid(), confirmationId: z.uuid(),
-  passportVersion: z.number().int().positive(), expectedSha256: z.string().regex(/^[0-9a-f]{64}$/),
-  acknowledgement: z.literal("PUBLISH_CONFIRMED_SNAPSHOT"),
-});
 const dispatchDeadlineMs = 5 * 60_000;
 
 function parsePreparation(input: unknown) {
-  const parsed = prepareSchema.safeParse(input);
+  const parsed = publicationPreparationSchema.safeParse(input);
   if (!parsed.success) throw new WorkflowError(422, "Explicit publication acknowledgement and exact confirmation are required");
   return parsed.data;
 }
@@ -36,15 +31,16 @@ async function audit(tx: Prisma.TransactionClient, passportId: string, publicati
     fromStatus: "APPROVED", toStatus: "APPROVED", note: `Pin attempt: ${attemptId}` } });
 }
 
-/** Internal foundation, deliberately not a Server Action/HTTP endpoint or an IPFS adapter.
- * A future authenticated caller must obtain a separate explicit publication decision.
- * Wallet ownership signing alone never calls this function or authorizes dispatch.
+/** Server-only workflow. The authenticated consent route delegates preparation/cancellation;
+ * dispatch remains internal with no HTTP entry point or configured production uploader.
+ * Wallet ownership signing alone never authorizes either preparation or dispatch.
  */
 export async function preparePinAttempt(adminId: string, passportId: string, input: unknown, selectedTarget: PublicationTarget) {
   const data = parsePreparation(input);
   let target: PublicationTarget;
   try { target = await validatePublicationTarget(selectedTarget); }
   catch { throw new WorkflowError(503, "A valid server-owned publication target is required"); }
+  if (data.expectedTargetSha256 !== target.configurationSha256) throw new WorkflowError(409, "The reviewed publication target changed");
   return getDb().$transaction(async (tx) => {
     const { reservation, confirmation } = await lockReservedPublication(tx, adminId, passportId, data.publicationId);
     if (data.confirmationId !== confirmation.id || data.passportVersion !== reservation.passportVersion || data.expectedSha256 !== reservation.payloadHash) {
