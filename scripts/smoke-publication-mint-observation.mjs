@@ -12,7 +12,7 @@ const { HARTOLIT_PASSPORT_ABI: abi } = await jiti.import("../lib/contract.ts");
 const rejects = (promise, status = 409) => assert.rejects(promise, error => error.status === status);
 const hash = digit => `0x${digit.repeat(64)}`;
 
-function synthetic(intent, nonce, code, txHash) {
+export function syntheticMintFrame(intent, nonce, code, txHash) {
   const tx = { hash: txHash, chainId: 97, from: intent.publisherWallet, to: intent.contractAddress, input: intent.data,
     value: 0n, nonce, blockNumber: 5n, blockHash: hash("b"), transactionIndex: 0 };
   const receipt = { transactionHash: txHash, blockNumber: 5n, blockHash: hash("b"), transactionIndex: 0,
@@ -33,7 +33,7 @@ export async function smokeMintObservation({ db, publisherId, dispatched, chain 
   const { winner, loser, command } = dispatched, attemptId = command.attemptId, passportId = winner.passportId;
   const code = chain ? await chain.reader.getCode({ address: winner.target.contractAddress }) : "0x60006000";
   const txHash = `0x${randomBytes(32).toString("hex")}`, alternateHash = `0x${randomBytes(32).toString("hex")}`;
-  const frame = synthetic(winner.intent, command.request.nonce, code, txHash), base = frame.reader;
+  const frame = syntheticMintFrame(winner.intent, command.request.nonce, code, txHash), base = frame.reader;
   const observe = (reported = txHash, reader = base) => observeMintAttempt(passportId, attemptId, { transactionHash: reported }, reader);
   const count = () => db.publicationMintObservation.count({ where: { attemptId } });
   let rpc = 0;
@@ -73,7 +73,7 @@ export async function smokeMintObservation({ db, publisherId, dispatched, chain 
   const atReorg = await count(); releaseSuccess();
   assert.equal((await staleSuccess).status, "SUPERSEDED"); assert.equal(await count(), atReorg, "late success cannot overwrite a newer reorg observation");
   assert.equal((await observe(undefined, { ...base, getChainId: async () => { throw new Error("fictional-provider-token"); } })).status, "UNAVAILABLE");
-  const revertedFrame = synthetic(winner.intent, command.request.nonce, code, alternateHash);
+  const revertedFrame = syntheticMintFrame(winner.intent, command.request.nonce, code, alternateHash);
   const reverted = await observe(alternateHash, { ...revertedFrame.reader, getTransactionReceipt: async () => ({ ...revertedFrame.receipt, status: "reverted", logs: [] }) });
   assert.equal(reverted.status, "REVERTED");
   assert.equal(JSON.parse((await db.publicationMintObservation.findUniqueOrThrow({ where: { id: reverted.observationId } })).resultJson).blockHash, revertedFrame.receipt.blockHash);
@@ -94,6 +94,7 @@ export async function smokeMintObservation({ db, publisherId, dispatched, chain 
   try { assert.equal((await observe()).status, "VERIFIED", "historical recovery does not grant new actor authority"); }
   finally { process.env.HARTOLIT_PUBLISHER_USER_ID = configured; await db.user.update({ where: { id: publisherId }, data: { banned: false } }); }
 
+  let resultFixture;
   if (chain) {
     const actualTx = await chain.reader.getTransaction({ hash: dispatched.hash });
     const actualReceipt = await chain.reader.getTransactionReceipt({ hash: dispatched.hash });
@@ -106,11 +107,13 @@ export async function smokeMintObservation({ db, publisherId, dispatched, chain 
     const reorg = await observe(dispatched.hash, { ...chain.reader, getTransaction: async () => actualTx, getTransactionReceipt: async () => actualReceipt });
     assert.equal(reorg.status, "REORG");
     assert.equal((await db.publicationMintObservation.findUniqueOrThrow({ where: { id: actual.observationId } })).status, "VERIFIED", "old branch evidence is preserved");
+    const snapshot = await chain.reader.request({ method: "evm_snapshot" });
     const replacement = await chain.send(command, 17_000_000_000n);
     assert.notEqual(replacement, dispatched.hash);
     await chain.reader.waitForTransactionReceipt({ hash: replacement });
     await chain.reader.request({ method: "anvil_mine", params: ["0x2"] });
     assert.equal((await observe(replacement, chain.reader)).status, "VERIFIED");
+    resultFixture = { hash: replacement, snapshot };
   } else assert.equal((await observe(undefined, { ...base, getBlock: async () => ({ number: 7n, hash: hash("f") }) })).status, "REORG");
   const client = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 3000 });
   await client.connect();
@@ -136,4 +139,5 @@ export async function smokeMintObservation({ db, publisherId, dispatched, chain 
   assert.equal((await db.publicationMintAttempt.findUniqueOrThrow({ where: { id: attemptId } })).status, "UNKNOWN");
   assert.equal((await db.publication.findUniqueOrThrow({ where: { id: loser.publication.id } })).status, "PINNED");
   process.stdout.write(`Mint observation passed: exact call/nonce adoption, historical receipts, stale-read concurrency, revoked-actor recovery, SQL constraints and retained unissued wallet slot (${chain ? "actual local-chain reorg/replacement and PostgreSQL" : "injected RPC and PostgreSQL"}).\n`);
+  return resultFixture;
 }

@@ -178,6 +178,11 @@ enum PublicationMintObservationStatus {
   REORG
 }
 
+enum PublicationMintResultStatus {
+  VERIFIED
+  SUSPENDED
+}
+
 enum AuditAction {
   DRAFT_CREATED
   DRAFT_UPDATED
@@ -206,6 +211,7 @@ enum AuditAction {
   PUBLICATION_MINT_DISPATCH_STARTED
   PUBLICATION_MINT_OUTCOME_UNKNOWN
   PUBLICATION_MINT_OBSERVED
+  PUBLICATION_MINT_RESULT_CHECKED
 }
 
 model Farmer {
@@ -480,6 +486,7 @@ model PublicationMintAttempt {
   observationVersion Int @default(0)
   transactions    PublicationMintTransaction[]
   observations    PublicationMintObservation[]
+  result          PublicationMintResult?
 
   @@unique([id, nonce])
   @@unique([chainId, publisherWallet, nonce])
@@ -512,8 +519,27 @@ model PublicationMintObservation {
   status          PublicationMintObservationStatus
   resultJson      String @db.Text
   observedAt      DateTime @default(now())
+  checkedResult   PublicationMintResult? @relation("MintResultCheck")
+  verifiedResult  PublicationMintResult? @relation("MintResultVerification")
 
   @@unique([attemptId, revision])
+  @@unique([id, attemptId])
+  @@unique([id, attemptId, status])
+}
+
+// A revocable, as-of projection. Never issuance, finality or permission to release a nonce.
+model PublicationMintResult {
+  attemptId               String @id @db.Uuid
+  attempt                 PublicationMintAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  status                  PublicationMintResultStatus
+  checkedObservationId    String @unique @db.Uuid
+  checkedObservation      PublicationMintObservation @relation("MintResultCheck", fields: [checkedObservationId, attemptId], references: [id, attemptId], onDelete: Restrict)
+  verifiedObservationId   String? @unique @db.Uuid
+  verificationStatus      PublicationMintObservationStatus?
+  verifiedObservation     PublicationMintObservation? @relation("MintResultVerification", fields: [verifiedObservationId, attemptId, verificationStatus], references: [id, attemptId, status], onDelete: Restrict)
+
+  @@unique([checkedObservationId, attemptId])
+  @@unique([verifiedObservationId, attemptId, verificationStatus])
 }
 
 model PublicSnapshotConfirmation {

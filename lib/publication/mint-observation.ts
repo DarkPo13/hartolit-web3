@@ -10,6 +10,8 @@ import { rawCidFromSha256 } from "./raw-cid";
 import { RAW_PIN_PROFILE } from "./target";
 
 const inputSchema = z.strictObject({ transactionHash: z.string().regex(/^0x[0-9a-f]{64}$/).nullable() });
+const resultSchema = z.strictObject({ transactionId: z.uuid() });
+const resultFreshnessMs = 15_000;
 const unissued = (status: "UNKNOWN" | "UNAVAILABLE" | "MISMATCH") => ({ status, issued: false as const, canResend: false as const });
 
 async function load(tx: Prisma.TransactionClient, passportId: string, attemptId: string) {
@@ -55,8 +57,32 @@ async function load(tx: Prisma.TransactionClient, passportId: string, attemptId:
 export async function observeMintAttempt(passportId: string, attemptId: string, input: unknown, reader: MintReader) {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) throw new WorkflowError(422, "A transaction hash or explicit missing hash is required");
-  const hash = parsed.data.transactionHash;
-  const before = await getDb().$transaction(tx => load(tx, passportId, attemptId));
+  return readAttempt(passportId, attemptId, { kind: "report", hash: parsed.data.transactionHash }, reader);
+}
+
+/** Select an as-of result only through a fresh read of a previously matched
+ * transaction. Historical VERIFIED rows, caller hashes and observation IDs are
+ * never sufficient. This remains private/unissued and retains the wallet slot.
+ */
+export async function reconcileMintResult(passportId: string, attemptId: string, input: unknown, reader: MintReader) {
+  const parsed = resultSchema.safeParse(input);
+  if (!parsed.success) throw new WorkflowError(422, "A saved matching transaction is required");
+  return readAttempt(passportId, attemptId, { kind: "result", transactionId: parsed.data.transactionId }, reader);
+}
+
+type Selection = { kind: "report"; hash: string | null } | { kind: "result"; transactionId: string };
+async function readAttempt(passportId: string, attemptId: string, selection: Selection, reader: MintReader) {
+  const before = await getDb().$transaction(async tx => {
+    const candidate = await load(tx, passportId, attemptId);
+    if (selection.kind === "report") return { ...candidate, hash: selection.hash };
+    const transaction = await tx.publicationMintTransaction.findFirst({ where: {
+      id: selection.transactionId, attemptId, nonce: candidate.attempt.nonce,
+    } });
+    if (!transaction) throw new WorkflowError(409, "Transaction does not belong to this mint attempt");
+    return { ...candidate, hash: transaction.transactionHash };
+  });
+  const hash = before.hash;
+  const startedAt = Date.now();
   let matched = false;
   let result: Awaited<ReturnType<typeof inspectMintTransaction>> | ReturnType<typeof unissued> = unissued("UNKNOWN");
   // The missing hash is a durable uncertainty marker, never a discovery or retry.
@@ -83,6 +109,15 @@ export async function observeMintAttempt(passportId: string, attemptId: string, 
     if (current.attempt.observationVersion !== before.attempt.observationVersion) {
       return { status: "SUPERSEDED" as const, issued: false as const, canResend: false as const };
     }
+    if (selection.kind === "result") {
+      if (Date.now() - startedAt >= resultFreshnessMs || Date.now() < startedAt) {
+        throw new WorkflowError(409, "Mint result read expired; no result was selected");
+      }
+      const transaction = await tx.publicationMintTransaction.findFirst({ where: {
+        id: selection.transactionId, attemptId, nonce: current.attempt.nonce, transactionHash: hash!,
+      } });
+      if (!transaction) throw new WorkflowError(409, "Saved transaction changed during result verification");
+    }
     let transactionId: string | null = null;
     if (matched && hash) {
       const existing = await tx.publicationMintTransaction.findUnique({ where: { transactionHash: hash } });
@@ -99,7 +134,21 @@ export async function observeMintAttempt(passportId: string, attemptId: string, 
     await tx.publicationMintAttempt.update({ where: { id: attemptId }, data: { observationVersion: revision } });
     await tx.auditLog.create({ data: { passportId, publicationId: current.publication.id, actorId: "system:publication-recovery",
       version: current.publication.passportVersion, action: "PUBLICATION_MINT_OBSERVED", fromStatus: "APPROVED", toStatus: "APPROVED", note: `Mint observation: ${row.id}` } });
+    // Only explicit fresh reconciliation can promote success. Any later report
+    // suspends the projection, even a successful diagnostic read: it is not a
+    // selected result. Retain the last verified receipt as historical evidence.
+    const previous = await tx.publicationMintResult.findUnique({ where: { attemptId } });
+    let resultStatus: "VERIFIED" | "SUSPENDED" | null = null;
+    if (selection.kind === "result" || previous) {
+      resultStatus = selection.kind === "result" && result.status === "VERIFIED" ? "VERIFIED" : "SUSPENDED";
+      const verifiedObservationId = resultStatus === "VERIFIED" ? row.id : previous?.verifiedObservationId ?? null;
+      const data = { status: resultStatus, checkedObservationId: row.id, verifiedObservationId,
+        verificationStatus: verifiedObservationId ? "VERIFIED" as const : null };
+      await tx.publicationMintResult.upsert({ where: { attemptId }, create: { attemptId, ...data }, update: data });
+      await tx.auditLog.create({ data: { passportId, publicationId: current.publication.id, actorId: "system:publication-recovery",
+        version: current.publication.passportVersion, action: "PUBLICATION_MINT_RESULT_CHECKED", fromStatus: "APPROVED", toStatus: "APPROVED", note: `Mint result ${resultStatus}: ${row.id}` } });
+    }
     return { ...result, observationId: row.id, revision, observedAt: row.observedAt.toISOString(), matchedTransactionId: transactionId,
-      historical: true as const };
+      historical: true as const, resultStatus };
   });
 }
