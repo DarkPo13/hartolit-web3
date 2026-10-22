@@ -9,6 +9,7 @@ const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAl
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
 const { observeMintAttempt, reconcileMintResult, finalizeMintPublication } = await jiti.import("../lib/publication/mint-observation.ts");
 const { beginMintDispatch, recordUnknownMintOutcome } = await jiti.import("../lib/publication/mint-dispatch.ts");
+const { discoverMintTransaction } = await jiti.import("../lib/publication/mint-discovery.ts");
 const rejects = (promise, status = 409) => assert.rejects(promise, error => error.status === status);
 
 export async function smokeMintFinalization({ db, publisherId, dispatched, chain, finalizationFixture, probe }) {
@@ -60,6 +61,10 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
   assert.equal((await attempt()).finalizedObservationId, first.observationId, "first finalization proof never changes on replay");
   assert.equal(await db.auditLog.count({ where: { publicationId: winner.publication.id, action: "PUBLICATION_MINT_FINALIZED" } }), 1);
   await rejects(recordUnknownMintOutcome(passportId, attemptId));
+  let lateSearchRpc = 0;
+  const searches = await db.publicationMintDiscovery.count({ where: { attemptId } });
+  await rejects(discoverMintTransaction(passportId, attemptId, {}, { ...base, getChainId: async () => { lateSearchRpc++; throw new Error(); } }));
+  assert.equal(lateSearchRpc, 0); assert.equal(await db.publicationMintDiscovery.count({ where: { attemptId } }), searches);
   await rejects(observeMintAttempt(passportId, attemptId, { transactionHash: null }, offline));
   await rejects(observeMintAttempt(passportId, attemptId, { transactionHash: `0x${randomBytes(32).toString("hex")}` }, offline));
 

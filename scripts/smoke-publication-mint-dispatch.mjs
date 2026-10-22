@@ -80,6 +80,8 @@ export async function smokeMintDispatch({ db, publisherId, candidates, chain }) 
   assert.equal(row.preparationId, winner.preparationId); assert.equal(row.requestId, attempts[index].body.requestId);
   assert.equal(row.publisherWallet, winner.intent.publisherWallet); assert.equal(row.chainId, 97);
   assert.equal(row.nonce, BigInt(command.request.nonce)); assert.equal(row.status, "DISPATCHING"); assert.equal(row.unknownAt, null);
+  const anchored = await base.getBlock({ blockNumber: row.dispatchBlockNumber });
+  assert.equal(row.dispatchBlockHash, anchored.hash); assert.equal(row.dispatchBlockNumber, anchored.number);
   assert.equal(command.request.data, winner.intent.data); assert.equal(command.request.to, winner.intent.contractAddress); assert.equal(command.request.value, "0");
   assert.equal(command.intentSha256, winner.intent.sha256); assert.equal(command.issued, false); assert.equal(command.canResend, false);
   assert.equal(await db.auditLog.count({ where: { publicationId: winner.publication.id, action: "PUBLICATION_MINT_DISPATCH_STARTED" } }), 1);

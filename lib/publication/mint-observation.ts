@@ -15,7 +15,7 @@ const resultSchema = z.strictObject({ transactionId: z.uuid() });
 const resultFreshnessMs = 15_000;
 const unissued = (status: "UNKNOWN" | "UNAVAILABLE" | "MISMATCH") => ({ status, issued: false as const, canResend: false as const });
 
-async function load(tx: Prisma.TransactionClient, passportId: string, attemptId: string) {
+export async function lockDispatchedMint(tx: Prisma.TransactionClient, passportId: string, attemptId: string) {
   const locked = await tx.passport.updateMany({ where: { id: passportId }, data: { updatedAt: new Date() } });
   if (!locked.count) throw new WorkflowError(404, "Passport not found");
   const attempt = await tx.publicationMintAttempt.findFirst({ where: { id: attemptId, preparation: { publication: { passportId } } },
@@ -53,7 +53,8 @@ async function load(tx: Prisma.TransactionClient, passportId: string, attemptId:
   const binding = canonicalize({ preparationId: preparation.id, pinAttemptId: pin.id, intentJson: preparation.intentJson,
     requestId: attempt.requestId, chainId: attempt.chainId, wallet: attempt.publisherWallet, nonce: attempt.nonce.toString(), walletChallengeId: pin.walletChallengeId,
     createdAt: attempt.createdAt.toISOString(), deadlineAt: attempt.deadlineAt.toISOString(),
-    pinTarget: pin.providerConfigHash, providerKey: pin.providerKey, pinVerifiedAt: pin.verifiedAt!.toISOString(), providerPinId: pin.providerPinId });
+    pinTarget: pin.providerConfigHash, providerKey: pin.providerKey, pinVerifiedAt: pin.verifiedAt!.toISOString(), providerPinId: pin.providerPinId,
+    dispatchBlockNumber: attempt.dispatchBlockNumber?.toString() ?? null, dispatchBlockHash: attempt.dispatchBlockHash });
   return { attempt, publication, intent, binding, finalized };
 }
 
@@ -89,7 +90,7 @@ export async function finalizeMintPublication(passportId: string, attemptId: str
 type Selection = { kind: "report"; hash: string | null } | { kind: "result" | "finalize"; transactionId: string };
 async function readAttempt(passportId: string, attemptId: string, selection: Selection, reader: MintReader) {
   const before = await getDb().$transaction(async tx => {
-    const candidate = await load(tx, passportId, attemptId);
+    const candidate = await lockDispatchedMint(tx, passportId, attemptId);
     if (selection.kind === "report") return { ...candidate, hash: selection.hash, history: null };
     const transaction = await tx.publicationMintTransaction.findFirst({ where: {
       id: selection.transactionId, attemptId, nonce: candidate.attempt.nonce,
@@ -128,9 +129,9 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
   // Every network read is outside the transaction. A concurrent observation wins
   // by revision; an older response cannot overwrite it or masquerade as fresh.
   return getDb().$transaction(async tx => {
-    const current = await load(tx, passportId, attemptId);
+    const current = await lockDispatchedMint(tx, passportId, attemptId);
     if (current.binding !== before.binding) throw new WorkflowError(409, "Mint commitment changed during observation");
-    if (current.attempt.observationVersion !== before.attempt.observationVersion) {
+    if (current.attempt.observationVersion !== before.attempt.observationVersion || current.attempt.discoveryVersion !== before.attempt.discoveryVersion) {
       return { status: "SUPERSEDED" as const, issued: false as const, canResend: false as const };
     }
     if (selection.kind !== "report") {

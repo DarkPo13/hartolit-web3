@@ -185,6 +185,15 @@ enum PublicationMintResultStatus {
   SUSPENDED
 }
 
+enum PublicationMintDiscoveryStatus {
+  FOUND
+  CONFLICT
+  SCANNED
+  CAUGHT_UP
+  REORG
+  UNAVAILABLE
+}
+
 enum AuditAction {
   DRAFT_CREATED
   DRAFT_UPDATED
@@ -216,6 +225,7 @@ enum AuditAction {
   PUBLICATION_MINT_RESULT_CHECKED
   PUBLICATION_MINT_FINALIZED
   PUBLICATION_MINT_QUARANTINED
+  PUBLICATION_MINT_SEARCHED
 }
 
 model Farmer {
@@ -496,6 +506,12 @@ model PublicationMintAttempt {
   finalizationStatus PublicationMintObservationStatus?
   finalizedObservation PublicationMintObservation? @relation("MintFinalization", fields: [finalizedObservationId, id, finalizationStatus], references: [id, attemptId, status], onDelete: NoAction)
   quarantinedAt   DateTime?
+  dispatchBlockNumber BigInt?
+  dispatchBlockHash String? @db.VarChar(66)
+  discoveryVersion Int @default(0)
+  discoveryBlockNumber BigInt?
+  discoveryBlockHash String? @db.VarChar(66)
+  discoveries PublicationMintDiscovery[]
 
   @@unique([id, nonce])
   @@unique([finalizedObservationId, id, finalizationStatus])
@@ -512,8 +528,10 @@ model PublicationMintTransaction {
   transactionHash String @unique @db.VarChar(66)
   createdAt       DateTime @default(now())
   observations    PublicationMintObservation[]
+  discoveries     PublicationMintDiscovery[]
 
   @@unique([id, attemptId])
+  @@unique([id, attemptId, transactionHash])
   @@index([attemptId])
 }
 
@@ -536,6 +554,29 @@ model PublicationMintObservation {
   @@unique([attemptId, revision])
   @@unique([id, attemptId])
   @@unique([id, attemptId, status])
+}
+
+// Append-only search pages. FOUND adopts an exact call/nonce, never a receipt or issuance.
+model PublicationMintDiscovery {
+  id                  String @id @default(uuid()) @db.Uuid
+  attemptId           String @db.Uuid
+  attempt             PublicationMintAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  revision            Int
+  status              PublicationMintDiscoveryStatus
+  fromBlock           BigInt?
+  throughBlock        BigInt?
+  throughBlockHash    String? @db.VarChar(66)
+  headBlock           BigInt?
+  headBlockHash       String? @db.VarChar(66)
+  scannedBlocks       Int @default(0)
+  scannedTransactions Int @default(0)
+  resetToDispatchAnchor Boolean @default(false)
+  transactionHash     String? @db.VarChar(66)
+  transactionId       String? @db.Uuid
+  transaction         PublicationMintTransaction? @relation(fields: [transactionId, attemptId, transactionHash], references: [id, attemptId, transactionHash], onDelete: Restrict)
+  observedAt          DateTime @default(now())
+
+  @@unique([attemptId, revision])
 }
 
 // A revocable, as-of projection. Never issuance, finality or permission to release a nonce.

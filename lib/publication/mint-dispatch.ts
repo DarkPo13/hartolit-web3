@@ -54,7 +54,8 @@ async function observedNonce(intent: MintIntent, reader: DispatchReader, history
     if (!Number.isSafeInteger(latest) || latest < 0 || latest !== pending || history.anchors.some(row => BigInt(latest) <= row.nonce) ||
       await reader.getTransactionCount({ address, blockTag: "pending" }) !== latest ||
       (await reader.getBlock({ blockNumber: head.number })).hash !== head.hash || await reader.getChainId() !== intent.chainId) throw new Error();
-    return { nonce: latest, startedAt };
+    if (head.number < 0n || head.number > BigInt(Number.MAX_SAFE_INTEGER) || !/^0x[0-9a-f]{64}$/.test(head.hash)) throw new Error();
+    return { nonce: latest, startedAt, blockNumber: head.number, blockHash: head.hash };
   } catch { throw new WorkflowError(503, "Mint readiness or an idle wallet nonce could not be verified; no send was authorized"); }
 }
 
@@ -82,6 +83,7 @@ export async function beginMintDispatch(adminId: string, passportId: string, inp
       const row = await tx.publicationMintAttempt.create({ data: {
         preparationId: current.preparation.id, requestId: data.requestId, chainId: current.intent.chainId,
         publisherWallet: current.intent.publisherWallet, nonce: BigInt(observation.nonce), createdAt: now, deadlineAt: new Date(now.getTime() + deadlineMs),
+        dispatchBlockNumber: observation.blockNumber, dispatchBlockHash: observation.blockHash,
       } });
       await tx.publication.update({ where: { id: current.reservation.id }, data: { status: "CHAIN_PENDING" } });
       await tx.auditLog.create({ data: { passportId, publicationId: current.reservation.id, actorId: adminId,

@@ -35,6 +35,7 @@ export async function smokeMintObservation({ db, publisherId, dispatched, chain 
   const txHash = `0x${randomBytes(32).toString("hex")}`, alternateHash = `0x${randomBytes(32).toString("hex")}`;
   const frame = syntheticMintFrame(winner.intent, command.request.nonce, code, txHash), base = frame.reader;
   const observe = (reported = txHash, reader = base) => observeMintAttempt(passportId, attemptId, { transactionHash: reported }, reader);
+  const priorTransactions = await db.publicationMintTransaction.count({ where: { attemptId } });
   const count = () => db.publicationMintObservation.count({ where: { attemptId } });
   let rpc = 0;
   const noRpc = { ...base, getChainId: async () => { rpc++; throw new Error(); } };
@@ -44,7 +45,7 @@ export async function smokeMintObservation({ db, publisherId, dispatched, chain 
   for (const patch of [{ nonce: frame.tx.nonce + 1 }, { input: `${frame.tx.input}00` }, { value: 1n }, { to: `0x${"f".repeat(40)}` }]) {
     assert.equal((await observe(undefined, { ...base, getTransaction: async () => ({ ...frame.tx, ...patch }) })).status, "MISMATCH");
   }
-  assert.equal(await db.publicationMintTransaction.count({ where: { attemptId } }), 0, "reported or mismatched hashes are not adopted");
+  assert.equal(await db.publicationMintTransaction.count({ where: { attemptId } }), priorTransactions, "reported or mismatched hashes are not adopted");
   assert.equal((await observe(undefined, { ...base, getTransaction: async () => ({ ...frame.tx, blockNumber: null, blockHash: null }) })).status, "PENDING");
   assert.equal((await observe(undefined, { ...base, getBlock: async () => ({ number: 5n, hash: hash("b") }) })).status, "CONFIRMING");
   const verified = await observe(); assert.equal(verified.status, "VERIFIED");
@@ -77,7 +78,7 @@ export async function smokeMintObservation({ db, publisherId, dispatched, chain 
   const reverted = await observe(alternateHash, { ...revertedFrame.reader, getTransactionReceipt: async () => ({ ...revertedFrame.receipt, status: "reverted", logs: [] }) });
   assert.equal(reverted.status, "REVERTED");
   assert.equal(JSON.parse((await db.publicationMintObservation.findUniqueOrThrow({ where: { id: reverted.observationId } })).resultJson).blockHash, revertedFrame.receipt.blockHash);
-  assert.equal(await db.publicationMintTransaction.count({ where: { attemptId } }), 2, "matching replacement candidates retain separate hash history");
+  assert.equal(await db.publicationMintTransaction.count({ where: { attemptId } }), priorTransactions + 2, "matching replacement candidates retain separate hash history");
   const beforeTamper = await count();
   const confirmation = await db.publicSnapshotConfirmation.findUniqueOrThrow({ where: { id: winner.publication.confirmationId } });
   let changed = false;
