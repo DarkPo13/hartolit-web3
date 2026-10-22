@@ -76,6 +76,8 @@ Current results, with dates and the machine they were taken on, live only in `.a
 | `npm run feedback:smoke` | Migrated PostgreSQL and production app at `BETTER_AUTH_URL` | Checks private feedback writes, authentication/MFA, origin, strict validation, stored values, retries, ownership and concurrent quota. Does not cover the dialog/form browser UX, the authorized admin inbox or real user research. |
 | `npm run publication:smoke` | Local migrated PostgreSQL, production build, free port 3001 (or `PUBLICATION_SMOKE_PORT`); starts/stops its own servers | Checks private reservation/proof, durable attempts, single dispatch permission, unknown recovery, SQL constraints and readback receipt persistence/concurrency. Provider HTTP transport is a test fixture; no live provider, upload/scan, browser wallet, public certificate or mint is tested. |
 | `npm run test:hash` | `npm ci` | Browser-specific crypto behavior or real IPFS and chain storage. |
+| `npm run test:upload` | `npm ci` | Checks server-owned target fingerprints, strict public bytes, exact UTF-8/raw upload and local-only guards with injected HTTP; does not prove actual network behavior, hosted compatibility or user consent UI. |
+| `npm run publication:smoke:offline` | As above, Docker and optional `kubo-local` Compose profile; free loopback ports 15001/18080 | Adds actual offline Kubo RPC/gateway upload, lost acknowledgement and blocked resend tests through temporary test-only tunnels. No public IPFS network, hosted TLS/auth/retention, blockchain or browser acceptance. |
 | `npm run test:public` | `npm ci` | Checks that the readable preview and both private confirmed views render every `2.0.0` public scalar with unissued/unpublished wording; does not test page authorization, browser interaction, database confirmation, an issued certificate, or future schema versions. |
 | `npm run test:button` | `npm ci` | Checks that Button `asChild` renders a single link with its label and optional icons. Does not test browser focus or navigation. |
 | `npm run test:wallet` | `npm ci` | Checks local EIP-191 recovery with real ephemeral EOA signatures, wrong wallets, changed messages and malformed signatures. Does not cover API auth, DB expiry/replay, browser wallet UX or contract wallets. |
@@ -84,7 +86,7 @@ Current results, with dates and the machine they were taken on, live only in `.a
 | `npm run test:public-boundary` | a production build running at `BETTER_AUTH_URL` | Checks that legacy `1.0.0` payload and verifier routes are unavailable in production; does not test a future `2.0.0` verifier. |
 | `npm run contracts:build`, `npm run contracts:test` | Foundry, plus `forge install --no-git OpenZeppelin/openzeppelin-contracts@v5.6.0 foundry-rs/forge-std@v1.16.1` run inside `contracts/` (`contracts/lib/` is gitignored) | Whether the hand-written ABI in `lib/contract.ts` matches the contract; the separate ABI check covers its declared subset. |
 | `node --experimental-strip-types scripts/check-contract-abi.mjs` | Node 24+, compiled Foundry artifact at `contracts/out/` | Whether the app declares every compiled function; it checks the 21 entries actually declared in `lib/contract.ts`. |
-| CI, `.github/workflows/ci.yml` (on every push) | a push to GitHub | Runs lint, typecheck, hash/public-preview/button/wallet/IPFS/capture tests, build, `db:deploy`, the public-boundary and drafts/evidence/review/feedback/publication/auth smokes, `npm audit --omit=dev --audit-level=high`, ABI comparison, and forge build + test. Does not run browser checks or anything hosted. |
+| CI, `.github/workflows/ci.yml` (on every push) | a push to GitHub | Runs lint, typecheck, hash/public-preview/button/wallet/IPFS/upload/capture tests, build, `db:deploy`, the public-boundary and drafts/evidence/review/feedback/publication/auth smokes, `npm audit --omit=dev --audit-level=high`, ABI comparison, and forge build + test. Does not run browser checks, the actual offline Kubo fixture or anything hosted. |
 
 Habits:
 
@@ -99,6 +101,7 @@ Habits:
 - Inspect before broad changes: `git status`, `git diff`, and read what you are about to overwrite.
 - Keep changes scoped to the task; leave unrelated pre-existing changes alone and say they exist.
 - **Commit only when asked. Push only when asked. Never force-push.**
+- **Standing user instruction, 2026-10-22:** commit each completed, verified functional increment separately. This authorizes those local commits; pushing still requires an explicit request. Include its focused tests/migration/context in the same commit and preserve unrelated work.
 - Only committed and pushed state travels between machines. Anything gitignored (`docs/`, `.env*.local`, `.env.db.local`, `.env.storage.local`, `generated/`, `contracts/lib/`) exists only where it was created.
 - Commit style from `git log`: an imperative, sentence-case subject ("Build…", "Replace…", "Remove…") with an optional prose body. Prefer a subject that states the finding over the activity, and a body with the measurements, what was rejected, and what remains unverified.
 

@@ -10,7 +10,7 @@ Hartolit performs drone crop-protection treatments in Ukraine. This application 
 
 **The stakes:** a published passport is permanent and public. A wrong hash, a private field in the snapshot, or a simulated certificate issued in production cannot be recalled; neither the chain nor pinned IPFS content can be edited. When in doubt, fail closed and do not publish.
 
-Current reality (2026-10-04): an authenticated MVP covering Phases 1–4 (accounts, drafts, private evidence, review and admin management), plus Phase 5 fact capture, public preview, private snapshot confirmation and admin-only unissued certificate/saved-hash views. The confirmation migration and live HTTP/DB smoke passed in CI and locally; local Chrome passes covered operator capture and submission plus admin confirmation and recall. The new private views passed a local migrated DB/HTTP smoke and desktop/mobile Chrome checks; hosted and clean-runner verification of this working tree remain open. Publication is not built; no contract is deployed; no real customer data may be entered. The live frontier is in `.ai/STATE.md`.
+Current reality (targeted publication refresh, 2026-10-21): an authenticated MVP covering Phases 1–4, plus Phase 5 fact capture, strict public confirmation/private unissued views, designated-publisher reservation, EOA ownership proof and an isolated browser-wallet UI. The pushed wallet/attempt/readback checkpoint has green CI; the newer local upload increment is uncommitted. Internal services bind a target/profile, dispatch once, and reconcile exact bytes/CID; an actual offline Kubo fixture tests the protocol locally. No app action invokes upload, no hosted provider is accepted, no external contract/passport is deployed, and no real customer data may be entered. User-facing publication consent, chain stages, issued/public views and operations remain open. The live frontier and validator evidence are in `.ai/STATE.md`.
 
 ## Repository structure
 
@@ -28,14 +28,15 @@ Single Next.js application (not a monorepo) plus a Foundry workspace.
 | `app/api/passport/[tokenId]` | Legacy `1.0.0` demo read of on-chain data and IPFS; unavailable outside local demo mode. |
 | `lib/drafts/`, `lib/evidence/`, `lib/review/` | Server services: transactions, optimistic concurrency, audit, storage, scanning, workflow. |
 | `lib/public-snapshot/` | Strict `2.0.0` public schema, allowlisted preview builder and private confirmation service. No publication writer yet. |
+| `lib/publication/` | Private reservation/proof, durable pin attempts, server-owned target/profile binding, internal upload driver and exact-byte readback. Offline-only Kubo fixture; no publication HTTP action or hosted uploader. |
 | `lib/auth*.ts`, `lib/db*.ts`, `lib/demo-mode.ts` | Auth configuration, actor lookup and guards, Prisma client, demo switch. |
 | `lib/hash.ts`, `lib/contract.ts`, `lib/ipfs.ts`, `lib/wagmi.ts` | Canonical JSON + SHA-256, hand-written contract ABI, Pinata REST client, wallet config. |
 | `lib/i18n/` | Ukrainian (default) and English translations behind a typed `Translations` object. |
 | `components/drafts/` | Draft workspace, evidence panel, review status. `components/wizard/`, `form/`, `web3/` belong to the demo wizard. |
-| `prisma/` | `schema.prisma` and ten migrations, including three additive Phase 5 migrations. The client is generated into `generated/prisma/` (gitignored). |
+| `prisma/` | `schema.prisma` and sixteen migrations, including additive confirmation/proof/attempt/receipt/target migrations. The client is generated into `generated/prisma/` (gitignored). |
 | `contracts/` | Foundry: `src/HartolitFieldPassport.sol`, `test/HartolitFieldPassport.t.sol` (22 test functions), `script/Deploy.s.sol`. `contracts/lib/` is gitignored and installed by `forge install`. |
 | `scripts/`, `tests/` | Local setup, fictional seed, evidence cleanup, four live smoke tests, the compiled-contract ABI check, JSON hash regression and public-preview rendering test. |
-| `compose.yaml` | Local services: PostgreSQL, Mailpit, SeaweedFS, ClamAV, all bound to loopback. |
+| `compose.yaml` | Local PostgreSQL, Mailpit, SeaweedFS and ClamAV bound to loopback; optional offline Kubo profile on an internal network without published ports. |
 | `.github/workflows/ci.yml` | CI: a `web` job (with Postgres, SeaweedFS, ClamAV and Mailpit service containers) and a `contract` job (Foundry). |
 | `docs/` | **Gitignored.** Holds local-only planning and presentation documents; not present in a clone (D12). |
 
@@ -69,7 +70,7 @@ Versions reflect `package.json` on 2026-10-04. "Pinned" means an exact version i
 | Email | Nodemailer 10.0.14 over SMTP; Mailpit locally | Used for password reset and operator password setup invitations. Reset returns 503 when SMTP is not configured. |
 | Client state | Zustand 5 with tab-scoped `sessionStorage` | PostgreSQL is authoritative for signed-in drafts; the tab store only recovers unsynced edits and the demo wizard (D11). |
 | UI | Tailwind CSS 4.3, React Hook Form 7, custom i18n context | No external i18n library. |
-| Chain client | viem 2, wagmi 2, RainbowKit 2 | Wallet UI loads only in demo mode. |
+| Chain client | viem 2, wagmi 2, RainbowKit 2 | Legacy demo stack stays isolated; the private publisher uses a separate client-only injected/Testnet wallet provider without persistent storage. |
 | Contract | Solidity, `pragma ^0.8.24`, compiled with solc 0.8.28 (`contracts/foundry.toml`, EVM `cancun`); OpenZeppelin v5.6.0 and forge-std v1.16.1 installed by `forge install` | Not vendored: `contracts/lib/` is gitignored and CI installs the pinned tags. |
 | IPFS | Pinata REST API via `fetch` (`lib/ipfs.ts`); there is no Pinata SDK dependency | Only the demo path uses it, and the demo refuses a real `PINATA_JWT` (D2). |
 | Node | CI uses Node 24 | README says ≥ 20.10. |
@@ -81,7 +82,7 @@ Versions reflect `package.json` on 2026-10-04. "Pinned" means an exact version i
   - Farmer, Field, Passport and EvidenceFile carry `ownerId`. Composite foreign keys `(id, ownerId)` stop cross-owner references at the database level.
   - Deletes are `Restrict`, except that the reviewer links and the meteo/chemical source-file links are `SetNull`.
 - **Audit:** `AuditLog` is append-only in code and records passport actor, action, version, from/to status and an optional note. `AdminAction` records actor, action and entity ID for record and operator access changes without private field values. There is no update or delete path outside smoke-test cleanup.
-- **Publication:** the model exists (idempotency key, snapshot, payload hash, CID, chain, contract, tx, token; unique constraints on the hash and on the chain/contract/token triple). It is only read by the admin record list; nothing writes it yet (Phase 5).
+- **Publication:** private reservation, wallet challenge and pin attempt services write the exact confirmation, proof/context, target/profile binding, dispatch uncertainty and verified IPFS receipt. The passport lock serializes them with recall. `PINNED` is not issued; chain/contract/tx/token remain unset. No app upload endpoint, scheduler, hosted uploader or public `2.0.0` reader is enabled. See D29–D33 and STATE.
 - **Private confirmation:** an approving MFA reviewer can persist exact allowlisted public JSON, hash and selected evidence IDs for an approved version. Recall invalidates it. No public read or publication side effect exists. Migration, live DB smoke and a focused local admin browser pass succeeded on 2026-10-04; hosted acceptance remains open.
 - **Evidence bytes** live in the private bucket under `EvidenceFile.objectKey`, never in PostgreSQL. `npm run evidence:prune` cleans stale quarantine objects; it previews by default and deletes only with `--execute`.
 - **Configuration:** variable names only are listed in `.env.local.example`. Local values are generated into gitignored `.env.local`, `.env.db.local` and `.env.storage.local` by `npm run db:setup` and `npm run evidence:setup`.

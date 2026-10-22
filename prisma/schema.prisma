@@ -415,6 +415,9 @@ model PublicationPinAttempt {
   deadlineAt        DateTime?
   closedAt          DateTime?
   expectedCid       String? @db.VarChar(255)
+  providerKey       String? @db.VarChar(80)
+  providerConfigHash String? @db.Char(64)
+  storageProfile    String? @db.VarChar(64)
   verifiedCid       String? @db.VarChar(255)
   providerPinId     String? @db.VarChar(128)
   verifiedAt        DateTime?

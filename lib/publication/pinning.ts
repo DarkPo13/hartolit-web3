@@ -7,6 +7,7 @@ import { WorkflowError } from "@/lib/review/service";
 import { lockReservedPublication } from "./service";
 import { requireStoredWalletProof } from "./wallet-proof";
 import { MAX_PUBLIC_BLOCK_BYTES, rawCidFromSha256 } from "./raw-cid";
+import { validatePublicationTarget, type PublicationTarget } from "./target";
 
 const prepareSchema = z.strictObject({
   publicationId: z.uuid(), requestId: z.uuid(), confirmationId: z.uuid(),
@@ -39,8 +40,11 @@ async function audit(tx: Prisma.TransactionClient, passportId: string, publicati
  * A future authenticated caller must obtain a separate explicit publication decision.
  * Wallet ownership signing alone never calls this function or authorizes dispatch.
  */
-export async function preparePinAttempt(adminId: string, passportId: string, input: unknown) {
+export async function preparePinAttempt(adminId: string, passportId: string, input: unknown, selectedTarget: PublicationTarget) {
   const data = parsePreparation(input);
+  let target: PublicationTarget;
+  try { target = await validatePublicationTarget(selectedTarget); }
+  catch { throw new WorkflowError(503, "A valid server-owned publication target is required"); }
   return getDb().$transaction(async (tx) => {
     const { reservation, confirmation } = await lockReservedPublication(tx, adminId, passportId, data.publicationId);
     if (data.confirmationId !== confirmation.id || data.passportVersion !== reservation.passportVersion || data.expectedSha256 !== reservation.payloadHash) {
@@ -52,7 +56,8 @@ export async function preparePinAttempt(adminId: string, passportId: string, inp
     }
     const existing = await tx.publicationPinAttempt.findUnique({ where: { requestId: data.requestId } });
     if (existing) {
-      if (existing.publicationId !== reservation.id || existing.walletChallengeId !== proof.id || existing.status !== "PREPARED") {
+      if (existing.publicationId !== reservation.id || existing.walletChallengeId !== proof.id || existing.status !== "PREPARED" ||
+        existing.providerKey !== target.key || existing.providerConfigHash !== target.configurationSha256 || existing.storageProfile !== target.storageProfile) {
         throw new WorkflowError(409, "This publication request cannot be reused");
       }
       return { attempt: response(existing), created: false };
@@ -64,6 +69,7 @@ export async function preparePinAttempt(adminId: string, passportId: string, inp
     const attempt = await tx.publicationPinAttempt.create({ data: {
       publicationId: reservation.id, walletChallengeId: proof.id, requestId: data.requestId,
       expectedCid: rawCidFromSha256(reservation.payloadHash),
+      providerKey: target.key, providerConfigHash: target.configurationSha256, storageProfile: target.storageProfile,
     } });
     await audit(tx, passportId, reservation.id, attempt.id, adminId, reservation.passportVersion, "PUBLICATION_PIN_PREPARED");
     return { attempt: response(attempt), created: true };
@@ -88,13 +94,17 @@ export async function cancelPreparedPinAttempt(adminId: string, passportId: stri
  * Exactly one caller receives the command. Repeated calls always conflict; a lost response
  * is an unknown outcome, never permission to resend. No external I/O runs in this transaction.
  */
-export async function beginPinDispatch(adminId: string, passportId: string, publicationId: string, attemptId: string) {
+export async function beginPinDispatch(adminId: string, passportId: string, publicationId: string, attemptId: string, selectedTarget: PublicationTarget) {
+  let target: PublicationTarget;
+  try { target = await validatePublicationTarget(selectedTarget); }
+  catch { throw new WorkflowError(503, "A valid server-owned publication target is required"); }
   return getDb().$transaction(async (tx) => {
     const { reservation, confirmation } = await lockReservedPublication(tx, adminId, passportId, publicationId);
     const proof = await requireStoredWalletProof(tx, adminId, reservation, confirmation);
     const attempt = await tx.publicationPinAttempt.findFirst({ where: { id: attemptId, publicationId } });
     if (!attempt) throw new WorkflowError(404, "Pin attempt not found");
-    if (attempt.status !== "PREPARED" || attempt.walletChallengeId !== proof.id || reservation.ipfsCid ||
+    if (attempt.status !== "PREPARED" || attempt.walletChallengeId !== proof.id ||
+      attempt.providerKey !== target.key || attempt.providerConfigHash !== target.configurationSha256 || attempt.storageProfile !== target.storageProfile || reservation.ipfsCid ||
       reservation.transactionHash || reservation.tokenId || reservation.contractAddress) {
       throw new WorkflowError(409, "Pin attempt cannot be dispatched");
     }

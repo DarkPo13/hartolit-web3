@@ -22,7 +22,7 @@ function endpoint(value: string | undefined) {
   return url;
 }
 
-async function boundedBody(response: Response, maxBytes: number) {
+export async function readBoundedIpfsBody(response: Response, maxBytes: number) {
   if (response.status !== 200 || !response.body) {
     await response.body?.cancel().catch(() => {});
     throw new IpfsReadError();
@@ -66,7 +66,7 @@ export function createPinReader(config: { apiUrl?: string; token?: string; gatew
         pinsUrl.search = new URLSearchParams({ cid: expectedCid, status: "pinned", limit: "2" }).toString();
         const pinsResponse = await request(pinsUrl, { method: "GET", cache: "no-store", redirect: "error",
           signal: AbortSignal.timeout(10_000), headers: { accept: "application/json", authorization: `Bearer ${token}` } });
-        const pins = pinsSchema.parse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(await boundedBody(pinsResponse, 32 * 1024))));
+        const pins = pinsSchema.parse(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(await readBoundedIpfsBody(pinsResponse, 32 * 1024))));
         if (pins.count < pins.results.length || pins.results.some((row) => row.pin.cid !== expectedCid)) throw new IpfsReadError();
         const pin = pins.results[0];
         if (!pin) return { kind: "not-confirmed" };
@@ -77,7 +77,7 @@ export function createPinReader(config: { apiUrl?: string; token?: string; gatew
           await blockResponse.body?.cancel().catch(() => {});
           throw new IpfsReadError();
         }
-        return { kind: "pinned", cid: expectedCid, pinId: pin.requestid, bytes: await boundedBody(blockResponse, MAX_PUBLIC_BLOCK_BYTES) };
+        return { kind: "pinned", cid: expectedCid, pinId: pin.requestid, bytes: await readBoundedIpfsBody(blockResponse, MAX_PUBLIC_BLOCK_BYTES) };
       } catch { throw new IpfsReadError(); }
     };
   } catch { throw new IpfsReadError(); }

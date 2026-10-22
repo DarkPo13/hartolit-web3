@@ -15,6 +15,9 @@ const lifecycle = await jiti.import("../lib/publication/pinning.ts");
 const { reconcilePinAttempt } = await jiti.import("../lib/publication/reconciliation.ts");
 const { createPinReader } = await jiti.import("../lib/publication/ipfs-reader.ts");
 const { rawCidFromSha256 } = await jiti.import("../lib/publication/raw-cid.ts");
+const { createPublicationTarget, RAW_PIN_PROFILE } = await jiti.import("../lib/publication/target.ts");
+const target = await createPublicationTarget({ key: "fictional-readback", kind: "kubo-raw-v1", accountScope: "fictional-smoke",
+  apiUrl: "https://pin.example.invalid", gatewayUrl: "https://gateway.example.invalid", storageProfile: RAW_PIN_PROFILE });
 const rejects = (promise, status = 409) => assert.rejects(promise, (error) => error.status === status);
 
 function input(publicationId, confirmation, version) {
@@ -28,6 +31,9 @@ async function constraints(db, publicationId, attemptId, challengeId) {
   try {
     for (const [query, values, code, constraint] of [
       ['UPDATE "PublicationPinAttempt" SET "status" = \'DISPATCHING\' WHERE "id" = $1', [attemptId], "23514", "PublicationPinAttempt_timestamps_check"],
+      ['UPDATE "PublicationPinAttempt" SET "providerKey" = NULL WHERE "id" = $1', [attemptId], "23514", "PublicationPinAttempt_target_check"],
+      ['UPDATE "PublicationPinAttempt" SET "providerConfigHash" = \'invalid\' WHERE "id" = $1', [attemptId], "23514", "PublicationPinAttempt_target_check"],
+      ['UPDATE "PublicationPinAttempt" SET "storageProfile" = \'unixfs\' WHERE "id" = $1', [attemptId], "23514", "PublicationPinAttempt_target_check"],
       ['INSERT INTO "PublicationPinAttempt" ("id", "publicationId", "walletChallengeId", "requestId") VALUES ($1,$2,$3,$4)',
         [randomUUID(), publicationId, challengeId, randomUUID()], "23505", "PublicationPinAttempt_one_active_per_publication"],
     ]) {
@@ -41,7 +47,7 @@ async function constraints(db, publicationId, attemptId, challengeId) {
 
 export async function smokePinPreparation({ db, publisherId, passportId, publicationId, confirmation, proof, weatherFileId }) {
   const data = input(publicationId, confirmation, 4);
-  const prepare = (patch = {}, actor = publisherId) => lifecycle.preparePinAttempt(actor, passportId, { ...data, ...patch });
+  const prepare = (patch = {}, actor = publisherId) => lifecycle.preparePinAttempt(actor, passportId, { ...data, ...patch }, target);
   await rejects(prepare({ acknowledgement: undefined }), 422);
   await rejects(prepare({ privateField: "not permitted" }), 422);
   await rejects(prepare({}, "not-the-publisher"), 403);
@@ -69,7 +75,7 @@ export async function smokePinPreparation({ db, publisherId, passportId, publica
   assert.equal(await db.auditLog.count({ where: { publicationId, action: "PUBLICATION_PIN_PREPARED" } }), 1);
   await rejects(prepare({ requestId: randomUUID() }));
   await constraints(db, publicationId, attemptId, savedProof.id);
-  const begin = () => lifecycle.beginPinDispatch(publisherId, passportId, publicationId, attemptId);
+  const begin = () => lifecycle.beginPinDispatch(publisherId, passportId, publicationId, attemptId, target);
   await db.evidenceFile.update({ where: { id: weatherFileId }, data: { objectPurgedAt: new Date() } });
   await rejects(begin(), 422);
   await db.evidenceFile.update({ where: { id: weatherFileId }, data: { objectPurgedAt: null } });
@@ -99,8 +105,8 @@ async function prove(api, user, route, publicationId, signingAccount) {
 export async function smokePinDispatch({ api, db, publisherId, publisher, passportId, publicationId, confirmation, signingAccount }) {
   const route = `/api/admin/passports/${passportId}/publication`;
   await prove(api, publisher, route, publicationId, signingAccount);
-  const { attempt } = await lifecycle.preparePinAttempt(publisherId, passportId, input(publicationId, confirmation, 8));
-  const begin = () => lifecycle.beginPinDispatch(publisherId, passportId, publicationId, attempt.id);
+  const { attempt } = await lifecycle.preparePinAttempt(publisherId, passportId, input(publicationId, confirmation, 8), target);
+  const begin = () => lifecycle.beginPinDispatch(publisherId, passportId, publicationId, attempt.id, target);
   const replies = await Promise.allSettled([begin(), begin(), begin()]);
   assert.equal(replies.filter((result) => result.status === "fulfilled").length, 1, "only one caller receives dispatch permission");
   assert.ok(replies.filter((result) => result.status === "rejected").every((result) => result.reason.status === 409));
@@ -125,7 +131,7 @@ export async function smokePinDispatch({ api, db, publisherId, publisher, passpo
   assert.equal(await db.auditLog.count({ where: { publicationId, action: "PUBLICATION_PIN_OUTCOME_UNKNOWN" } }), 1);
   assert.equal((await lifecycle.recordUnknownPinOutcome(passportId, publicationId, attempt.id)).status, "UNKNOWN");
   await rejects(begin());
-  await rejects(lifecycle.preparePinAttempt(publisherId, passportId, input(publicationId, confirmation, 8)));
+  await rejects(lifecycle.preparePinAttempt(publisherId, passportId, input(publicationId, confirmation, 8), target));
   assert.equal((await recall()).status, 409, "unknown is not a retryable no-effect failure");
   const final = await db.publication.findUniqueOrThrow({ where: { id: publicationId } });
   assert.equal(final.status, "PINNING"); assert.equal(final.ipfsCid, null); assert.equal(final.transactionHash, null); assert.equal(final.tokenId, null);
@@ -145,7 +151,7 @@ async function smokeReconciliation({ api, db, publisherId, publisher, passportId
       assert.equal(options.headers.authorization, undefined);
       return new Response(bytes, { headers: { "content-type": "application/vnd.ipld.raw" } });
     });
-  const reconcile = (read = reader) => reconcilePinAttempt(passportId, publicationId, attemptId, read);
+  const reconcile = (read = reader) => reconcilePinAttempt(passportId, publicationId, attemptId, target, read);
   assert.equal((await reconcile(async () => ({ kind: "not-confirmed" }))).status, "UNKNOWN");
   await rejects(reconcile(async () => { throw new Error("fictional timeout"); }), 503);
   for (const patch of [{ bytes: new TextEncoder().encode(`${confirmation.preview.canonicalJson}\n`) },
@@ -205,9 +211,9 @@ async function smokeReconciliation({ api, db, publisherId, publisher, passportId
 
 export async function smokePinRecallRace({ api, db, publisherId, publisher, passportId, publicationId, confirmation, signingAccount }) {
   await prove(api, publisher, `/api/admin/passports/${passportId}/publication`, publicationId, signingAccount);
-  const { attempt } = await lifecycle.preparePinAttempt(publisherId, passportId, input(publicationId, confirmation, 4));
+  const { attempt } = await lifecycle.preparePinAttempt(publisherId, passportId, input(publicationId, confirmation, 4), target);
   const [start, recall] = await Promise.allSettled([
-    lifecycle.beginPinDispatch(publisherId, passportId, publicationId, attempt.id),
+    lifecycle.beginPinDispatch(publisherId, passportId, publicationId, attempt.id, target),
     api(`/api/admin/passports/${passportId}/decision`, { user: publisher, method: "POST", body: {
       version: 4, decision: "CORRECTION_REQUIRED", note: "Fictional dispatch/recall race" } }),
   ]);

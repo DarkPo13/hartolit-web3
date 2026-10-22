@@ -497,7 +497,7 @@ The interface is available in Ukrainian and English. Local Chromium checks used 
 
 ### Durable pinning boundary — internal foundation
 
-Apply migrations `20261021170000_publication_pin_attempt` and `20261021171000_publication_pin_verification` before running this version. `lib/publication/pinning.ts` is a server-only service with **no HTTP endpoint, Server Action, worker or upload adapter wired to it**. The ownership panel still cannot start publication. A future authenticated publication action must separately obtain explicit acknowledgement of the exact confirmation ID, version and hash; ownership signing alone is insufficient.
+Apply all migrations with `npm run db:deploy`, including `20261021185106_publication_upload_target`. `lib/publication/pinning.ts` is a server-only service with **no HTTP endpoint, Server Action, worker or configured production uploader**. An internal upload driver and an offline-only Kubo fixture now exercise the boundary locally. The ownership panel still cannot start publication. A future authenticated publication action must separately obtain explicit acknowledgement of the exact confirmation ID, version and hash; ownership signing alone is insufficient.
 
 | Attempt state | Meaning | Permitted recovery |
 |---|---|---|
@@ -509,7 +509,7 @@ Apply migrations `20261021170000_publication_pin_attempt` and `20261021171000_pu
 
 Preparation and dispatch recheck current publisher configuration, active MFA administrator, approved version, exact saved bytes, selected READY evidence, and the complete consumed/unrevoked wallet signature. A challenge consumed before its five-minute deadline remains valid afterwards; its stored signature/context are checked again. All transitions share the passport lock with recall. PostgreSQL additionally enforces one active attempt per publication, timestamp consistency and a proof belonging to the same publication. Only one concurrent caller receives the saved canonical bytes and stable provider idempotency key. Provider idempotency support is still unverified; this is not an exactly-once network-delivery guarantee.
 
-Internal recovery may mark an attempt unknown even if the initiating administrator has since lost access. Its audit actor is explicitly `system:publication-recovery`. Expiry is never treated as proof that nothing was published. Readback and verified-CID persistence now exist internally; automatic retry after dispatch, upload, chain stages and a recovery scheduler remain unbuilt.
+Internal recovery may mark an attempt unknown even if the initiating administrator has since lost access. Its audit actor is explicitly `system:publication-recovery`. Expiry is never treated as proof that nothing was published. Readback and verified-CID persistence now exist internally; automatic retry after dispatch, a hosted uploader, chain stages and a recovery scheduler remain unbuilt.
 
 The expanded `publication:smoke` exercises these internal services against real PostgreSQL and real ephemeral wallet proofs, alongside the existing production HTTP checks. It covers explicit acknowledgement, invalid/revoked stored proof, concurrent preparation/dispatch, cancellation/retry before dispatch, recall races, exact dispatch bytes, SQL constraints, timeout recovery and blocked resending. The readback fixture runs the read-only adapter with fictional HTTP responses and checks exact stored receipts; it does not establish live provider behavior, hosted recovery or a publication UI.
 
@@ -521,7 +521,29 @@ The current storage profile is deliberately narrow: one block of at most 64 KiB,
 
 `reconcilePinAttempt` is an internal service, with no HTTP/worker entry point. Network reads run outside database transactions; the saved confirmation, hash, CID binding and dispatched attempt are rechecked under the passport lock before storing the receipt. A matching pinned status alone, or matching gateway bytes alone, is insufficient. Successful verification atomically stores `VERIFIED`, CID, provider pin ID, verification time, publication `PINNED` and one system audit event. Concurrent repeats converge without replacing the receipt. Missing/malformed/unavailable reads stay blocked as `UNKNOWN`; a stale negative response rereads current state before reporting uncertainty. An already verified repeat returns the saved historical receipt, not a new availability guarantee.
 
-Recovery records the result of an already authorized dispatch even if its initiator is now banned; it grants no new publishing permission. It does not mint, mark the certificate issued, permit a post-dispatch retry or open public access. The test transport creates no real pin. Provider choice and live readback/upload compatibility, retention monitoring, explicit publication UI and chain issuance remain release work. `npm run test:ipfs` checks an independent spec vector and the HTTP boundary; the publication smoke checks the actual persisted receipt, invalid data, races and SQL constraints.
+Recovery records the result of an already authorized dispatch even if its initiator is now banned; it grants no new publishing permission. It does not mint, mark the certificate issued, permit a post-dispatch retry or open public access. The default test transport creates no real pin; the optional fixture below stores only fictional blocks on an offline local node. Provider choice and live readback/upload compatibility, retention monitoring, explicit publication UI and chain issuance remain release work. `npm run test:ipfs` checks an independent spec vector and the HTTP boundary; the publication smoke checks the actual persisted receipt, invalid data, races and SQL constraints.
+
+### Local upload and recovery fixture
+
+`preparePinAttempt` now requires a server-owned target: provider key, protocol, non-secret account scope, normalized API/gateway origins and raw storage profile. Its fingerprint and profile are saved before dispatch and checked again before upload and every readback. A changed target or a historical attempt without a binding is rejected; it is never silently rebound. Credentials are not stored in this description. This is configuration binding, not independent attestation of a remote provider's identity.
+
+The internal `executePinUpload` driver consumes one dispatch permission, uploads the exact confirmed UTF-8 block, then verifies pin status and bytes before saving `PINNED`. Upload acknowledgement alone is insufficient. If the acknowledgement is lost after storage, readback can recover the result. If storage cannot be established, the attempt stays blocked and cannot be resent. No browser route or production configuration calls this driver yet.
+
+The local adapter follows [Kubo's block/put and pin/ls RPC](https://docs.ipfs.tech/reference/kubo/rpc/). It validates the strict public schema, canonical bytes/hash/CID and 64 KiB limit before I/O, pins the raw block and checks its returned CID/byte count. It rejects production execution and non-loopback endpoints. It is a protocol fixture, **not the selected hosted IPFS service**; choosing it does not activate public publishing.
+
+To run the optional actual-node check after local database setup:
+
+```sh
+docker compose --env-file .env.db.local --profile publication-local up -d postgres kubo-local
+npm run db:deploy
+npm run build
+npm run publication:smoke:offline
+docker compose --env-file .env.db.local --profile publication-local stop postgres kubo-local
+```
+
+The fixture uses Kubo `v0.43.1`, `--offline`, an internal Docker network, no published container ports and an ephemeral repository. The smoke verifies that isolation and opens temporary **loopback-only** tunnels on ports 15001/18080 through `docker exec`; they close in its `finally` block. Port 3001 must also be free. The test covers successful storage, concurrent requests, lost acknowledgement, failure before writing, target mismatch, historical unbound attempts, SQL target constraints and blocked resending. Only its fictional blocks/pins and database records are cleaned; it does not contact the public IPFS network. Stopping the fixture discards its ephemeral repository. These checks do not establish hosted TLS/authentication, provider retention, installed-wallet or public issuance acceptance.
+
+`npm run test:upload` and the default `publication:smoke` use injected transport and do not need Docker Kubo. Both are configured in CI; the optional offline-node check is local only. The current CI result covers only its exact committed SHA, not uncommitted changes.
 
 ## Product feedback and responsible treatment reminder
 

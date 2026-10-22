@@ -6,10 +6,11 @@ import { canonicalize, sha256Hex } from "@/lib/hash";
 import { publicSnapshotSchema } from "@/lib/public-snapshot/schema";
 import { WorkflowError } from "@/lib/review/service";
 import { rawCidFromSha256, verifyPublicRawBlock } from "./raw-cid";
-import { readPinnedRawBlock, type PinReader } from "./ipfs-reader";
+import type { PinReader } from "./ipfs-reader";
 import { recordUnknownPinOutcome } from "./pinning";
+import { validatePublicationTarget, type PublicationTarget } from "./target";
 
-async function loadCandidate(tx: Prisma.TransactionClient, passportId: string, publicationId: string, attemptId: string) {
+async function loadCandidate(tx: Prisma.TransactionClient, passportId: string, publicationId: string, attemptId: string, target: PublicationTarget) {
   const locked = await tx.passport.updateMany({ where: { id: passportId }, data: { updatedAt: new Date() } });
   if (!locked.count) throw new WorkflowError(404, "Passport not found");
   const publication = await tx.publication.findFirst({ where: { id: publicationId, passportId }, include: { confirmation: true, passport: {
@@ -17,6 +18,9 @@ async function loadCandidate(tx: Prisma.TransactionClient, passportId: string, p
   } } });
   const attempt = await tx.publicationPinAttempt.findFirst({ where: { id: attemptId, publicationId } });
   if (!publication || !attempt) throw new WorkflowError(404, "Pin attempt not found");
+  if (attempt.providerKey !== target.key || attempt.providerConfigHash !== target.configurationSha256 || attempt.storageProfile !== target.storageProfile) {
+    throw new WorkflowError(409, "Readback target does not match the dispatched publication");
+  }
   const confirmation = publication.confirmation, passport = publication.passport;
   let snapshot;
   try { snapshot = publicSnapshotSchema.parse(JSON.parse(confirmation.canonicalJson)); }
@@ -50,14 +54,17 @@ function result(cid: string, verifiedAt: Date) {
  * Recording an already public result must still work after the initiating user/config is revoked.
  * No new dispatch, upload, mint, retry permission or public certificate is produced here.
  */
-export async function reconcilePinAttempt(passportId: string, publicationId: string, attemptId: string, reader: PinReader = readPinnedRawBlock) {
-  const before = await getDb().$transaction((tx) => loadCandidate(tx, passportId, publicationId, attemptId));
+export async function reconcilePinAttempt(passportId: string, publicationId: string, attemptId: string, selectedTarget: PublicationTarget, reader: PinReader) {
+  let target: PublicationTarget;
+  try { target = await validatePublicationTarget(selectedTarget); }
+  catch { throw new WorkflowError(503, "A valid server-owned readback target is required"); }
+  const before = await getDb().$transaction((tx) => loadCandidate(tx, passportId, publicationId, attemptId, target));
   if (before.verified) return result(before.attempt.verifiedCid!, before.attempt.verifiedAt!);
   // Once readback starts, an uncertain outcome remains durable even if this process crashes.
   try { await recordUnknownPinOutcome(passportId, publicationId, attemptId); }
   catch (error) {
     if (!(error instanceof WorkflowError) || error.status !== 409) throw error;
-    const concurrent = await getDb().$transaction((tx) => loadCandidate(tx, passportId, publicationId, attemptId));
+    const concurrent = await getDb().$transaction((tx) => loadCandidate(tx, passportId, publicationId, attemptId, target));
     if (concurrent.verified) return result(concurrent.attempt.verifiedCid!, concurrent.attempt.verifiedAt!);
     throw error;
   }
@@ -69,19 +76,20 @@ export async function reconcilePinAttempt(passportId: string, publicationId: str
       await verifyPublicRawBlock(before.publication.canonicalJson, before.publication.payloadHash, receipt.cid, receipt.bytes);
     }
   } catch {
-    const current = await getDb().$transaction((tx) => loadCandidate(tx, passportId, publicationId, attemptId));
+    const current = await getDb().$transaction((tx) => loadCandidate(tx, passportId, publicationId, attemptId, target));
     if (current.verified) return result(current.attempt.verifiedCid!, current.attempt.verifiedAt!);
     throw new WorkflowError(503, "IPFS result is unverified; publication remains blocked pending readback");
   }
   if (receipt.kind === "not-confirmed") {
-    const current = await getDb().$transaction((tx) => loadCandidate(tx, passportId, publicationId, attemptId));
+    const current = await getDb().$transaction((tx) => loadCandidate(tx, passportId, publicationId, attemptId, target));
     return current.verified ? result(current.attempt.verifiedCid!, current.attempt.verifiedAt!) : { status: "UNKNOWN" as const, issued: false as const };
   }
   // Network I/O is outside the transaction. Recheck the complete immutable commitment after it.
   return getDb().$transaction(async (tx) => {
-    const current = await loadCandidate(tx, passportId, publicationId, attemptId);
+    const current = await loadCandidate(tx, passportId, publicationId, attemptId, target);
     if (current.publication.canonicalJson !== before.publication.canonicalJson || current.publication.payloadHash !== before.publication.payloadHash ||
       current.attempt.expectedCid !== before.attempt.expectedCid || current.attempt.walletChallengeId !== before.attempt.walletChallengeId ||
+      current.attempt.providerKey !== before.attempt.providerKey || current.attempt.providerConfigHash !== before.attempt.providerConfigHash || current.attempt.storageProfile !== before.attempt.storageProfile ||
       current.attempt.dispatchedAt?.getTime() !== before.attempt.dispatchedAt?.getTime()) {
       throw new WorkflowError(409, "Dispatched publication changed during readback");
     }

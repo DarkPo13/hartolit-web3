@@ -1,16 +1,17 @@
 # STATE — the frontier
 
-- **Last updated:** 2026-10-21
+- **Last updated:** 2026-10-22
 - **Branch:** `master`
+- **Commit workflow:** user authorized separate local commits after each verified functional increment on 2026-10-22. The local upload increment is the first checkpoint; no push was requested. Prior green CI does not cover new local commits.
 - **Checkpoint:** application commit `21be79e` and handoff commit `f94edf9` are pushed to `origin/master`. **2026-10-21 correction:** the GitHub authentication blocker is resolved; Credential Manager had multiple accounts and a command-local account selector enabled the authorized HTTPS push without changing global settings. No user credential action remains pending.
 - **Recorded green application CI:** `f94edf9`, [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254), completed **success** for both web and contract jobs. It covers the wallet UI build, attempts/readback, both migrations and configured tests. Subsequent context-only commits do not change application code; inspect their CI separately when needed.
 - **2026-10-21 handoff correction:** earlier dated goal/validation paragraphs were archival and contained superseded uncommitted/pending claims. They are consolidated into the dated history in `PROGRESS.md`; this file is the current frontier.
 
-Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D32.
+Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D33.
 
 ## Current goal
 
-Finish the controlled hosted Testnet MVP one increment at a time. The next implementation slice is the exact-byte upload boundary plus a separate explicit publication action, using local test transport before any real external write. Ownership signing is not publication consent. No customer data, real pin, deployed contract, mint or hosted release is authorized or exists.
+**User direction, 2026-10-21:** continue local implementation/testing autonomously before requesting external accounts or real scenarios. Finish remaining local publication UI, chain lifecycle, issued/public views and operational safeguards, then prepare an exact external-connection handoff. Ownership signing is not publication consent. Only fictional local fixtures are used; no customer data, public-network pin, deployed external contract, mint or hosted release is authorized or exists.
 
 ## Implemented in this checkpoint
 
@@ -19,12 +20,14 @@ Finish the controlled hosted Testnet MVP one increment at a time. The next imple
 - **Readback/receipt (D32):** expected CID bound before dispatch; one raw CIDv1/SHA-256 block, lowercase base32, at most 64 KiB. Read-only standard Pinning Service API plus raw gateway; HTTPS, bounded GETs, deadlines, no redirects, no gateway credential forwarding. Match pin status and exact bytes/hash/CID, then recheck the commitment and atomically save attempt `VERIFIED`, publication `PINNED`, receipt and one system audit event. Delayed negative/error results reread concurrent success. Recovery remains possible after the initiating user is banned. No network I/O holds a DB transaction.
 - **Migrations 14–15:** `20261021170000_publication_pin_attempt` and `20261021171000_publication_pin_verification`; proof/publication FK, active-attempt unique index, timestamp/receipt CHECKs. No committed migration was modified. Apply with `npm run db:deploy`.
 - **Tests:** `test:ipfs` is in CI. Expanded publication smoke exercises real PostgreSQL/production HTTP and fictional provider transport, not live IPFS. No dependency changes; the manifest adds only a test script.
+- **Local upload increment (D33, uncommitted):** preparation persists a server-owned provider key/configuration fingerprint/raw profile; dispatch and every readback reject changed or unbound targets. `executePinUpload` sends once, then verifies readback even after a lost acknowledgement. The local-only Kubo adapter validates strict public canonical bytes/hash/CID before I/O and rejects production/non-loopback use. Migration 16 adds nullable historical bindings plus an all-or-none/profile CHECK. `test:upload` and default injected upload scenarios are configured in CI; no dependency changes.
+- **Actual local protocol fixture:** optional Compose Kubo `v0.43.1`, `--offline`, internal network, ephemeral repository, no published ports. The offline smoke verifies isolation and uses temporary loopback tunnels through `docker exec`; actual upload/readback/lost-ack checks passed without public IPFS contact. This does not choose/accept a hosted provider.
 
 ## Still absent / intentionally disabled
 
-No uploader, publication HTTP endpoint/Server Action, worker/scheduler, provider-bound actual dispatch, post-dispatch retry permission, chain-stage writer, issued certificate or public `2.0.0` verifier. `PINNED` is not `PUBLISHED`; no token/transaction is fabricated. Legacy `1.0.0` readers and demo issuance remain unavailable in production (D1/D2/D27). The ownership panel cannot start external publication.
+No hosted uploader, explicit publication UI/HTTP endpoint/Server Action, worker/scheduler, post-dispatch retry permission, chain-stage writer, issued certificate or public `2.0.0` verifier. An internal driver/local protocol adapter now exist, but nothing in the app invokes upload. `PINNED` is not `PUBLISHED`; no token/transaction is fabricated. Legacy `1.0.0` readers and demo issuance remain unavailable in production (D1/D2/D27). The ownership panel cannot start publication.
 
-Real provider/profile compatibility, stable actual-dispatch provenance, pin retention/monitoring and an installed browser extension/device have not been accepted. The raw profile is an initial engineering boundary, not a claim that the legacy Pinata JSON helper supports it.
+Real provider/profile compatibility, remote identity/account attestation, pin retention/monitoring and an installed browser extension/device have not been accepted. The target fingerprint binds server configuration, not independently proven provider identity. The legacy Pinata JSON helper is unsuitable for this raw profile.
 
 ## Phases
 
@@ -35,7 +38,7 @@ Real provider/profile compatibility, stable actual-dispatch provenance, pin rete
 | 2 | Owner-scoped drafts, versions, audit | Implemented; local/CI acceptance |
 | 3 | Private uploads, integrity, ClamAV, expiring reads | Local implementation/acceptance; hosted gate S7 open |
 | 4 | Submit, assign, decide, reopen and admin management | Implemented locally; hosted/real-device gate S9 open |
-| 5 | Confirmed public snapshot and controlled publication | Private views, reservation/proof, wallet UI, durable attempts and readback exist. Upload, chain stages, issued/public views and live provider acceptance remain open |
+| 5 | Confirmed public snapshot and controlled publication | Private views, reservation/proof, wallet UI, attempts, bound upload driver and offline readback exist. Explicit consent UI, hosted upload, chain stages, issued/public views and live provider acceptance remain open |
 | 6 | Release hardening and hosted pilot | Incomplete; hosting, retention/holds and backup/restore remain open |
 
 ## Open release items
@@ -51,7 +54,9 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Validation
 
-**Handoff run, 2026-10-21, Windows 11, Node 24.18.0.** Each command's own exit status was read unpiped.
+**Local upload increment, 2026-10-21, Windows 11, Node 24.18.0:** lint and standalone typecheck exited 0; 12 Node tests passed. Production build, migration 16 deployment/client generation and schema/database no-drift check exited 0. Default injected publication smoke and final actual offline Kubo smoke exited 0, checking stored values, target changes/unbound history, partial/invalid SQL bindings, concurrency, lost acknowledgement, failed-before-write and no resend. Private-field negative control made `test:upload` exit 1; restoration passed. Initial offline smoke failed because Docker Desktop did not publish internal-network ports; fixed using test-only loopback tunnels while preserving network isolation. Node tests first hit sandbox `spawn EPERM`; the identical outside-sandbox run passed. No browser, hosted, contract or audit rerun for this slice. Existing driver concurrent-query deprecation warning remains. No CI result exists for these uncommitted changes.
+
+**Previous pushed-checkpoint handoff, same date/machine:** the results below cover the prior code, not the new upload increment. Each command's own exit status was read unpiped.
 
 **Clean runner, 2026-10-21:** [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254) on exact SHA `f94edf94ab03c6d873b8942bc6be1aae1b24f259` passed web and contract jobs: install, lint, typecheck, configured Node tests including IPFS, production build, all migrations, production boundary/API smokes including auth/STARTTLS, production audit, Foundry build/tests and ABI comparison. This closes the pending clean-runner gate for this application checkpoint. It does not establish installed-extension, hosted, live-provider or issued-certificate acceptance.
 
@@ -68,7 +73,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 **Earlier same-day evidence:** local production Chromium desktop/390px signing UI acceptance used an injected provider with real signatures, not an installed extension. Covered UK/EN, keyboard, missing/wrong wallet, Testnet, refusal, expiry, account changes, navigation, reload and uncertain saves. D30/PROGRESS record the SSR/storage and stale-queue fixes. Fresh isolated replay of all 15 migrations, client generation and schema/database no-drift check passed during the readback slice; the temporary database was removed. Negative controls for consumed-signature and CID verification failed with their guards bypassed, then passed after restoration. No actual provider/chain operation was performed.
 
-**Runtime at handoff:** task-owned production servers and only the three Hartolit services used for checks are stopped, with volumes retained. Unrelated containers and local environment files are preserved. The existing driver concurrent-query deprecation warning remains.
+**Runtime:** smoke-owned production servers/tunnels and the two task-started Hartolit PostgreSQL/Kubo fixtures are stopped. Database volumes, unrelated containers/listeners and local environment files are preserved. No user-facing dev server was started. The existing driver concurrent-query deprecation warning remains.
 
 ## Environment and fresh-machine setup
 
@@ -79,10 +84,10 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Next steps
 
-1. **Agent:** implement/test an exact-byte upload boundary and separate publication consent. Bind actual provider identity/configuration and raw storage profile to dispatch; use local positive/negative transport tests first. Preserve current MFA/approval/proof checks and unknown-outcome blocking. No blind resend after a missing readback.
-2. **User with agent preparation:** choose/verify the actual MFA publisher and public Testnet wallet address; manually accept the installed extension via README. Choose hosting/database/private bucket/scanner/SMTP/IPFS providers and regions (Q2); obtain counsel/pilot retention review. No seed/private key sharing. These choices do not block local uploader-boundary code.
-3. **After those gates:** provider upload/readback compatibility and retention acceptance; Testnet mint/receipt/reconciliation; issued certificate and anonymous public verifier; holds/deletion, matched backup/restore, then hosted/device acceptance.
+1. **Agent, next local slice:** build separate exact-confirmation publication preparation/consent UI and server authorization boundary; show target/profile and prepared/cancelled/unknown/pinned states. Preserve current MFA/approval/proof checks and unknown-outcome blocking. Keep actual external dispatch disabled. Exercise UK/EN, stale/reload/error states, keyboard/mobile and concurrency with fictional local fixtures.
+2. **Agent, subsequent local slices:** wallet transaction/chain receipt and recovery against a local development contract; issued certificate and anonymous strict `2.0.0` verifier; correction/history; holds/deletion controls and matched backup/restore; full fictional browser acceptance. See the ordered local checklist in `MVP_COMPLETION_GUIDE.md`. Do not declare only external work remains until these actually pass.
+3. **Later user participation:** choose providers/regions and actual MFA publisher/public wallet; installed-extension acceptance, hosted infrastructure, actual IPFS compatibility/retention, Testnet deployment and hosted/device acceptance, counsel/pilot review. No seed/private key sharing. These choices do not block the next local slice.
 
 ## Open questions
 
-PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D32 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.
+PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D33 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.

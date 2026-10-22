@@ -1,4 +1,17 @@
 services:
+  # Optional protocol fixture. Offline plus an internal network prevents publication.
+  kubo-local:
+    profiles: ["publication-local"]
+    image: ipfs/kubo:v0.43.1
+    container_name: hartolit-web3-kubo-local
+    command: ["daemon", "--offline", "--migrate=true"]
+    environment:
+      IPFS_PROFILE: test
+    # The offline smoke opens temporary loopback tunnels through docker exec.
+    # Internal Docker networks do not reliably publish host ports on Desktop.
+    tmpfs:
+      - /data/ipfs:uid=1000,gid=1000,mode=0700
+    networks: [local-ipfs]
   postgres:
     image: postgres:17.6-alpine
     container_name: hartolit-web3-postgres
@@ -42,3 +55,7 @@ volumes:
   hartolit_pg_data:
   hartolit_evidence_data:
   hartolit_clamav_data:
+
+networks:
+  local-ipfs:
+    internal: true

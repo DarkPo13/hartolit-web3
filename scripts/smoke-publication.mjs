@@ -1,5 +1,6 @@
 // Private reservation smoke only. Fictional READY evidence rows model a prior scan;
-// this script does not upload, scan, pin, mint, or accept real customer data.
+// no real evidence upload/scan, public pin, mint or customer data is accepted.
+// The opt-in offline variant writes only fictional public blocks to isolated Kubo.
 import assert from "node:assert/strict";
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
@@ -11,6 +12,7 @@ import { createJiti } from "jiti";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { smokeWalletProof } from "./smoke-publication-wallet.mjs";
 import { smokePinPreparation, smokePinDispatch, smokePinRecallRace } from "./smoke-publication-pinning.mjs";
+import { smokePinUploads } from "./smoke-publication-upload.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 const database = new URL(process.env.DATABASE_URL);
@@ -298,7 +300,8 @@ try {
   assert.equal(racingReserved.status, 201);
   await smokePinRecallRace({ api, db, publisherId, publisher, passportId: racing.passport.id,
     publicationId: (await racingReserved.json()).reservation.id, confirmation: racingConfirmation, signingAccount });
-  process.stdout.write("Publication smoke passed: exact bytes, private EOA proof, durable attempts, single dispatch, unknown recovery, verified readback receipts, concurrency, recall, constraints and audit. No public side effects.\n");
+  await smokePinUploads({ api, db, fixture, confirm, ownerId, publisherId, publisher, signingAccount });
+  process.stdout.write("Publication smoke passed: exact bytes, private EOA proof, bound upload target, explicit intent, single send, lost acknowledgement/readback, concurrency, recall, constraints and audit. No public side effects.\n");
 } finally {
   await stopServer();
   for (const id of passportIds) {
