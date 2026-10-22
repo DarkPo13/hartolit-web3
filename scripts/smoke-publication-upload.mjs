@@ -8,6 +8,7 @@ import { smokeMintDispatch } from "./smoke-publication-mint-dispatch.mjs";
 import { localMintChain } from "./local-mint-chain.mjs";
 import { smokeMintObservation } from "./smoke-publication-mint-observation.mjs";
 import { smokeMintResult } from "./smoke-publication-mint-result.mjs";
+import { smokeMintFinalization } from "./smoke-publication-mint-finalization.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -28,7 +29,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
   let chain;
   try {
     if (process.env.PUBLICATION_LOCAL_CHAIN === "1") chain = await localMintChain(signingAccount);
-    for (const scenario of ["success", "lost-ack", "before-write-failure"]) {
+    for (const scenario of ["success", "lost-ack", "before-write-failure", "quarantine-probe"]) {
       const blocks = new Map();
       let writes = 0;
       const transport = realLocalNode ? fetch : async (address, options) => {
@@ -83,7 +84,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
         if (scenario === "lost-ack") throw new Error("Fictional lost acknowledgement after storage");
       } };
       const cid = rawCidFromSha256(confirmation.preview.sha256); ownedCids.push(cid);
-      if (scenario === "success") {
+      if (scenario === "success" || scenario === "quarantine-probe") {
         const results = await Promise.allSettled([execute(wrapped), execute(wrapped), execute(wrapped)]);
         assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
         assert.ok(results.filter((r) => r.status === "rejected").every((r) => r.reason.status === 409));
@@ -109,9 +110,10 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
       const candidate = await smokeMintPreparation({ db, publisherId, passportId, publication: stored, pin: savedAttempt, chainTarget: chain?.target });
       if (candidate) candidates.push(candidate);
     }
-    const dispatched = await smokeMintDispatch({ db, publisherId, candidates, chain });
+    const dispatched = await smokeMintDispatch({ db, publisherId, candidates: candidates.slice(0, 2), chain });
     const resultFixture = await smokeMintObservation({ db, publisherId, dispatched, chain });
-    await smokeMintResult({ db, publisherId, dispatched, chain, resultFixture });
+    const finalizationFixture = await smokeMintResult({ db, publisherId, dispatched, chain, resultFixture });
+    await smokeMintFinalization({ db, publisherId, dispatched, chain, finalizationFixture, probe: candidates[2] });
     process.stdout.write(`Upload driver passed: target binding, explicit intent, single send, lost acknowledgement, failed-before-write and no resend (${realLocalNode ? "isolated offline Kubo" : "injected transport"}).\n`);
   } finally {
     await chain?.stop();

@@ -107,6 +107,7 @@ export async function smokeMintResult({ db, publisherId, dispatched, chain, resu
   try { assert.equal((await reconcile()).resultStatus, "VERIFIED"); }
   finally { process.env.HARTOLIT_PUBLISHER_USER_ID = configured; await db.user.update({ where: { id: publisherId }, data: { banned: false } }); }
 
+  let finalizationFixture = { transactionId, hash };
   if (chain) {
     const tx = await base.getTransaction({ hash }), previous = await projection();
     assert.equal(await base.request({ method: "evm_revert", params: [resultFixture.snapshot] }), true);
@@ -116,6 +117,7 @@ export async function smokeMintResult({ db, publisherId, dispatched, chain, resu
     assert.equal((await projection()).verifiedObservationId, previous.verifiedObservationId);
     assert.equal((await db.publicationMintObservation.findUniqueOrThrow({ where: { id: previous.verifiedObservationId } })).status, "VERIFIED");
     assert.equal((await reconcile()).resultStatus, "SUSPENDED", "removed branch cannot be selected through historical evidence");
+    const snapshot = await base.request({ method: "evm_snapshot" });
     const replacement = await chain.send(command, 19_000_000_000n);
     assert.notEqual(replacement, hash); await base.waitForTransactionReceipt({ hash: replacement });
     await base.request({ method: "anvil_mine", params: ["0x2"] });
@@ -124,6 +126,7 @@ export async function smokeMintResult({ db, publisherId, dispatched, chain, resu
     assert.equal(result.resultStatus, "VERIFIED");
     assert.equal((await projection()).verifiedObservationId, result.observationId);
     assert.equal(JSON.parse((await db.publicationMintObservation.findUniqueOrThrow({ where: { id: result.observationId } })).resultJson).transactionHash, replacement);
+    finalizationFixture = { transactionId: adopted.matchedTransactionId, hash: replacement, snapshot };
   }
   const current = await projection();
   const client = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 3000 });
@@ -166,4 +169,5 @@ export async function smokeMintResult({ db, publisherId, dispatched, chain, resu
   const resultAudits = await db.auditLog.count({ where: { publicationId: winner.publication.id, action: "PUBLICATION_MINT_RESULT_CHECKED" } });
   assert.equal(resultAudits, await db.publicationMintObservation.count({ where: { attemptId, revision: { gte: unavailable.revision } } }));
   process.stdout.write(`Mint result passed: fresh persisted-candidate selection, atomic suspension/history, stale-read races, expiry, revoked-actor recovery and SQL ownership; no issuance or slot release (${chain ? "actual local-chain rollback/replacement and PostgreSQL" : "injected RPC and PostgreSQL"}).\n`);
+  return finalizationFixture;
 }

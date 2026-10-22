@@ -149,6 +149,7 @@ enum PublicationStatus {
   PINNING
   PINNED
   CHAIN_PENDING
+  CHAIN_SUSPENDED
   PUBLISHED
   FAILED_RETRYABLE
   CANCELLED
@@ -165,6 +166,7 @@ enum PublicationPinAttemptStatus {
 enum PublicationMintAttemptStatus {
   DISPATCHING
   UNKNOWN
+  FINALIZED
 }
 
 enum PublicationMintObservationStatus {
@@ -212,6 +214,8 @@ enum AuditAction {
   PUBLICATION_MINT_OUTCOME_UNKNOWN
   PUBLICATION_MINT_OBSERVED
   PUBLICATION_MINT_RESULT_CHECKED
+  PUBLICATION_MINT_FINALIZED
+  PUBLICATION_MINT_QUARANTINED
 }
 
 model Farmer {
@@ -487,8 +491,14 @@ model PublicationMintAttempt {
   transactions    PublicationMintTransaction[]
   observations    PublicationMintObservation[]
   result          PublicationMintResult?
+  finalizedAt     DateTime?
+  finalizedObservationId String? @unique @db.Uuid
+  finalizationStatus PublicationMintObservationStatus?
+  finalizedObservation PublicationMintObservation? @relation("MintFinalization", fields: [finalizedObservationId, id, finalizationStatus], references: [id, attemptId, status], onDelete: NoAction)
+  quarantinedAt   DateTime?
 
   @@unique([id, nonce])
+  @@unique([finalizedObservationId, id, finalizationStatus])
   @@unique([chainId, publisherWallet, nonce])
   @@index([status, deadlineAt])
 }
@@ -521,6 +531,7 @@ model PublicationMintObservation {
   observedAt      DateTime @default(now())
   checkedResult   PublicationMintResult? @relation("MintResultCheck")
   verifiedResult  PublicationMintResult? @relation("MintResultVerification")
+  finalizedAttempt PublicationMintAttempt? @relation("MintFinalization")
 
   @@unique([attemptId, revision])
   @@unique([id, attemptId])

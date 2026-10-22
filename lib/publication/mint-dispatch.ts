@@ -8,6 +8,7 @@ import { canonicalize } from "@/lib/hash";
 import { WorkflowError } from "@/lib/review/service";
 import { lockMintCandidate } from "./mint-preparation";
 import { inspectMintReadiness, mintTransactionRequest, type MintReader, type MintIntent } from "./chain-mint";
+import { MAX_MINT_WALLET_RECEIPTS, mintWalletHistory, verifyMintWalletAnchors } from "./mint-wallet";
 
 type DispatchReader = MintReader & Pick<PublicClient, "getTransactionCount">;
 const dispatchSchema = z.strictObject({
@@ -27,20 +28,20 @@ async function load(tx: Prisma.TransactionClient, adminId: string, passportId: s
   }
   // Passport locks are independent. Serialize the shared wallet's eligibility
   // check and write too; the SQL unique index remains an independent backstop.
-  const key = `hartolit:mint:${candidate.intent.chainId}:${candidate.intent.publisherWallet}`;
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text AS locked`;
+  const history = await mintWalletHistory(tx, candidate.intent.chainId, candidate.intent.publisherWallet);
+  if (history.anchors.length >= MAX_MINT_WALLET_RECEIPTS) throw new WorkflowError(503, "Wallet history needs a verified checkpoint before another send");
   const attempt = await tx.publicationMintAttempt.findFirst({ where: { OR: [
     { preparationId: preparation.id }, { requestId: data.requestId },
-    { chainId: candidate.intent.chainId, publisherWallet: candidate.intent.publisherWallet },
+    { chainId: candidate.intent.chainId, publisherWallet: candidate.intent.publisherWallet, status: { not: "FINALIZED" } },
   ] }, select: { id: true } });
   if (attempt) throw new WorkflowError(409, "Resolve the existing wallet attempt; no new send is allowed");
-  return { ...candidate, preparation };
+  return { ...candidate, preparation, history };
 }
 
 /** Read-only preflight; an exclusive application wallet is still required. Other
  * software can use its nonce after these reads; no database lock can stop that.
  */
-async function observedNonce(intent: MintIntent, reader: DispatchReader) {
+async function observedNonce(intent: MintIntent, reader: DispatchReader, history: Awaited<ReturnType<typeof mintWalletHistory>>) {
   try {
     const startedAt = Date.now();
     if ((await inspectMintReadiness(intent, reader)).status !== "READY") throw new Error();
@@ -49,7 +50,8 @@ async function observedNonce(intent: MintIntent, reader: DispatchReader) {
     const address = intent.publisherWallet as `0x${string}`;
     const latest = await reader.getTransactionCount({ address, blockNumber: head.number });
     const pending = await reader.getTransactionCount({ address, blockTag: "pending" });
-    if (!Number.isSafeInteger(latest) || latest < 0 || latest !== pending ||
+    await verifyMintWalletAnchors(history.anchors, reader, head);
+    if (!Number.isSafeInteger(latest) || latest < 0 || latest !== pending || history.anchors.some(row => BigInt(latest) <= row.nonce) ||
       await reader.getTransactionCount({ address, blockTag: "pending" }) !== latest ||
       (await reader.getBlock({ blockNumber: head.number })).hash !== head.hash || await reader.getChainId() !== intent.chainId) throw new Error();
     return { nonce: latest, startedAt };
@@ -66,12 +68,13 @@ export async function beginMintDispatch(adminId: string, passportId: string, inp
   const data = parsed.data;
   const before = await getDb().$transaction(tx => load(tx, adminId, passportId, data, selectedTarget));
   // RPC must never hold the passport lock. Reauthorize and compare after the read.
-  const observation = await observedNonce(before.intent, reader);
+  const observation = await observedNonce(before.intent, reader, before.history);
   const request = await mintTransactionRequest(before.intent);
   try {
     return await getDb().$transaction(async tx => {
       const current = await load(tx, adminId, passportId, data, selectedTarget);
       if (current.preparation.intentJson !== before.preparation.intentJson || current.preparation.pinAttemptId !== before.preparation.pinAttemptId ||
+        current.history.binding !== before.history.binding ||
         Date.now() - observation.startedAt >= freshnessMs || Date.now() < observation.startedAt) {
         throw new WorkflowError(409, "Mint preflight expired or its commitment changed; no send was authorized");
       }
@@ -107,7 +110,7 @@ async function unknownOutcome(passportId: string, attemptId: string, expiredOnly
     if (!locked.count) throw new WorkflowError(404, "Passport not found");
     const row = await tx.publicationMintAttempt.findFirst({ where: { id: attemptId, preparation: { publication: { passportId, status: "CHAIN_PENDING" } } },
       include: { preparation: { include: { publication: true } } } });
-    if (!row) throw new WorkflowError(409, "Mint attempt is not awaiting an external outcome");
+    if (!row || row.status === "FINALIZED") throw new WorkflowError(409, "Mint attempt is not awaiting an external outcome");
     if (row.status === "UNKNOWN") return metadata(row);
     const now = new Date();
     if (expiredOnly && row.deadlineAt > now) throw new WorkflowError(409, "Mint dispatch is still within its deadline");

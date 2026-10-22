@@ -320,10 +320,13 @@ try {
     const row = await db.passport.findUnique({ where: { id }, select: { farmerId: true, fieldId: true } });
     if (!row) continue;
     await db.auditLog.deleteMany({ where: { passportId: id } });
-    await db.publicationMintResult.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
-    await db.publicationMintObservation.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
-    await db.publicationMintTransaction.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
-    await db.publicationMintAttempt.deleteMany({ where: { preparation: { publication: { passportId: id } } } });
+    // The finalization proof FK is deferred; delete this owned cycle atomically.
+    await db.$transaction(async tx => {
+      await tx.publicationMintResult.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
+      await tx.publicationMintObservation.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
+      await tx.publicationMintTransaction.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
+      await tx.publicationMintAttempt.deleteMany({ where: { preparation: { publication: { passportId: id } } } });
+    });
     await db.publicationMintPreparation.deleteMany({ where: { publication: { passportId: id } } });
     await db.publicationPinAttempt.deleteMany({ where: { publication: { passportId: id } } });
     await db.publication.deleteMany({ where: { passportId: id } });

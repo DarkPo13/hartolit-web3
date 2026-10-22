@@ -8,6 +8,7 @@ import { WorkflowError } from "@/lib/review/service";
 import { createMintIntent, validateMintIntent, requireExactMintTransaction, inspectMintTransaction, type MintReader } from "./chain-mint";
 import { rawCidFromSha256 } from "./raw-cid";
 import { RAW_PIN_PROFILE } from "./target";
+import { finalizedMintReceipt, lockMintWallet, mintWalletHistory, verifyMintWalletAnchors } from "./mint-wallet";
 
 const inputSchema = z.strictObject({ transactionHash: z.string().regex(/^0x[0-9a-f]{64}$/).nullable() });
 const resultSchema = z.strictObject({ transactionId: z.uuid() });
@@ -18,12 +19,17 @@ async function load(tx: Prisma.TransactionClient, passportId: string, attemptId:
   const locked = await tx.passport.updateMany({ where: { id: passportId }, data: { updatedAt: new Date() } });
   if (!locked.count) throw new WorkflowError(404, "Passport not found");
   const attempt = await tx.publicationMintAttempt.findFirst({ where: { id: attemptId, preparation: { publication: { passportId } } },
-    include: { preparation: { include: { pinAttempt: true, publication: { include: { confirmation: true,
+    include: { finalizedObservation: true, preparation: { include: { pinAttempt: true, publication: { include: { confirmation: true,
       passport: { select: { status: true, version: true, approvedVersion: true, submittedVersion: true } } } } } } } });
   if (!attempt) throw new WorkflowError(404, "Mint attempt not found");
   const preparation = attempt.preparation, pin = preparation.pinAttempt, publication = preparation.publication;
   const confirmation = publication.confirmation, passport = publication.passport;
-  if (publication.status !== "CHAIN_PENDING" || publication.cancelledAt || publication.contractAddress || publication.transactionHash || publication.tokenId ||
+  const finalized = attempt.status === "FINALIZED" ? finalizedMintReceipt(attempt.finalizedObservation) : null;
+  const stageMatches = finalized
+    ? publication.status === (attempt.quarantinedAt ? "CHAIN_SUSPENDED" : "PUBLISHED") && publication.contractAddress === finalized.contractAddress &&
+      publication.transactionHash === finalized.transactionHash && publication.tokenId === finalized.tokenId
+    : publication.status === "CHAIN_PENDING" && !publication.contractAddress && !publication.transactionHash && !publication.tokenId;
+  if (!stageMatches || publication.cancelledAt ||
     confirmation.invalidatedAt || passport.status !== "APPROVED" || passport.version !== publication.passportVersion ||
     passport.approvedVersion !== publication.approvedVersion || passport.submittedVersion !== publication.approvedVersion ||
     confirmation.passportVersion !== publication.passportVersion || confirmation.approvedVersion !== publication.approvedVersion ||
@@ -41,13 +47,14 @@ async function load(tx: Prisma.TransactionClient, passportId: string, attemptId:
       publisherWallet: saved.publisherWallet, recipientWallet: saved.recipientWallet, requiredConfirmations: saved.requiredConfirmations },
     { canonicalJson: publication.canonicalJson, payloadHash: publication.payloadHash, ipfsCid: pin.verifiedCid! });
     if (canonicalize(intent) !== preparation.intentJson || intent.sha256 !== preparation.intentSha256 ||
-      intent.publisherWallet !== attempt.publisherWallet || intent.certificateId !== confirmation.certificateId) throw new Error();
+      intent.publisherWallet !== attempt.publisherWallet || intent.certificateId !== confirmation.certificateId ||
+      (finalized && (finalized.intentSha256 !== intent.sha256 || finalized.contractAddress !== intent.contractAddress))) throw new Error();
   } catch { throw new WorkflowError(409, "Saved mint intent is invalid"); }
   const binding = canonicalize({ preparationId: preparation.id, pinAttemptId: pin.id, intentJson: preparation.intentJson,
     requestId: attempt.requestId, chainId: attempt.chainId, wallet: attempt.publisherWallet, nonce: attempt.nonce.toString(), walletChallengeId: pin.walletChallengeId,
     createdAt: attempt.createdAt.toISOString(), deadlineAt: attempt.deadlineAt.toISOString(),
     pinTarget: pin.providerConfigHash, providerKey: pin.providerKey, pinVerifiedAt: pin.verifiedAt!.toISOString(), providerPinId: pin.providerPinId });
-  return { attempt, publication, intent, binding };
+  return { attempt, publication, intent, binding, finalized };
 }
 
 /** Internal historical readback, never authority to send, release a wallet slot or
@@ -70,19 +77,31 @@ export async function reconcileMintResult(passportId: string, attemptId: string,
   return readAttempt(passportId, attemptId, { kind: "result", transactionId: parsed.data.transactionId }, reader);
 }
 
-type Selection = { kind: "report"; hash: string | null } | { kind: "result"; transactionId: string };
+/** Internal system completion of an already authorized send. No broadcaster or
+ * public certificate route. Fresh verification is mandatory, including on replay.
+ */
+export async function finalizeMintPublication(passportId: string, attemptId: string, input: unknown, reader: MintReader) {
+  const parsed = resultSchema.safeParse(input);
+  if (!parsed.success) throw new WorkflowError(422, "A saved matching transaction is required");
+  return readAttempt(passportId, attemptId, { kind: "finalize", transactionId: parsed.data.transactionId }, reader);
+}
+
+type Selection = { kind: "report"; hash: string | null } | { kind: "result" | "finalize"; transactionId: string };
 async function readAttempt(passportId: string, attemptId: string, selection: Selection, reader: MintReader) {
   const before = await getDb().$transaction(async tx => {
     const candidate = await load(tx, passportId, attemptId);
-    if (selection.kind === "report") return { ...candidate, hash: selection.hash };
+    if (selection.kind === "report") return { ...candidate, hash: selection.hash, history: null };
     const transaction = await tx.publicationMintTransaction.findFirst({ where: {
       id: selection.transactionId, attemptId, nonce: candidate.attempt.nonce,
     } });
     if (!transaction) throw new WorkflowError(409, "Transaction does not belong to this mint attempt");
-    return { ...candidate, hash: transaction.transactionHash };
+    const history = selection.kind === "finalize" ? await mintWalletHistory(tx, candidate.attempt.chainId, candidate.attempt.publisherWallet) : null;
+    return { ...candidate, hash: transaction.transactionHash, history };
   });
   const hash = before.hash;
+  if (before.finalized && hash !== before.finalized.transactionHash) throw new WorkflowError(409, "A finalized transaction cannot be replaced or hidden by another report");
   const startedAt = Date.now();
+  const walletAnchor = before.history ? await verifyMintWalletAnchors(before.history.anchors.filter(row => row.attemptId !== attemptId), reader) : null;
   let matched = false;
   let result: Awaited<ReturnType<typeof inspectMintTransaction>> | ReturnType<typeof unissued> = unissued("UNKNOWN");
   // The missing hash is a durable uncertainty marker, never a discovery or retry.
@@ -101,6 +120,11 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
       }
     } catch { result = unissued("UNAVAILABLE"); }
   }
+  if (walletAnchor) {
+    try {
+      if ((await reader.getBlock({ blockNumber: walletAnchor.number })).hash !== walletAnchor.hash || await reader.getChainId() !== 97) throw new Error();
+    } catch { throw new WorkflowError(503, "Wallet history changed during finalization; no slot was released"); }
+  }
   // Every network read is outside the transaction. A concurrent observation wins
   // by revision; an older response cannot overwrite it or masquerade as fresh.
   return getDb().$transaction(async tx => {
@@ -109,14 +133,22 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
     if (current.attempt.observationVersion !== before.attempt.observationVersion) {
       return { status: "SUPERSEDED" as const, issued: false as const, canResend: false as const };
     }
-    if (selection.kind === "result") {
-      if (Date.now() - startedAt >= resultFreshnessMs || Date.now() < startedAt) {
-        throw new WorkflowError(409, "Mint result read expired; no result was selected");
-      }
+    if (selection.kind !== "report") {
       const transaction = await tx.publicationMintTransaction.findFirst({ where: {
         id: selection.transactionId, attemptId, nonce: current.attempt.nonce, transactionHash: hash!,
       } });
       if (!transaction) throw new WorkflowError(409, "Saved transaction changed during result verification");
+    }
+    if (current.finalized && hash !== current.finalized.transactionHash) throw new WorkflowError(409, "Finalized transaction changed");
+    if (selection.kind === "finalize") {
+      const history = await mintWalletHistory(tx, current.attempt.chainId, current.attempt.publisherWallet);
+      if (history.binding !== before.history?.binding) throw new WorkflowError(409, "Wallet history changed during finalization");
+    } else if (current.finalized) {
+      // Quarantine must serialize against other passports consuming the released slot.
+      await lockMintWallet(tx, current.attempt.chainId, current.attempt.publisherWallet);
+    }
+    if (selection.kind !== "report" && (Date.now() - startedAt >= resultFreshnessMs || Date.now() < startedAt)) {
+      throw new WorkflowError(409, "Mint result read expired; no result was selected");
     }
     let transactionId: string | null = null;
     if (matched && hash) {
@@ -139,8 +171,8 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
     // selected result. Retain the last verified receipt as historical evidence.
     const previous = await tx.publicationMintResult.findUnique({ where: { attemptId } });
     let resultStatus: "VERIFIED" | "SUSPENDED" | null = null;
-    if (selection.kind === "result" || previous) {
-      resultStatus = selection.kind === "result" && result.status === "VERIFIED" ? "VERIFIED" : "SUSPENDED";
+    if (selection.kind !== "report" || previous) {
+      resultStatus = selection.kind !== "report" && result.status === "VERIFIED" ? "VERIFIED" : "SUSPENDED";
       const verifiedObservationId = resultStatus === "VERIFIED" ? row.id : previous?.verifiedObservationId ?? null;
       const data = { status: resultStatus, checkedObservationId: row.id, verifiedObservationId,
         verificationStatus: verifiedObservationId ? "VERIFIED" as const : null };
@@ -148,7 +180,28 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
       await tx.auditLog.create({ data: { passportId, publicationId: current.publication.id, actorId: "system:publication-recovery",
         version: current.publication.passportVersion, action: "PUBLICATION_MINT_RESULT_CHECKED", fromStatus: "APPROVED", toStatus: "APPROVED", note: `Mint result ${resultStatus}: ${row.id}` } });
     }
+    let publicationStatus = current.publication.status;
+    if (current.finalized) {
+      const sameReceipt = result.status === "VERIFIED" && result.transactionHash === current.finalized.transactionHash &&
+        result.blockNumber === current.finalized.blockNumber && result.blockHash === current.finalized.blockHash && result.tokenId === current.finalized.tokenId &&
+        Date.now() >= startedAt && Date.now() - startedAt < resultFreshnessMs;
+      if (!sameReceipt && !current.attempt.quarantinedAt) {
+        publicationStatus = "CHAIN_SUSPENDED";
+        await tx.publicationMintAttempt.update({ where: { id: attemptId }, data: { quarantinedAt: new Date() } });
+        await tx.publication.update({ where: { id: current.publication.id }, data: { status: publicationStatus } });
+        await tx.auditLog.create({ data: { passportId, publicationId: current.publication.id, actorId: "system:publication-recovery",
+          version: current.publication.passportVersion, action: "PUBLICATION_MINT_QUARANTINED", fromStatus: "APPROVED", toStatus: "APPROVED", note: `Finalized mint check: ${row.id}` } });
+      }
+    } else if (selection.kind === "finalize" && result.status === "VERIFIED") {
+      publicationStatus = "PUBLISHED";
+      await tx.publicationMintAttempt.update({ where: { id: attemptId }, data: { status: "FINALIZED", finalizedAt: row.observedAt,
+        finalizedObservationId: row.id, finalizationStatus: "VERIFIED" } });
+      await tx.publication.update({ where: { id: current.publication.id }, data: { status: publicationStatus,
+        contractAddress: result.contractAddress, transactionHash: result.transactionHash, tokenId: result.tokenId } });
+      await tx.auditLog.create({ data: { passportId, publicationId: current.publication.id, actorId: "system:publication-recovery",
+        version: current.publication.passportVersion, action: "PUBLICATION_MINT_FINALIZED", fromStatus: "APPROVED", toStatus: "APPROVED", note: `Finalized mint receipt: ${row.id}` } });
+    }
     return { ...result, observationId: row.id, revision, observedAt: row.observedAt.toISOString(), matchedTransactionId: transactionId,
-      historical: true as const, resultStatus };
+      historical: true as const, resultStatus, publicationStatus };
   });
 }

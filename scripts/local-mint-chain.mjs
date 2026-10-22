@@ -47,6 +47,11 @@ export async function localMintChain(account) {
         return wallet.sendTransaction({ to: command.request.to, data: command.request.data, nonce: command.request.nonce, value: BigInt(command.request.value), gas: 500_000n,
           ...(gasPrice === undefined ? {} : { gasPrice }) });
       },
+      async cancel(command) {
+        // Test-only same-nonce cancellation outside the application process.
+        assert.equal(command.request.from, account.address.toLowerCase());
+        return wallet.sendTransaction({ to: account.address, data: "0x", value: 0n, nonce: command.request.nonce, gas: 21_000n, gasPrice: 23_000_000_000n });
+      },
     };
   } catch (error) { await stop(); throw error; }
   finally { clearTimeout(timer); }
