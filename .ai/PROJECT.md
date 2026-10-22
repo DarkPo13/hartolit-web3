@@ -28,7 +28,7 @@ Single Next.js application (not a monorepo) plus a Foundry workspace.
 | `app/api/passport/[tokenId]` | Legacy `1.0.0` demo read of on-chain data and IPFS; unavailable outside local demo mode. |
 | `lib/drafts/`, `lib/evidence/`, `lib/review/` | Server services: transactions, optimistic concurrency, audit, storage, scanning, workflow. |
 | `lib/public-snapshot/` | Strict `2.0.0` public schema, allowlisted preview builder and private confirmation service. No publication writer yet. |
-| `lib/publication/` | Private reservation/proof, preparation/consent metadata, durable attempts, server-owned target/profile binding, internal upload driver and exact-byte readback. Private HTTP preparation/cancellation; offline Kubo fixture; no dispatch HTTP action or hosted uploader. |
+| `lib/publication/` | Private reservation/proof/consent, pin attempts, target/profile binding, upload/readback and read-only mint intent/receipt checks. Private HTTP preparation/cancellation; offline Kubo and actual local Anvil fixtures; no dispatch/mint HTTP action, durable chain writer or hosted uploader. |
 | `lib/auth*.ts`, `lib/db*.ts`, `lib/demo-mode.ts` | Auth configuration, actor lookup and guards, Prisma client, demo switch. |
 | `lib/hash.ts`, `lib/contract.ts`, `lib/ipfs.ts`, `lib/wagmi.ts` | Canonical JSON + SHA-256, hand-written contract ABI, Pinata REST client, wallet config. |
 | `lib/i18n/` | Ukrainian (default) and English translations behind a typed `Translations` object. |

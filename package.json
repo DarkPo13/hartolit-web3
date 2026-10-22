@@ -16,6 +16,8 @@
     "test:wallet": "node --test tests/wallet-signature.test.mjs",
     "test:ipfs": "node --test tests/ipfs-readback.test.mjs",
     "test:upload": "node --test tests/publication-upload.test.mjs",
+    "test:chain": "node --test tests/chain-mint.test.mjs",
+    "chain:smoke": "node scripts/smoke-chain.mjs",
     "test:capture": "node --test tests/capture-completion.test.mjs",
     "test:public-boundary": "node scripts/check-public-boundary.mjs",
     "db:setup": "node scripts/setup-local-auth.mjs",

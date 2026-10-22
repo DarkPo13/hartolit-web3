@@ -555,6 +555,27 @@ The fixture uses Kubo `v0.43.1`, `--offline`, an internal Docker network, no pub
 
 `publication:smoke` covers the real private preparation/cancellation HTTP routes and stored values in addition to the internal lifecycle. The optional browser fixture is `PUBLICATION_BROWSER_FIXTURE=1` with that smoke: it pauses with fictional authenticated sessions on a loopback-only helper at port 3103, then resumes/cleans up after `/finish` or a timeout. It is test tooling, not an application authentication route; never run it with real users or expose it remotely.
 
+## Local chain mint verification foundation
+
+`lib/publication/chain-mint.ts` is a **read-only internal boundary**. It has no HTTP endpoint, wallet prompt, DB writer or configured production caller. It does not turn a pin receipt into an issued certificate. Current database authorization/approval/consent, verified storage and a separately authorized send remain the future caller's responsibility.
+
+- Create an immutable versioned intent from strict canonical `2.0.0` public bytes/hash/raw CID and server-selected Testnet chain, contract/runtime-code hash, publisher, recipient and confirmation depth. The fingerprint binds all of them and the exact `mintPassport` calldata. The wallet-call description contains only the zero-value call and public addresses/hash/URI. No recipient policy or actual release addresses are chosen by this helper.
+- Read-only readiness checks the actual runtime code, `MINTER_ROLE`, pause state and existing payload index at one anchored block. `READY` is advisory, with no permission to send. `ALREADY_MINTED` blocks duplicate work; it does not silently adopt an existing certificate.
+- Transaction inspection requires exact chain, sender, contract, calldata and zero value; one matching `PassportMinted` event with the correct block/transaction context; and matching owner, URI, hash and payload index at the inclusion block. Contract code is checked at inclusion and the observed head. Canonical block/receipt/chain identity is read again after state reads to detect branch changes.
+- `UNKNOWN`, `PENDING`, `CONFIRMING`, `REVERTED`, `REORG` and `VERIFIED` remain distinct. Every result says `issued: false` and `canResend: false`. `VERIFIED` includes observed receipt evidence after the configured depth, not permanent finality or a public certificate. Later reorg monitoring, persistent attempts, nonce/replacement/lost-hash recovery and a separately authorized wallet action are still required. The selected RPC and finality policy need external acceptance before release.
+
+The reader uses Viem's [transaction receipt](https://viem.sh/docs/actions/public/getTransactionReceipt), [event decoding](https://viem.sh/docs/contract/parseEventLogs) and [block-scoped contract reads](https://viem.sh/docs/contract/readContract). RPC credentials, timeouts and limits belong to a trusted server dependency; no request-supplied RPC URL or signing key is accepted by this module.
+
+```sh
+npm run test:chain
+npm run contracts:build
+npm run chain:smoke
+```
+
+The actual-node smoke needs Foundry/Anvil (`anvil` on PATH, or `ANVIL_BIN` pointing to the binary) and the compiled contract/libraries described above. It starts its **own** [Anvil](https://www.getfoundry.sh/anvil/index.html) on an ephemeral loopback port with chain ID 97, no fork and no default accounts. Only ephemeral fictional test keys are generated inside the test process; they are never sent to the app, put in its environment or printed. It verifies its child's readiness before RPC, deploys the actual contract, compares deployed runtime to the compiled artifact, tests actual mint/depth/pending/duplicate/reverted/paused/wrong-recipient/trailing-calldata behavior, and uses snapshot/revert to reject a stale receipt on a new branch. The child is stopped in `finally`; no public network, database or app server is involved.
+
+This increment was tested with Foundry `v1.8.6` and solc `0.8.28`; CI pins that Foundry version. The web job runs injected chain regressions; the contract job additionally installs JS dependencies without lifecycle scripts (no Prisma/DB needed) and runs the actual local-chain smoke after compiling/testing the contract. A configured CI step is not a passed run until the exact commit is pushed and succeeds.
+
 ## Product feedback and responsible treatment reminder
 
 Signed-in users can open `/feedback` from the home-page footer. The private confirmed certificate preview opens an accessible responsibility dialog with a reminder to record doses and weather and care for Ukraine's soils; its **Leave feedback** button opens the same form. The dialog can be dismissed and reopened without submitting feedback. It does not claim that a certificate has been issued or that a treatment is environmentally safe.
