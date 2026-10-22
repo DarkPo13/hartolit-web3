@@ -6,6 +6,7 @@ import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import path from "node:path";
+import net from "node:net";
 import nextEnv from "@next/env";
 import pg from "pg";
 import { createJiti } from "jiti";
@@ -24,7 +25,7 @@ catch { throw new Error("Local PostgreSQL not ready; publication assertions were
 finally { await preflight.end(); }
 const port = Number(process.env.PUBLICATION_SMOKE_PORT ?? 3001);
 assert.ok(Number.isInteger(port) && port > 1023 && port < 65536);
-const base = `http://localhost:${port}`;
+const base = `http://127.0.0.1:${port}`;
 process.env.BETTER_AUTH_URL = base;
 const jiti = createJiti(import.meta.url);
 const [{ auth }, { getDb }] = await Promise.all([jiti.import("../auth.cli.ts"), jiti.import("../lib/db-core.ts")]);
@@ -66,7 +67,12 @@ async function stopServer() {
 }
 
 async function startServer(publisherId = "", configuredWallet = "", target = {}) {
-  server = spawn(process.execPath, [path.resolve("node_modules/next/dist/bin/next"), "start", "--port", String(port)], {
+  // Use the same literal loopback for listener and requests. localhost can resolve
+  // to an unrelated IPv6 app even while our child owns the IPv4 port on Windows.
+  const probe = net.createServer();
+  await new Promise((resolve, reject) => { probe.once("error", reject); probe.listen(port, "127.0.0.1", resolve); });
+  await new Promise(resolve => probe.close(resolve));
+  server = spawn(process.execPath, [path.resolve("node_modules/next/dist/bin/next"), "start", "--hostname", "127.0.0.1", "--port", String(port)], {
     env: { ...process.env, NODE_ENV: "production", BETTER_AUTH_URL: base,
       HARTOLIT_PUBLISHER_USER_ID: publisherId, HARTOLIT_PUBLISHER_WALLET: configuredWallet,
       HARTOLIT_PUBLICATION_TARGET_KEY: target.key ?? "", HARTOLIT_PUBLICATION_TARGET_SCOPE: target.scope ?? "",
@@ -313,6 +319,7 @@ try {
     const row = await db.passport.findUnique({ where: { id }, select: { farmerId: true, fieldId: true } });
     if (!row) continue;
     await db.auditLog.deleteMany({ where: { passportId: id } });
+    await db.publicationMintPreparation.deleteMany({ where: { publication: { passportId: id } } });
     await db.publicationPinAttempt.deleteMany({ where: { publication: { passportId: id } } });
     await db.publication.deleteMany({ where: { passportId: id } });
     await db.publicSnapshotConfirmation.deleteMany({ where: { passportId: id } });

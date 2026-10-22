@@ -186,6 +186,7 @@ enum AuditAction {
   PUBLICATION_PIN_OUTCOME_UNKNOWN
   PUBLICATION_PIN_CANCELLED
   PUBLICATION_PIN_VERIFIED
+  PUBLICATION_MINT_PREPARED
 }
 
 model Farmer {
@@ -374,6 +375,7 @@ model Publication {
   walletVerifiedAt DateTime?
   walletChallenges PublicationWalletChallenge[]
   pinAttempts     PublicationPinAttempt[]
+  mintPreparation PublicationMintPreparation?
   audit           AuditLog[]
 
   @@unique([chainId, contractAddress, tokenId])
@@ -421,9 +423,26 @@ model PublicationPinAttempt {
   verifiedCid       String? @db.VarChar(255)
   providerPinId     String? @db.VarChar(128)
   verifiedAt        DateTime?
+  mintPreparation   PublicationMintPreparation?
 
+  @@unique([id, publicationId])
   @@index([publicationId, createdAt(sort: Desc)])
   @@index([status, deadlineAt])
+}
+
+// Private immutable planning only; no nonce, transaction, dispatch or issuance.
+model PublicationMintPreparation {
+  id            String @id @default(uuid()) @db.Uuid
+  publicationId String @unique @db.Uuid
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  pinAttemptId  String @unique @db.Uuid
+  pinAttempt    PublicationPinAttempt @relation(fields: [pinAttemptId, publicationId], references: [id, publicationId], onDelete: Restrict)
+  requestId     String @unique @db.Uuid
+  intentJson    String @db.Text
+  intentSha256  String @db.Char(64)
+  createdAt     DateTime @default(now())
+
+  @@unique([pinAttemptId, publicationId])
 }
 
 model PublicSnapshotConfirmation {

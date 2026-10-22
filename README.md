@@ -576,6 +576,16 @@ The actual-node smoke needs Foundry/Anvil (`anvil` on PATH, or `ANVIL_BIN` point
 
 This increment was tested with Foundry `v1.8.6` and solc `0.8.28`; CI pins that Foundry version. The web job runs injected chain regressions; the contract job additionally installs JS dependencies without lifecycle scripts (no Prisma/DB needed) and runs the actual local-chain smoke after compiling/testing the contract. A configured CI step is not a passed run until the exact commit is pushed and succeeds.
 
+## Private durable mint preparation
+
+`lib/publication/mint-preparation.ts` adds a separate **internal, private planning step** after verified storage. It has no HTTP action, RPC client, wallet send or configured target. A trusted future caller must show the exact mint intent and supply the reviewed fingerprint and separate `PREPARE_EXACT_MINT` acknowledgement. Actual recipient/contract/RPC choices remain release decisions.
+
+Under the passport lock, the service rechecks the current designated MFA publisher, approval/version, active confirmation, canonical public bytes, current facts and selected READY evidence, consumed wallet signature and the bound `VERIFIED` pin receipt. Only the exact `PINNED` publication can proceed. Ordinary preview/confirmation remain blocked after external dispatch. Migration 17 stores canonical intent JSON/fingerprint and its pin/publication linkage, with unique request/publication constraints and a composite foreign key preventing cross-publication pin references.
+
+Concurrent identical requests create one preparation and audit event; replay returns that record only after all checks pass again. A different request or changed commitment cannot replace it. There is no amendment/cancellation path yet. Preparation leaves publication `PINNED` and contract/transaction/token fields unset; it grants no send/resend permission. Durable dispatch, nonce/hash/receipt history, replacement/lost-hash recovery and reorg monitoring remain next work.
+
+Apply with `npm run db:deploy` and regenerate the client with `npm run db:generate`. The expanded `npm run publication:smoke` tests the actual DB/HTTP workflow plus this internal service with fictional data and injected IPFS transport. It uses an explicit IPv4 loopback listener/address (override `PUBLICATION_SMOKE_PORT` if occupied), cleans its own records and does not call a chain RPC. Existing `chain:smoke` separately checks the read-only verifier on actual local Anvil; combined DB/chain dispatch acceptance is still pending.
+
 ## Product feedback and responsible treatment reminder
 
 Signed-in users can open `/feedback` from the home-page footer. The private confirmed certificate preview opens an accessible responsibility dialog with a reminder to record doses and weather and care for Ukraine's soils; its **Leave feedback** button opens the same form. The dialog can be dismissed and reopened without submitting feedback. It does not claim that a certificate has been issued or that a treatment is environmentally safe.

@@ -48,7 +48,7 @@ function reservationResponse(row: ReservationRow) {
 
 // Shared by reservation and wallet proof. All checks and callers' writes stay under
 // the passport lock used by recall; a signature never bypasses current approval.
-async function lockPublicationCandidate(tx: Prisma.TransactionClient, adminId: string, passportId: string, input: PublicationReservationInput) {
+async function lockPublicationCandidate(tx: Prisma.TransactionClient, adminId: string, passportId: string, input: PublicationReservationInput, stage: "RESERVED" | "PINNED" = "RESERVED") {
   const publisher = publisherConfiguration();
   if (adminId !== publisher.userId || input.walletAddress !== publisher.walletAddress) {
     throw new WorkflowError(403, "Only the designated publisher and configured wallet may reserve publication");
@@ -86,7 +86,7 @@ async function lockPublicationCandidate(tx: Prisma.TransactionClient, adminId: s
   }
 
   const existing = await tx.publication.findUnique({ where: { confirmationId: confirmation.id } });
-  if (existing && (existing.status !== "RESERVED" || existing.reservedById !== adminId || existing.publisherWallet !== publisher.walletAddress ||
+  if (existing && (existing.status !== stage || existing.reservedById !== adminId || existing.publisherWallet !== publisher.walletAddress ||
     existing.canonicalJson !== confirmation.canonicalJson || existing.payloadHash !== confirmation.payloadHash ||
     existing.passportVersion !== confirmation.passportVersion || existing.approvedVersion !== confirmation.approvedVersion || existing.chainId !== 97)) {
     throw new WorkflowError(409, "Publication reservation cannot be replaced or restarted");
@@ -99,14 +99,14 @@ async function lockPublicationCandidate(tx: Prisma.TransactionClient, adminId: s
   // Rebuild only to validate current facts and selected READY evidence. Persist the saved bytes.
   const preview = await buildPublicSnapshot(tx, passportId, confirmation.weatherFileId, confirmation.chemicalFileId, {
     certificateId: confirmation.certificateId, snapshotAt: snapshot.snapshotAt,
-  });
+  }, stage === "PINNED" ? existing?.id : undefined);
   if (preview.canonicalJson !== confirmation.canonicalJson || preview.sha256 !== confirmation.payloadHash) {
     throw new WorkflowError(409, "Public facts or selected evidence changed after confirmation");
   }
   return { existing, confirmation, publisher };
 }
 
-export async function lockReservedPublication(tx: Prisma.TransactionClient, adminId: string, passportId: string, publicationId: string) {
+async function lockExistingPublication(tx: Prisma.TransactionClient, adminId: string, passportId: string, publicationId: string, stage: "RESERVED" | "PINNED") {
   const configured = publisherConfiguration();
   if (configured.userId !== adminId) throw new WorkflowError(403, "Only the designated publisher may prove wallet ownership");
   const reservation = await tx.publication.findFirst({ where: { id: publicationId, passportId } });
@@ -114,9 +114,18 @@ export async function lockReservedPublication(tx: Prisma.TransactionClient, admi
   const { existing, confirmation } = await lockPublicationCandidate(tx, adminId, passportId, {
     confirmationId: reservation.confirmationId, passportVersion: reservation.passportVersion,
     expectedSha256: reservation.payloadHash, walletAddress: configured.walletAddress,
-  });
+  }, stage);
   if (!existing || existing.id !== publicationId) throw new WorkflowError(409, "Publication reservation changed");
   return { reservation: existing, confirmation };
+}
+
+export async function lockReservedPublication(tx: Prisma.TransactionClient, adminId: string, passportId: string, publicationId: string) {
+  return lockExistingPublication(tx, adminId, passportId, publicationId, "RESERVED");
+}
+
+/** Same authorization and fact checks, scoped to the verified-storage stage only. */
+export async function lockPinnedPublication(tx: Prisma.TransactionClient, adminId: string, passportId: string, publicationId: string) {
+  return lockExistingPublication(tx, adminId, passportId, publicationId, "PINNED");
 }
 
 /** Private planning only: no IPFS request, chain transaction or wallet ownership claim. */

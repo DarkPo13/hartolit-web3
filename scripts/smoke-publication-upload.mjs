@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { createJiti } from "jiti";
 import { assertOfflineKubo } from "./local-kubo-tunnel.mjs";
+import { smokeMintPreparation } from "./smoke-publication-mint-preparation.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -98,6 +99,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
       assert.equal(stored.ipfsCid, scenario === "before-write-failure" ? null : cid);
       assert.equal(stored.canonicalJson, confirmation.preview.canonicalJson); assert.equal(stored.tokenId, null); assert.equal(stored.transactionHash, null);
       assert.equal((await db.passport.findUniqueOrThrow({ where: { id: passportId } })).version, 4);
+      await smokeMintPreparation({ db, publisherId, passportId, publication: stored, pin: savedAttempt });
     }
     process.stdout.write(`Upload driver passed: target binding, explicit intent, single send, lost acknowledgement, failed-before-write and no resend (${realLocalNode ? "isolated offline Kubo" : "injected transport"}).\n`);
   } finally {
