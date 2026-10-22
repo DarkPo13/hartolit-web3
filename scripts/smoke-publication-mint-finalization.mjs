@@ -5,6 +5,7 @@ import { createJiti } from "jiti";
 import pg from "pg";
 import { syntheticMintFrame } from "./smoke-publication-mint-observation.mjs";
 import { tickMintMonitor } from "./smoke-publication-mint-monitor.mjs";
+import { smokeMintRecovery, smokeLostOriginalRecovery } from "./smoke-publication-mint-recovery.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -150,6 +151,8 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
   assert.ok(next.filter(row => row.status === "rejected").every(row => row.reason.status === 409));
   const nextCommand = next.find(row => row.status === "fulfilled").value;
   assert.equal(nextCommand.request.nonce, command.request.nonce + 1);
+  const recovery = await smokeMintRecovery({ db, publisherId, passportId, attemptId, nextCommand, base });
+  const previousQuarantines = await db.auditLog.count({ where: { publicationId: winner.publication.id, action: "PUBLICATION_MINT_QUARANTINED" } });
 
   if (chain) {
     const tx = await base.getTransaction({ hash });
@@ -189,7 +192,8 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
     expectedIntentSha256: probe.intent.sha256, acknowledgement: "SEND_EXACT_MINT" }, probe.target,
   { ...idle, getChainId: async () => { probeRpc++; throw new Error(); } }), error => error.status === 409 && error.message.includes("quarantined"));
   assert.equal(probeRpc, 0); assert.equal(await db.publicationMintAttempt.count({ where: { preparationId: probe.preparationId } }), 0);
-  assert.equal(await db.auditLog.count({ where: { publicationId: winner.publication.id, action: "PUBLICATION_MINT_QUARANTINED" } }), 1);
+  assert.equal(await db.auditLog.count({ where: { publicationId: winner.publication.id, action: "PUBLICATION_MINT_QUARANTINED" } }), previousQuarantines + 1);
+  await smokeLostOriginalRecovery({ db, publisherId, passportId, attemptId, base, previous: recovery, actualChain: !!chain });
   assert.equal((await db.publicationMintObservation.findUniqueOrThrow({ where: { id: first.observationId } })).status, "VERIFIED");
   process.stdout.write(`Mint finalization passed: fresh exact publication, immutable proof/replay, permanent nonce claims, prior-anchor checks, next-slot concurrency and sticky cross-attempt quarantine (${chain ? "actual rollback/cancellation after release plus PostgreSQL" : "injected RPC plus PostgreSQL"}). No public certificate or broadcaster enabled.\n`);
 }

@@ -322,6 +322,7 @@ try {
     await db.auditLog.deleteMany({ where: { passportId: id } });
     // The finalization proof FK is deferred; delete this owned cycle atomically.
     await db.$transaction(async tx => {
+      await tx.publicationMintRecovery.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
       await tx.publicationMintDiscovery.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
       await tx.publicationMintResult.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
       await tx.publicationMintObservation.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });

@@ -35,6 +35,7 @@ model User {
   publicationWalletChallenges PublicationWalletChallenge[]
   adminActions     AdminAction[]
   productFeedback  ProductFeedback[]
+  mintRecoveries   PublicationMintRecovery[]
 
   @@unique([email])
   @@map("user")
@@ -226,6 +227,7 @@ enum AuditAction {
   PUBLICATION_MINT_FINALIZED
   PUBLICATION_MINT_QUARANTINED
   PUBLICATION_MINT_SEARCHED
+  PUBLICATION_MINT_RESTORED
 }
 
 model Farmer {
@@ -515,6 +517,7 @@ model PublicationMintAttempt {
   monitorToken    String? @db.Uuid
   monitorUntil    DateTime?
   monitorNextAt   DateTime @default(now())
+  recoveries      PublicationMintRecovery[]
 
   @@unique([id, nonce])
   @@unique([finalizedObservationId, id, finalizationStatus])
@@ -554,10 +557,36 @@ model PublicationMintObservation {
   checkedResult   PublicationMintResult? @relation("MintResultCheck")
   verifiedResult  PublicationMintResult? @relation("MintResultVerification")
   finalizedAttempt PublicationMintAttempt? @relation("MintFinalization")
+  recoveryOriginals PublicationMintRecovery[] @relation("MintRecoveryOriginal")
+  recoveryVerification PublicationMintRecovery? @relation("MintRecoveryVerification")
 
   @@unique([attemptId, revision])
   @@unique([id, attemptId])
   @@unique([id, attemptId, status])
+}
+
+// Append-only explicit review of an unchanged original receipt after quarantine.
+model PublicationMintRecovery {
+  id                        String @id @default(uuid()) @db.Uuid
+  attemptId                 String @db.Uuid
+  attempt                   PublicationMintAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  requestId                 String @unique @db.Uuid
+  actorId                   String
+  actor                     User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  quarantinedAt             DateTime
+  reviewedObservationVersion Int
+  intentSha256              String @db.Char(64)
+  walletStateSha256         String @db.Char(64)
+  finalizedObservationId    String @db.Uuid
+  verifiedObservationId     String @unique @db.Uuid
+  verificationStatus        PublicationMintObservationStatus @default(VERIFIED)
+  original                  PublicationMintObservation @relation("MintRecoveryOriginal", fields: [finalizedObservationId, attemptId, verificationStatus], references: [id, attemptId, status], onDelete: Restrict)
+  verification              PublicationMintObservation @relation("MintRecoveryVerification", fields: [verifiedObservationId, attemptId, verificationStatus], references: [id, attemptId, status], onDelete: Restrict)
+  restoredAt                DateTime @default(now())
+
+  @@unique([attemptId, reviewedObservationVersion])
+  @@unique([verifiedObservationId, attemptId, verificationStatus])
+  @@index([attemptId, restoredAt])
 }
 
 // Append-only search pages. FOUND adopts an exact call/nonce, never a receipt or issuance.
