@@ -13,6 +13,8 @@ export function PublicationPreparation({ base, confirmation, reservation, data, 
   const t = useT().publicationPreparation;
   const heading = useId();
   const [checked, setChecked] = useState(false);
+  const [withdrawReason, setWithdrawReason] = useState("");
+  const [withdrawChecked, setWithdrawChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<"changed" | "accessDenied" | "uncertain" | null>(null);
   const running = useRef(false), alive = useRef(true), requestId = useRef<string | null>(null);
@@ -59,6 +61,25 @@ export function PublicationPreparation({ base, confirmation, reservation, data, 
     } finally { running.current = false; if (alive.current) setBusy(false); }
   }
 
+  // Stop a pinned, never-minted publication so the reviewer can recall the passport.
+  async function withdraw() {
+    if (disabled || running.current || !data.publisher.canProve || reservation.status !== "PINNED" || !withdrawChecked || withdrawReason.trim().length < 3) return;
+    running.current = true; setBusy(true); setError(null);
+    try {
+      const response = await fetch(`${base}/withdrawal`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        publicationId: reservation.id, expectedSha256: confirmation.preview.sha256, reason: withdrawReason.trim(), acknowledgement: "WITHDRAW_UNMINTED_PUBLICATION",
+      }) });
+      if (!response.ok) throw new Error(String(response.status));
+      if (alive.current) await reload();
+    } catch (cause) {
+      if (!alive.current) return;
+      const result = await reload();
+      if (alive.current && result?.reservations.find(row => row.id === reservation.id)?.status !== "CANCELLED") {
+        setError(cause instanceof Error && ["401", "403"].includes(cause.message) ? "accessDenied" : cause instanceof Error && cause.message === "409" ? "changed" : "uncertain");
+      }
+    } finally { running.current = false; if (alive.current) setBusy(false); }
+  }
+
   const awaiting = active?.status === "DISPATCHING" || active?.status === "UNKNOWN";
   return <section aria-labelledby={heading} className="space-y-3 rounded-xl border border-border bg-surface p-4 text-sm">
     <h5 id={heading} className="font-semibold">{t.title}</h5>
@@ -77,6 +98,17 @@ export function PublicationPreparation({ base, confirmation, reservation, data, 
       <p>{t.noDispatch}</p>{canPrepare && <Button type="button" variant="outline" size="sm" onClick={() => void mutate(true)} disabled={disabled || busy}>{t.cancel}</Button>}</>}
     {awaiting && <p role="status">{t.unknown}</p>}
     {active?.status === "VERIFIED" && <p role="status">{t.pinned}</p>}
+    {active?.status === "VERIFIED" && reservation.status === "PINNED" && data.publisher.canProve && <details className="rounded-lg border border-border p-3">
+      <summary className="cursor-pointer font-medium text-brand-700">{t.withdrawTitle}</summary>
+      <div className="mt-3 space-y-3">
+        <p>{t.withdrawHint}</p>
+        <label className="block">{t.withdrawReason}<textarea value={withdrawReason} onChange={event => setWithdrawReason(event.target.value)} maxLength={500} rows={3}
+          disabled={disabled || busy} className="mt-1 block w-full rounded-lg border border-border bg-surface px-3 py-2" /></label>
+        <label className="flex items-start gap-2"><input type="checkbox" className="mt-1 accent-brand-600" checked={withdrawChecked}
+          disabled={disabled || busy} onChange={event => setWithdrawChecked(event.target.checked)} /><span>{t.withdrawConsent}</span></label>
+        <Button type="button" variant="outline" onClick={() => void withdraw()} disabled={!withdrawChecked || withdrawReason.trim().length < 3 || disabled || busy}>{t.withdraw}</Button>
+      </div>
+    </details>}
     {!active && history.some(row => row.status === "CANCELLED") && <p role="status">{t.cancelled}</p>}
     {!data.publisher.canProve && <p>{t.readOnly}</p>}
     {!active && data.publisher.canProve && !reservation.walletVerifiedAt && <p>{t.needsProof}</p>}

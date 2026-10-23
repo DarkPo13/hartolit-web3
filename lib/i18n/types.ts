@@ -17,6 +17,7 @@ export interface Translations {
     uncertain: string; saving: string; prepared: string; noDispatch: string; cancel: string;
     unknown: string; pinned: string; cancelled: string; readOnly: string; needsProof: string;
     review: string; publicNotice: string; consent: string; prepare: string;
+    withdrawTitle: string; withdrawHint: string; withdrawReason: string; withdrawConsent: string; withdraw: string;
   };
   feedback: {
     responsibility: string;

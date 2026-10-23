@@ -20,6 +20,8 @@ export const publicationPreparationSchema = z.strictObject({
   acknowledgement: z.literal("PUBLISH_CONFIRMED_SNAPSHOT"),
 });
 export const publicationCancellationSchema = z.strictObject({ publicationId: z.uuid(), attemptId: z.uuid() });
+export const publicationWithdrawalSchema = z.strictObject({ publicationId: z.uuid(), expectedSha256: z.string().regex(/^[0-9a-f]{64}$/),
+  reason: z.string().trim().min(3).max(500), acknowledgement: z.literal("WITHDRAW_UNMINTED_PUBLICATION") });
 
 export const walletChallengeInputSchema = z.strictObject({ publicationId: z.uuid() });
 export const walletProofInputSchema = z.strictObject({

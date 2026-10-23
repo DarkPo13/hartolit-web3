@@ -2,12 +2,12 @@
 
 - **Last updated:** 2026-10-23
 - **Branch:** `master`
-- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the admin-view browser pass and language-switch fix on top of `216c8fd` (D55) and `e3feb73`. `master` is ahead of the locally recorded `origin/master` (26 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
+- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits pre-mint withdrawal (D56) on top of `fb6e851` (admin browser pass) and `216c8fd` (D55). `master` is ahead of the locally recorded `origin/master` (27 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
 - **Checkpoint:** application commit `21be79e` and handoff commit `f94edf9` are pushed to `origin/master`. **2026-10-21 correction:** the GitHub authentication blocker is resolved; Credential Manager had multiple accounts and a command-local account selector enabled the authorized HTTPS push without changing global settings. No user credential action remains pending.
 - **Recorded green application CI:** `f94edf9`, [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254), completed **success** for both web and contract jobs. It covers the wallet UI build, attempts/readback, both migrations and configured tests. Later local application increments are not covered by that run; inspect exact pushed-commit CI after an authorized push.
 - **2026-10-21 handoff correction:** earlier dated goal/validation paragraphs were archival and contained superseded uncommitted/pending claims. They are consolidated into the dated history in `PROGRESS.md`; this file is the current frontier.
 
-Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D55.
+Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D56.
 
 ## Current goal
 
@@ -50,6 +50,7 @@ Keep this file under about 250 lines. Source/config and exact pushed-commit CI o
 - **Verified wallet checkpoints (D51):** additive migration 30 adds append-only `PublicationMintWalletCheckpoint`. Internal system `checkpointMintWallet` (no HTTP/consent, unblocks nothing) attests every closed proof up to a nonce had its current anchor at or below one canonical block; later checks verify that block plus at most 64 newer proofs. Bounded batches from the newest DB-current, chain-canonical base among the last 4, else the wallet start; a broken proof anchor fails it. Derived staleness (covered closed count, open attempt in range, covered re-anchor count) fails history checks with 503 until replaced; recovery reads stale state so D50 cannot deadlock. Quarantine is read across the whole wallet. No scheduler activates it.
 - **Independent public verifier core (D52):** `lib/public-verifier/verify.ts` reads chain state at `head - (K - 1)` (depth without logs), requires runtime/owner/reverse index/raw-profile URI, fetches the raw block through a credential-free HTTPS gateway reader and checks SHA-256 plus canonical strict `2.0.0` JSON. Distinct VALID/PENDING/NOT_FOUND/UNAVAILABLE/MISMATCH/UNSUPPORTED with coarse reasons; never reads the database. Exposed by D53.
 - **Anonymous public page (D53):** `/passports/{tokenId}` runs the D52 verifier per request (no cache, no database) and renders VALID facts only from verified bytes; other results have distinct states without facts; absent/malformed IDs 404. Server-only `HARTOLIT_VERIFY_*` configuration (HTTPS or loopback HTTP; unset = not configured). Proxy no-store/noindex/no-referrer. UK/EN. Live production-build smoke on owned Anvil in CI. VALID pages offer share link/QR from the configured origin (never Host), print and exact-JSON download (D54), plus an issuer-record note after VALID that can alert but never change the verdict (D55). The actual-chain publication smoke now requires the just-finalized passport to be VALID on this page from the bytes the uploader sent (issue-to-verify).
+- **Pre-mint withdrawal (D56):** the designated MFA publisher can withdraw a PINNED publication that never received mint permission (strict body, private reason, audit; HTTP route and admin form); it becomes CANCELLED, cannot be revived, and recall is then allowed. Bytes may remain on IPFS. Migration 31 adds the audit value.
 - **Domain error identity (D47, 0333474):** server-only branded WorkflowError preserves existing service exports and instanceof semantics across duplicate loaders while rejecting unbranded status-bearing errors. Fixed a reproducible monitor expiry misclassification without weakening the lease check. Focused isolated-loader negative control and unweakened full integration pass.
 
 ## Still absent / intentionally disabled
@@ -83,6 +84,8 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Validation
 
+**Pre-mint withdrawal, 2026-10-23:** lint, typecheck, build, 48 Node tests, migration 31 deploy/no drift, default and actual-chain `publication:smoke` exited 0; removing the independent attempt check exits 1. Withdrawal form not browser-tested.
+
 **Admin publication views browser pass, 2026-10-23, headless Chrome:** 24 checks passed (UI TOTP login, queue/detail, wallet proof state, consent/prepare/cancel stored, keyboard consent, EN toggle, certificate/verification/detail at 390px, no errors); found and fixed a language switch that reset the review in progress (control exit 1). lint, typecheck, build, 48 Node tests exited 0.
 
 **Issuer-record note, 2026-10-23:** lint, typecheck, build, **48 Node regressions**, `verifier:smoke` (unreachable DB) and actual-chain `publication:smoke` (MATCH) exited 0; missing-configuration control exits 1.
@@ -114,7 +117,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Next steps
 
-1. **Agent, next local slice:** Next steps item 2's remaining slices in guide order (MVP_COMPLETION_GUIDE section 6 and 8): correction/history for published records (a new version and supersession notice, never editing the original), then preservation holds and retention/deletion controls (preview-first), then matched DB/object backup and restore drills. Read the guide sections and D21/D25 first; design the correction policy as a decision before code. Changed-outcome/lost-proof incidents need an explicit policy decision, not code. Commit each verified increment separately.
+1. **Agent, next local slice:** post-mint correction (D56 outlines it): an append-only correction record linking a PUBLISHED publication to a new passport that goes through the normal draft/submit/approve/confirm/publish flow, opened by an MFA admin with a private reason, and supersession/correction notices on both public pages as issuer-record enrichment (never changing the verdict, no contract or public schema change). Exercise wrong farm label and wrong dose after mint. Then private evidence access for claims (guide 6.2), holds/retention (8), backup/restore. Commit each verified increment separately.
 2. **Agent, subsequent local slices:** integrate local-only end-to-end upload/chain flow, issued certificate and anonymous strict `2.0.0` verifier; correction/history; holds/deletion controls and matched backup/restore; full fictional browser acceptance. See the ordered local checklist in `MVP_COMPLETION_GUIDE.md`. Do not declare only external work remains until these actually pass.
 3. **Later user participation:** choose providers/regions and actual MFA publisher/public wallet; installed-extension acceptance, hosted infrastructure, actual IPFS compatibility/retention, Testnet deployment and hosted/device acceptance, counsel/pilot review. No seed/private key sharing. These choices do not block the next local slice.
 
@@ -127,4 +130,4 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Open questions
 
-PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D55 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.
+PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D56 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.

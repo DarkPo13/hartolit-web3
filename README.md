@@ -750,6 +750,10 @@ New permissions used to stop permanently at 64 closed proofs. `checkpointMintWal
 
 Additive migration `20261023180000_publication_mint_wallet_checkpoint` adds the append-only table. A checkpoint is stale when its covered closed set, an open attempt inside its range or a covered re-anchor changes; stale or non-canonical checkpoints make permission checks fail with 503 until a new one is created. Quarantine is still read across the whole wallet. The re-inclusion fixture exercises creation, compact checks, covered quarantine, a reorg that invalidates the checkpoint, staleness after re-anchoring and a fresh restart, on actual Anvil as well.
 
+## Withdrawing a pinned publication before mint
+
+Recall is blocked once publication starts. If a mistake is found after pinning but before any mint permission, the designated MFA publisher can withdraw the publication from the admin panel (or `POST /api/admin/passports/{id}/publication/withdrawal`) with the exact payload hash, a private reason and the `WITHDRAW_UNMINTED_PUBLICATION` acknowledgement. The publication becomes CANCELLED, nothing can resume it, and the reviewer can then recall the passport. The pinned bytes may remain on IPFS; no token references them. A publication that ever received mint permission cannot be withdrawn and needs the post-mint correction process.
+
 ## Independent public verification core
 
 `verifyPublicPassport(tokenId, target, reader, readBlock)` checks a published passport from chain state and IPFS bytes alone; the database is never consulted. State is read `confirmations - 1` blocks below head, so a VALID result implies that depth. It requires the configured contract runtime, the token's owner, URI and committed hash, the reverse hash index, a raw-profile CID, gateway bytes whose SHA-256 equals the on-chain hash, and canonical strict `2.0.0` JSON. Results are VALID, PENDING, NOT_FOUND, UNAVAILABLE, MISMATCH or UNSUPPORTED with a coarse reason. `createRawGatewayReader` fetches the raw block over HTTPS with no credential. `npm run test:verifier` and the actual-Anvil `chain:smoke` cover it.

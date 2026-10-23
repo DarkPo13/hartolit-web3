@@ -2,7 +2,7 @@ import type { Translations } from "../types";
 
 export const en: Translations = {
   publisher: {
-    approvalChanged: "This record's confirmation was recalled. Reload the passport to see the current decision. Preparation cannot be restarted.",
+    approvalChanged: "Publication of this confirmation was stopped (recalled or withdrawn). Reload the passport to see the current decision. Preparation cannot be restarted.",
     title: "Service wallet",
     hint: "Prepare the confirmed record and prove control of the allowed wallet. These steps do not publish a certificate.",
     loading: "Checking status…", loadError: "Unable to load status. Please refresh it.", refresh: "Refresh status",
@@ -43,6 +43,11 @@ export const en: Translations = {
     publicNotice: "After future publication these data will be public and may remain available permanently. Private source files are not published.",
     consent: "I reviewed the exact data and selected storage and approve preparing this record for future publication. The wallet ownership signature does not replace this consent.",
     prepare: "Save consent and prepare",
+    withdrawTitle: "Withdraw before mint",
+    withdrawHint: "Use this if a mistake is found after pinning but before any mint permission. No token will reference this document. The pinned bytes may remain retrievable from IPFS. Afterwards the reviewer can recall the passport for correction.",
+    withdrawReason: "Private reason (staff only)",
+    withdrawConsent: "I understand this permanently stops publication of this exact document and does not remove it from IPFS.",
+    withdraw: "Withdraw publication",
   },
   feedback: {
     responsibility: "Responsible farming",

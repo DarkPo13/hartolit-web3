@@ -93,6 +93,8 @@ The steps are ordered so that engineering can proceed while provider and legal d
 
 ### 6. Handle irreversible mistakes and private evidence access
 
+**Status, 2026-10-23:** pre-mint withdrawal of a pinned, never-minted publication followed by recall is implemented (D56). Post-mint correction records and private evidence access remain.
+
 **Owner:** agent designs; user/pilot organization reviews policy. **Owning layers:** publication lifecycle, admin audit, evidence access and public display.
 
 1. Define an explicit correction record that links a new certificate to the old one. Never silently replace published JSON, rewrite a token's meaning or erase a historical verifier result. Show a visible correction/supersession notice where applicable.

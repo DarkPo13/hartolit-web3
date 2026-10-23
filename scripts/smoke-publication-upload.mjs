@@ -13,6 +13,7 @@ import { smokeMintDiscovery } from "./smoke-publication-mint-discovery.mjs";
 import { smokeMintMonitor } from "./smoke-publication-mint-monitor.mjs";
 import { smokeMintCancellation } from "./smoke-publication-mint-cancellation.mjs";
 import { smokeMintReanchor } from "./smoke-publication-mint-reanchor.mjs";
+import { smokePublicationWithdrawal } from "./smoke-publication-withdrawal.mjs";
 import { smokeMintFailure, smokeLateMintFailure } from "./smoke-publication-mint-failure.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
@@ -31,12 +32,12 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
   if (realLocalNode) assertOfflineKubo();
   const ownedCids = [];
   // Bytes the upload driver actually transmitted, for the issue-to-verify check.
-  const uploaded = new Map();
+  const uploaded = new Map(), pinTargets = new Map();
   const candidates = [];
   let chain;
   try {
     if (process.env.PUBLICATION_LOCAL_CHAIN === "1") chain = await localMintChain(signingAccount);
-    for (const scenario of ["success", "lost-ack", "before-write-failure", "quarantine-probe", "failure-probe", "cancellation-probe"]) {
+    for (const scenario of ["success", "lost-ack", "before-write-failure", "quarantine-probe", "failure-probe", "cancellation-probe", "withdrawal-probe"]) {
       const blocks = new Map();
       let writes = 0;
       const transport = realLocalNode ? fetch : async (address, options) => {
@@ -91,7 +92,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
         if (scenario === "lost-ack") throw new Error("Fictional lost acknowledgement after storage");
       } };
       const cid = rawCidFromSha256(confirmation.preview.sha256); ownedCids.push(cid);
-      if (scenario === "success" || scenario === "quarantine-probe" || scenario === "failure-probe" || scenario === "cancellation-probe") {
+      if (scenario === "success" || scenario === "quarantine-probe" || scenario === "failure-probe" || scenario === "cancellation-probe" || scenario === "withdrawal-probe") {
         const results = await Promise.allSettled([execute(wrapped), execute(wrapped), execute(wrapped)]);
         assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
         assert.ok(results.filter((r) => r.status === "rejected").every((r) => r.reason.status === 409));
@@ -114,9 +115,11 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
       assert.equal(stored.ipfsCid, scenario === "before-write-failure" ? null : cid);
       assert.equal(stored.canonicalJson, confirmation.preview.canonicalJson); assert.equal(stored.tokenId, null); assert.equal(stored.transactionHash, null);
       assert.equal((await db.passport.findUniqueOrThrow({ where: { id: passportId } })).version, 4);
+      pinTargets.set(scenario, provider.target);
       const candidate = await smokeMintPreparation({ db, publisherId, passportId, publication: stored, pin: savedAttempt, chainTarget: chain?.target });
       if (candidate) candidates.push(candidate);
     }
+    await smokePublicationWithdrawal({ api, db, publisherId, publisher, candidate: candidates[5], pinTarget: pinTargets.get("withdrawal-probe"), chain });
     await smokeMintCancellation({ db, publisherId, candidate: candidates[4], peer: candidates[0], probe: candidates[1], chain });
     await smokeMintReanchor({ db, publisherId, candidate: candidates[4], peer: candidates[0], chain });
     const failure = await smokeMintFailure({ db, publisherId, candidate: candidates[3], peer: candidates[0], chain });
