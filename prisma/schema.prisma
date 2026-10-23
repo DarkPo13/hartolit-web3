@@ -675,6 +675,29 @@ model PublicationMintCancellation {
   @@index([actorId])
 }
 
+enum DraftNoticeEmailStatus {
+  SENT
+  FAILED
+}
+
+// Unused-draft retention notice and, after deletion, its tombstone. Holds no
+// private data and no foreign key, so it outlives the draft it describes.
+// A notice starts the 30-day period only if the email was SENT and the draft
+// has not changed since `draftUpdatedAt` (D60).
+model DraftRetentionNotice {
+  id             String @id @default(uuid()) @db.Uuid
+  passportId     String @db.Uuid
+  ownerId        String
+  noticedAt      DateTime @default(now())
+  deleteAfter    DateTime
+  draftUpdatedAt DateTime
+  emailStatus    DraftNoticeEmailStatus
+  deletedAt      DateTime?
+
+  @@index([passportId, noticedAt])
+  @@index([deletedAt, deleteAfter])
+}
+
 // A claim/dispute hold: while active, the record, its farm/field linkage and its
 // evidence rows/objects cannot be deleted or purged (also enforced by SQL
 // triggers, see migration). Engineering default pending counsel review (D59).

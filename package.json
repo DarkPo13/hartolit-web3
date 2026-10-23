@@ -40,6 +40,8 @@
     "publication:smoke": "node scripts/smoke-publication.mjs",
     "publication:smoke:offline": "node scripts/smoke-publication-offline.mjs",
     "evidence:prune": "node scripts/prune-evidence.mjs",
+    "retention:drafts": "node scripts/retention-drafts.mjs",
+    "retention:smoke": "node scripts/smoke-retention.mjs",
     "auth:create-admin": "auth create-admin --config auth.cli.ts",
     "auth:create-operator": "auth create-admin --config auth.cli.ts --role user --yes",
     "auth:smoke": "node scripts/smoke-auth.mjs",

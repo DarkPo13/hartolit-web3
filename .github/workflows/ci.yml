@@ -140,6 +140,7 @@ jobs:
           PUBLICATION_LOCAL_CHAIN=1 npm run publication:smoke
           npm run verifier:smoke
           npm run auth:smoke
+          npm run retention:smoke
       - run: npm audit --omit=dev --audit-level=high
 
   contract:
