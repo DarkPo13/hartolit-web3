@@ -20,6 +20,7 @@ const detailInclude = {
   meteo: true,
   chemical: true,
   evidence: { orderBy: { createdAt: "desc" as const }, select: { id: true, kind: true, status: true, filename: true, sizeBytes: true, sha256: true, rejectionCode: true, createdAt: true } },
+  publications: { where: { tokenId: { not: null } }, select: { id: true }, take: 1 },
   audit: { orderBy: { createdAt: "desc" as const }, take: 100, select: { id: true, actorId: true, action: true, version: true, fromStatus: true, toStatus: true, note: true, targetUserId: true, createdAt: true } },
 } satisfies Prisma.PassportInclude;
 
@@ -197,7 +198,7 @@ export async function adminDetail(id: string) {
   const actors = await getDb().user.findMany({ where: { id: { in: row.audit.map((event) => event.actorId) } }, select: { id: true, name: true, email: true } });
   const names = new Map(actors.map((actor) => [actor.id, actor.name || actor.email]));
   const detail = privateDetail(row);
-  return { ...detail, audit: detail.audit.map((event) => ({ ...event, actorName: names.get(event.actorId) ?? event.actorId })) };
+  return { ...detail, issued: row.publications.length > 0, audit: detail.audit.map((event) => ({ ...event, actorName: names.get(event.actorId) ?? event.actorId })) };
 }
 
 export async function adminOverview() {

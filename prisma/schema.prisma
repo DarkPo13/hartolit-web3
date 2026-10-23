@@ -40,6 +40,8 @@ model User {
   mintCancellations PublicationMintCancellation[]
   mintReanchors    PublicationMintReanchor[]
   publicationCorrections PublicationCorrection[]
+  evidenceGrantsGiven EvidenceAccessGrant[] @relation("EvidenceGrantGranter")
+  evidenceGrantsRevoked EvidenceAccessGrant[] @relation("EvidenceGrantRevoker")
 
   @@unique([email])
   @@map("user")
@@ -249,6 +251,9 @@ enum AuditAction {
   PUBLICATION_MINT_REANCHORED
   PUBLICATION_WITHDRAWN
   PUBLICATION_CORRECTION_OPENED
+  EVIDENCE_ACCESS_GRANTED
+  EVIDENCE_ACCESS_REVOKED
+  EVIDENCE_DOWNLOADED
 }
 
 model Farmer {
@@ -327,6 +332,7 @@ model Passport {
   supersededBy    PublicationCorrection[] @relation("CorrectionSupersededPassport")
   correctionOf    PublicationCorrection[] @relation("CorrectionReplacementPassport")
 
+  evidenceAccessGrants EvidenceAccessGrant[]
   @@unique([id, ownerId])
   @@index([ownerId, updatedAt(sort: Desc), id(sort: Desc)])
   @@index([status, updatedAt(sort: Desc)])
@@ -662,6 +668,43 @@ model PublicationMintCancellation {
   @@unique([id, attemptId, observationId])
   @@index([discoveryId])
   @@index([actorId])
+}
+
+enum EvidenceAccessBasis {
+  DATA_SUBJECT_CONSENT
+  CONTRACT
+  LEGAL_OBLIGATION
+  LEGITIMATE_INTEREST
+}
+
+enum EvidenceAccessScope {
+  EVIDENCE
+  MAPPING
+  EVIDENCE_AND_MAPPING
+}
+
+// Staff-mediated, time-limited access to an issued record's private evidence or
+// farm/field mapping for a claim. Records who asked, on what basis and why.
+// Engineering default pending counsel/pilot review (D58); no external access.
+model EvidenceAccessGrant {
+  id             String @id @default(uuid()) @db.Uuid
+  passportId     String @db.Uuid
+  passport       Passport @relation(fields: [passportId], references: [id], onDelete: Restrict)
+  organization   String @db.VarChar(200)
+  basis          EvidenceAccessBasis
+  basisReference String @db.VarChar(200)
+  purpose        String @db.VarChar(500)
+  scope          EvidenceAccessScope
+  grantedById    String
+  grantedBy      User @relation("EvidenceGrantGranter", fields: [grantedById], references: [id], onDelete: Restrict)
+  grantedAt      DateTime @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  revokedById    String?
+  revokedBy      User? @relation("EvidenceGrantRevoker", fields: [revokedById], references: [id], onDelete: Restrict)
+
+  @@index([passportId, expiresAt])
+  @@index([grantedById])
 }
 
 // Append-only post-mint correction: a published record is never edited. It is

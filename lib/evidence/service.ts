@@ -16,7 +16,7 @@ const PREVIEW_SECONDS = 60;
 type Declaration = z.infer<typeof reserveSchema>;
 
 export class EvidenceError extends Error {
-  constructor(public readonly status: 400 | 404 | 409 | 413 | 503, message: string) { super(message); }
+  constructor(public readonly status: 400 | 403 | 404 | 409 | 413 | 422 | 503, message: string) { super(message); }
 }
 
 function publicFile(file: { id: string; kind: string; filename: string; contentType: string; sizeBytes: number; sha256: string; status: string; createdAt: Date; rejectionCode: string | null }) {
@@ -154,7 +154,7 @@ export async function previewEvidence(ownerId: string, passportId: string, id: s
   return signPreview(file);
 }
 
-async function signPreview(file: { objectKey: string; filename: string; contentType: string }) {
+export async function signPreview(file: { objectKey: string; filename: string; contentType: string }) {
   const { client, bucket } = evidenceStorage();
   const safeName = file.filename.replace(/[^a-zA-Z0-9._-]/g, "_");
   const url = await getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: file.objectKey, ResponseContentDisposition: `attachment; filename="${safeName}"`, ResponseContentType: file.contentType }), { expiresIn: PREVIEW_SECONDS });

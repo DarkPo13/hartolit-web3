@@ -493,6 +493,11 @@ export interface Translations {
     lFileSize: string;
     lContentType: string;
   };
+  evidenceAccess: {
+    title: string; hint: string; loadError: string; actionError: string; none: string; revoked: string; expired: string; download: string; revoke: string; create: string; organization: string; basis: string; basisReference: string; scope: string; purpose: string; days: string; consent: string; record: string;
+    bases: { DATA_SUBJECT_CONSENT: string; CONTRACT: string; LEGAL_OBLIGATION: string; LEGITIMATE_INTEREST: string; };
+    scopes: { EVIDENCE: string; MAPPING: string; EVIDENCE_AND_MAPPING: string; };
+  };
   publicationCorrection: {
     title: string; hint: string; reason: string; consent: string; open: string; opened: string; linkedPassport: string; replacement: string; pendingReplacement: string; readOnly: string; loadError: string; actionError: string;
   };
