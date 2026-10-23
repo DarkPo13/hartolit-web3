@@ -127,7 +127,7 @@ export interface Translations {
     previous: string; next: string; resultCount: string; details: string;
     backToQueue: string; owner: string; reviewer: string; unassigned: string;
     assign: string; claim: string; release: string; decision: string;
-    note: string; reasonRequired: string; approve: string; reject: string; issuedDecision: string;
+    note: string; reasonRequired: string; approve: string; reject: string; issuedDecision: string; publicationStarted: string;
     requestCorrection: string; saveDecision: string; actionError: string;
     changed: string; detailsError: string; dashboard: string; activity: string;
     farmerField: string; treatment: string; meteo: string; chemical: string;

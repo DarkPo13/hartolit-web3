@@ -2,12 +2,12 @@
 
 - **Last updated:** 2026-10-23
 - **Branch:** `master`
-- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the admin issued state (D62) on top of `ee42c60` (D61 backup drill) and `7d3a028` (D60). `master` is ahead of the locally recorded `origin/master` (33 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
+- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the explained recall refusal (D63) on top of `fe00dfd` (D62 issued state) and `ee42c60` (D61). `master` is ahead of the locally recorded `origin/master` (34 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
 - **Checkpoint:** application commit `21be79e` and handoff commit `f94edf9` are pushed to `origin/master`. **2026-10-21 correction:** the GitHub authentication blocker is resolved; Credential Manager had multiple accounts and a command-local account selector enabled the authorized HTTPS push without changing global settings. No user credential action remains pending.
 - **Recorded green application CI:** `f94edf9`, [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254), completed **success** for both web and contract jobs. It covers the wallet UI build, attempts/readback, both migrations and configured tests. Later local application increments are not covered by that run; inspect exact pushed-commit CI after an authorized push.
 - **2026-10-21 handoff correction:** earlier dated goal/validation paragraphs were archival and contained superseded uncommitted/pending claims. They are consolidated into the dated history in `PROGRESS.md`; this file is the current frontier.
 
-Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D62.
+Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D63.
 
 ## Current goal
 
@@ -56,7 +56,7 @@ Keep this file under about 250 lines. Source/config and exact pushed-commit CI o
 - **Preservation holds (D59):** audited place/release by MFA admins; while active, owner evidence removal and `evidence:prune` skip the record and PostgreSQL triggers refuse passport/evidence deletion and purge marks. Engineering default. Migration 34.
 - **Unused-draft retention (D60):** `npm run retention:drafts` (dry run; `--notify`, `--execute`): 90-day never-submitted drafts without holds/corrections; sent-only notice, edit voids it, 30-day period, locked recheck, objects first with rollback, tombstone. No scheduler. Migration 35.
 - **Backup/restore drill (D61):** `npm run backup:drill` (local only): matched dump/object set with manifest and table digests, isolated restore, reapply of a separately exported tombstone/evidence-removal/hold journal (releases, deletions, active holds). No hosted backups, journal store or rolling window.
-- **Admin issued state (D62):** issued token/contract/transaction and public-page link replace preparation, decision form and private unissued views; suspended records show a notice. Browser checkpoints `issued`/`withdrawal` for `publication:smoke`.
+- **Admin issued state (D62):** issued token/contract/transaction and public-page link replace preparation, decision form and private unissued views; suspended records show a notice. Browser checkpoints `issued`/`withdrawal` for `publication:smoke`. A recall refused after publication started names the reason (D63).
 - **Domain error identity (D47, 0333474):** server-only branded WorkflowError preserves existing service exports and instanceof semantics across duplicate loaders while rejecting unbranded status-bearing errors. Fixed a reproducible monitor expiry misclassification without weakening the lease check. Focused isolated-loader negative control and unweakened full integration pass.
 
 ## Still absent / intentionally disabled
@@ -89,6 +89,8 @@ Real provider/profile compatibility, remote identity/account attestation, pin re
 No open row above is closed by this checkpoint. Public field scope is approved, but integrity does not prove agronomic correctness, legal recognition or entitlement to compensation. Readers/farmers will not need a wallet/account for the future public QR verifier (D21/D29).
 
 ## Validation
+
+**Withdrawal browser pass and D63, 2026-10-23, headless Chrome 390px:** 13 checks passed; lint, typecheck, build, 50 Node tests, default and actual-chain `publication:smoke` exited 0; one control exits 1; no residue.
 
 **Issued-record browser pass and D62, 2026-10-23, headless Chrome:** 32 checks plus the issued block passed on the actual-chain `issued` fixture (UK/EN, keyboard, 390px, anonymous page). lint, typecheck, build, 50 Node tests, default and actual-chain `publication:smoke` exited 0; two controls exit 1; no residue.
 
@@ -135,7 +137,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Next steps
 
-1. **Agent, next local slice:** browser pass of the `withdrawal` fixture; mark issued records and correction drafts in the admin queue and the operator workspace (the queue currently gives no publication state, D62 PROGRESS); then the rest of the full fictional workflow in a browser (invite/login/MFA through confirmation, interrupted operations). Commit each verified increment separately.
+1. **Agent, next local slice:** mark issued records and correction drafts in the admin queue and the operator workspace (the queue currently gives no publication state, D62 PROGRESS); then the rest of the full fictional workflow in a browser (invite/login/MFA through confirmation, interrupted operations). Commit each verified increment separately.
 2. **Agent, subsequent local slices:** integrate local-only end-to-end upload/chain flow, issued certificate and anonymous strict `2.0.0` verifier; correction/history; full fictional browser acceptance. See the ordered local checklist in `MVP_COMPLETION_GUIDE.md`. Do not declare only external work remains until these actually pass.
 3. **Later user participation:** choose providers/regions and actual MFA publisher/public wallet; installed-extension acceptance, hosted infrastructure, actual IPFS compatibility/retention, Testnet deployment and hosted/device acceptance, counsel/pilot review. No seed/private key sharing. These choices do not block the next local slice.
 
@@ -148,4 +150,4 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Open questions
 
-PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D62 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.
+PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D63 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.

@@ -111,7 +111,11 @@ export function AdminConsole({ actorId }: { actorId: string }) {
     try {
       const response = await fetch(`/api/admin/passports/${detail.id}/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: detail.version, ...body }) });
       if (!response.ok) {
-        if (response.status === 409) { await loadDetail(detail.id); setActionError(t.changed); return; }
+        if (response.status === 409) {
+          const payload = await response.json().catch(() => null);
+          await loadDetail(detail.id);
+          setActionError(Array.isArray(payload?.issues) && payload.issues.includes("PUBLICATION_STARTED") ? t.publicationStarted : t.changed); return;
+        }
         const payload = await response.json(); setActionError(typeof payload.error === "string" ? payload.error : t.actionError); return;
       }
       await Promise.all([loadDetail(detail.id), loadQueue()]); setNote("");

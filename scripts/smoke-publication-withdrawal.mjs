@@ -24,6 +24,10 @@ export async function smokePublicationWithdrawal({ api, db, publisherId, publish
   assert.equal((await stored()).status, "PINNED");
   const recall = async () => decideReview(publisherId, passportId, { version: (await passport()).version, decision: "CORRECTION_REQUIRED", note: "Fictional correction" });
   await rejects(recall(), 409); // Recall alone is blocked once publication has started.
+  const refused = await api(`/api/admin/passports/${passportId}/decision`, { user: publisher, method: "POST", body: {
+    version: (await passport()).version, decision: "CORRECTION_REQUIRED", note: "Fictional recall attempt" } });
+  assert.equal(refused.status, 409);
+  assert.deepEqual((await refused.json()).issues, ["PUBLICATION_STARTED"], "the refusal names its reason for the admin view");
 
   assert.equal((await api(route, { method: "POST", body })).status, 401);
   assert.equal((await api(route, { user: publisher, method: "POST", body: { ...body, acknowledgement: "PUBLISH_CONFIRMED_SNAPSHOT" } })).status, 400);

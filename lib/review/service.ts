@@ -147,7 +147,7 @@ export async function decideReview(adminId: string, id: string, input: ReviewDec
       const externalPublication = await tx.publication.findFirst({
         where: { passportId: id, status: { notIn: ["RESERVED", "CANCELLED"] } }, select: { id: true },
       });
-      if (externalPublication) throw new WorkflowError(409, "Publication has started; use the publication correction process");
+      if (externalPublication) throw new WorkflowError(409, "Publication has started; use the publication correction process", ["PUBLICATION_STARTED"]);
       const reservations = await tx.publication.findMany({ where: { passportId: id, status: "RESERVED" }, select: { id: true } });
       for (const reservation of reservations) {
         const cancelledAt = new Date();

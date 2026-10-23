@@ -812,3 +812,9 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - Also found: the run's cleanup left the browser-created correction draft and therefore the fixture users. The global cleanup now adds server-created correction drafts to its list; the rerun left no residue. The earlier residue (one fictional draft and four `@example.invalid` users) was removed by hand.
 - Open finding: the admin queue does not mark issued records and all fixture records share one farm name, so finding the issued record took opening several approved records.
 - Validation: lint, typecheck, build, 50 Node tests, default and actual-chain `publication:smoke` exited 0; two type-valid controls exit 1 (an earlier pair failed to compile and proved nothing). Withdrawal browser stage not yet exercised.
+
+## 2026-10-23 - Browser pass of pre-mint withdrawal; explained recall refusal (D63)
+
+- Continued after fe00dfd. Headless Chrome on the actual-chain `withdrawal` fixture at 390px: a recall before withdrawal was refused with the generic "passport changed, reload" message, and the pinned record showed a red "changed" alert only because the smoke app has no storage target. Fixed as D63. Rerun: 13 checks passed (refusal names the started publication, no stale/false alerts, withdraw gated by acknowledgement, stopped state, recall afterwards, EN, no overflow).
+- Harness note: the first rerun raced a stale "checkpoint ready" line from the previous log; wait on a fresh log file.
+- Validation: lint, typecheck, build, 50 Node tests, default and actual-chain `publication:smoke` exited 0; removing the code exits 1 at the new assertion; no residue.

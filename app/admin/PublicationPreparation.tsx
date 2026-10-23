@@ -21,8 +21,9 @@ export function PublicationPreparation({ base, confirmation, reservation, data, 
   const target = data.pinning.target;
   const history = data.pinning.attempts.filter(row => row.publicationId === reservation.id);
   const active = history.find(row => row.status !== "CANCELLED");
-  const matches = !active || (active.confirmationId === confirmation.id && active.passportVersion === confirmation.preview.passportVersion &&
-    active.payloadHash === confirmation.preview.sha256 && !!target && active.providerKey === target.key &&
+  // Without a configured target the not-configured notice applies; compare only against a real target.
+  const matches = !active || !target || (active.confirmationId === confirmation.id && active.passportVersion === confirmation.preview.passportVersion &&
+    active.payloadHash === confirmation.preview.sha256 && active.providerKey === target.key &&
     active.providerConfigHash === target.configurationSha256 && active.storageProfile === target.storageProfile);
   const canPrepare = data.publisher.canProve && !!reservation.walletVerifiedAt && reservation.status === "RESERVED";
 
