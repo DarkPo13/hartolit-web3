@@ -30,6 +30,8 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
   const realLocalNode = process.env.PUBLICATION_LOCAL_KUBO === "1";
   if (realLocalNode) assertOfflineKubo();
   const ownedCids = [];
+  // Bytes the upload driver actually transmitted, for the issue-to-verify check.
+  const uploaded = new Map();
   const candidates = [];
   let chain;
   try {
@@ -42,7 +44,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
         if (url.pathname.endsWith("block/put")) {
           const bytes = new Uint8Array(await options.body.get("file").arrayBuffer());
           const cid = rawCidFromSha256(createHash("sha256").update(bytes).digest("hex"));
-          blocks.set(cid, bytes);
+          blocks.set(cid, bytes); uploaded.set(cid, bytes);
           return Response.json({ Key: cid, Size: bytes.length });
         }
         const cid = url.searchParams.get("arg") ?? url.pathname.split("/").pop();
@@ -124,7 +126,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
     await smokeMintDiscovery({ db, publisherId, dispatched, chain });
     const resultFixture = await smokeMintObservation({ db, publisherId, dispatched, chain });
     const finalizationFixture = await smokeMintResult({ db, publisherId, dispatched, chain, resultFixture });
-    await smokeMintFinalization({ db, publisherId, dispatched, chain, finalizationFixture, probe: candidates[2], failure });
+    await smokeMintFinalization({ db, publisherId, dispatched, chain, finalizationFixture, probe: candidates[2], failure, uploaded: realLocalNode ? null : uploaded });
     await smokeLateMintFailure({ db, publisherId, failure, chain });
     process.stdout.write(`Upload driver passed: target binding, explicit intent, single send, lost acknowledgement, failed-before-write and no resend (${realLocalNode ? "isolated offline Kubo" : "injected transport"}).\n`);
   } finally {

@@ -3,14 +3,12 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import http from "node:http";
-import net from "node:net";
-import { once } from "node:events";
-import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { createJiti } from "jiti";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { localMintChain } from "./local-mint-chain.mjs";
 import { fictionalChainSnapshot } from "./fixtures/public-chain.mjs";
+import { startRawGateway, startVerifierServer } from "./public-verifier-server.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -19,19 +17,8 @@ const { canonicalize } = await jiti.import("../lib/hash.ts");
 const { rawCidFromSha256 } = await jiti.import("../lib/publication/raw-cid.ts");
 const { uk } = await jiti.import("../lib/i18n/translations/uk.ts");
 const t = uk.publicVerifier;
-const port = Number(process.env.PUBLIC_VERIFIER_SMOKE_PORT ?? 3002), base = `http://127.0.0.1:${port}`;
-
 const blocks = new Map();
-let gatewayMode = "serve";
-const gateway = http.createServer((request, response) => {
-  const cid = new URL(request.url, "http://127.0.0.1").pathname.replace(/^\/ipfs\//, "");
-  if (gatewayMode === "down" || request.headers.authorization) { response.writeHead(503).end(); return; }
-  const bytes = blocks.get(cid);
-  if (!bytes) { response.writeHead(404).end(); return; }
-  response.writeHead(200, { "content-type": "application/vnd.ipld.raw" }).end(gatewayMode === "tamper" ? Buffer.concat([bytes, Buffer.from(" ")]) : bytes);
-});
-await new Promise((resolve, reject) => { gateway.once("error", reject); gateway.listen(0, "127.0.0.1", resolve); });
-const gatewayUrl = `http://127.0.0.1:${gateway.address().port}/`;
+const gateway = await startRawGateway(blocks), gatewayUrl = gateway.url;
 
 const account = privateKeyToAccount(generatePrivateKey());
 let chain, server;
@@ -50,24 +37,9 @@ try {
   };
   const first = await mint({ depth: 3 });
 
-  const probe = net.createServer();
-  await new Promise((resolve, reject) => { probe.once("error", reject); probe.listen(port, "127.0.0.1", resolve); });
-  await new Promise(resolve => probe.close(resolve));
   const rpcUrl = chain.url;
-  server = spawn(process.execPath, [path.resolve("node_modules/next/dist/bin/next"), "start", "--hostname", "127.0.0.1", "--port", String(port)], {
-    env: { ...process.env, NODE_ENV: "production", BETTER_AUTH_URL: base, HARTOLIT_VERIFY_RPC_URL: rpcUrl, HARTOLIT_VERIFY_GATEWAY_URL: gatewayUrl,
-      HARTOLIT_VERIFY_CONTRACT_ADDRESS: chain.target.contractAddress, HARTOLIT_VERIFY_CONTRACT_CODE_HASH: chain.target.contractCodeHash,
-      HARTOLIT_VERIFY_CONFIRMATIONS: String(chain.target.requiredConfirmations) },
-    stdio: ["ignore", "pipe", "pipe"], windowsHide: true,
-  });
-  let ready = false;
-  server.stdout.on("data", chunk => { if (chunk.toString().includes("Ready in")) ready = true; });
-  server.stderr.on("data", () => {});
-  for (let attempt = 0; attempt < 120 && !ready; attempt++) {
-    if (server.exitCode !== null) throw new Error("Public verifier server exited before startup (check build/port)");
-    await new Promise(resolve => setTimeout(resolve, 250));
-  }
-  assert.ok(ready, "Public verifier server did not become ready");
+  server = await startVerifierServer({ rpcUrl, gatewayUrl, target: chain.target });
+  const { base, port } = server;
 
   // Anonymous: no cookies, no session; the page must not leak configuration.
   const page = async tokenId => {
@@ -99,17 +71,17 @@ try {
   await mint({ depth: 1 });
   const pending = await page("2");
   assert.equal(pending.status, 200); assert.ok(pending.html.includes(t.pendingBadge)); assert.ok(!pending.html.includes("Fictional Chain Farm")); assert.ok(!pending.html.includes(t.shareTitle));
-  gatewayMode = "tamper";
+  gateway.control.mode = "tamper";
   const tampered = await page("1");
   assert.ok(tampered.html.includes(t.mismatchBadge) && tampered.html.includes(t.mismatchBytes)); assert.ok(!tampered.html.includes("Fictional Chain Farm"));
-  gatewayMode = "down";
+  gateway.control.mode = "down";
   const down = await page("1");
   assert.ok(down.html.includes(t.unavailableBadge) && down.html.includes(t.unavailableDescription)); assert.ok(!down.html.includes(t.validBadge));
-  gatewayMode = "serve";
+  gateway.control.mode = "serve";
   assert.ok((await page("1")).html.includes(t.validBadge), "recovers once the gateway serves the committed bytes");
   process.stdout.write("Public verifier smoke passed: anonymous production page, actual contract on owned Anvil, VALID/PENDING/not-found/MISMATCH/UNAVAILABLE, share link/QR from the configured origin despite a forged Host, no configuration leak, no-store/noindex/no-referrer headers. No public network or database.\n");
 } finally {
-  if (server?.pid && server.exitCode === null && server.signalCode === null) { const exited = once(server, "exit"); server.kill(); await exited; }
+  await server?.stop();
   await chain?.stop();
-  await new Promise(resolve => gateway.close(resolve));
+  await gateway.close();
 }
