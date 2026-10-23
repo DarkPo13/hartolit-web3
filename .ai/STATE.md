@@ -85,7 +85,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 **Limits:** no browser, installed wallet, actual Kubo, standalone Solidity/ABI, dependency audit, hosted provider/finality, recurring scheduler, genuine-reorg resolution or public-certificate acceptance was rerun/claimed. No populated/production-sized migration rehearsal or hosted rolling deploy; migration 28 bounds lock/statement waits and validates its replaced CHECK separately. "Other quarantine preserved" for the cancellation kind relies on the shared engine path already exercised by D45 fixtures; the cancellation fixture has no second quarantined attempt. No new CI result without authorized push.
 
-**Runtime:** smokes cleaned fictional records and stopped their owned app/Anvil children. Actual Anvil came from ignored local tooling via `ANVIL_BIN`, which does not travel through Git. Two older fictional `review-*@example.invalid` users dated 2026-10-02 predate this session and were left alone. PostgreSQL was started for these checks; see PROGRESS for its final state. No user-facing dev server or external publication.
+**Runtime:** smokes cleaned fictional records and stopped their owned app/Anvil children. Actual Anvil came from ignored local tooling via `ANVIL_BIN`, which does not travel through Git. Two older fictional `review-*@example.invalid` users dated 2026-10-02 predate this session and were left alone. Only the task-started PostgreSQL container was stopped after the final checks (exit 0); its volume was retained. No user-facing dev server or external publication.
 
 ## Environment and fresh-machine setup
 
