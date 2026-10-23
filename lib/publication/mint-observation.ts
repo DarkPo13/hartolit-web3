@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { canonicalize } from "@/lib/hash";
 import { WorkflowError } from "@/lib/review/service";
 import { createMintIntent, validateMintIntent, requireExactMintTransaction, inspectMintTransaction, type MintReader } from "./chain-mint";
+import { inspectMintCancellation } from "./mint-cancellation";
 import { rawCidFromSha256 } from "./raw-cid";
 import { RAW_PIN_PROFILE } from "./target";
 import { finalizedMintReceipt, failedMintReceipt, lockMintWallet, mintWalletHistory, verifyMintWalletAnchors } from "./mint-wallet";
@@ -28,6 +29,9 @@ export async function lockDispatchedMint(tx: Prisma.TransactionClient, passportI
   const finalized = attempt.status === "FINALIZED" ? finalizedMintReceipt(attempt.finalizedObservation) : null;
   const failed = attempt.status === "FAILED_TERMINAL" ? failedMintReceipt(attempt.failedObservation) : null;
   const closed = finalized ?? failed;
+  if (failed?.status === "CANCELLED" && (failed.nonce !== attempt.nonce.toString() || failed.publisherWallet !== attempt.publisherWallet)) {
+    throw new WorkflowError(409, "Cancelled proof does not match the saved wallet and nonce");
+  }
   const stageMatches = finalized
     ? publication.status === (attempt.quarantinedAt ? "CHAIN_SUSPENDED" : "PUBLISHED") && publication.contractAddress === finalized.contractAddress &&
       publication.transactionHash === finalized.transactionHash && publication.tokenId === finalized.tokenId
@@ -90,12 +94,22 @@ export async function finalizeMintPublication(passportId: string, attemptId: str
   return readAttempt(passportId, attemptId, { kind: "finalize", transactionId: parsed.data.transactionId }, reader, lease);
 }
 
-type Selection = { kind: "report"; hash: string | null } | { kind: "result" | "finalize"; transactionId: string };
+/** Internal canonical monitoring of the first closed cancellation only. */
+export async function reconcileMintCancellation(passportId: string, attemptId: string, input: unknown, reader: MintReader, lease?: MintMonitorLease) {
+  if (!z.strictObject({}).safeParse(input).success) throw new WorkflowError(422, "Cancellation monitoring accepts no caller hash or provider");
+  return readAttempt(passportId, attemptId, { kind: "cancellation" }, reader, lease);
+}
+
+type Selection = { kind: "report"; hash: string | null } | { kind: "result" | "finalize"; transactionId: string } | { kind: "cancellation" };
 async function readAttempt(passportId: string, attemptId: string, selection: Selection, reader: MintReader, lease?: MintMonitorLease) {
   const before = await getDb().$transaction(async tx => {
     const candidate = await lockDispatchedMint(tx, passportId, attemptId);
     await requireMintMonitorLease(tx, attemptId, lease);
     if (selection.kind === "report") return { ...candidate, hash: selection.hash, history: null };
+    if (selection.kind === "cancellation") {
+      if (candidate.failed?.status !== "CANCELLED") throw new WorkflowError(409, "An original closed cancellation is required");
+      return { ...candidate, hash: candidate.failed.transactionHash, history: null };
+    }
     const transaction = await tx.publicationMintTransaction.findFirst({ where: {
       id: selection.transactionId, attemptId, nonce: candidate.attempt.nonce,
     } });
@@ -110,20 +124,24 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
   const startedAt = Date.now();
   const walletAnchor = before.history ? await verifyMintWalletAnchors(before.history.anchors.filter(row => row.attemptId !== attemptId), reader) : null;
   let matched = false;
-  let result: Awaited<ReturnType<typeof inspectMintTransaction>> | ReturnType<typeof unissued> = unissued("UNKNOWN");
+  let result: Awaited<ReturnType<typeof inspectMintTransaction>> | Awaited<ReturnType<typeof inspectMintCancellation>> | ReturnType<typeof unissued> = unissued("UNKNOWN");
   // The missing hash is a durable uncertainty marker, never a discovery or retry.
   if (hash) {
     try {
       if (await reader.getChainId() !== before.intent.chainId) throw new Error();
-      let transaction;
-      try { transaction = await reader.getTransaction({ hash: hash as `0x${string}` }); }
-      catch (error) {
-        if (!(error instanceof Error) || error.name !== "TransactionNotFoundError") throw error;
-      }
-      if (transaction) {
-        try { requireExactMintTransaction(before.intent, hash, transaction, before.attempt.nonce); matched = true; }
-        catch { result = unissued("MISMATCH"); }
-        if (matched) result = await inspectMintTransaction(before.intent, hash, reader, before.attempt.nonce);
+      if (before.failed?.status === "CANCELLED") {
+        result = await inspectMintCancellation(before.intent, hash, before.attempt.nonce, reader);
+      } else {
+        let transaction;
+        try { transaction = await reader.getTransaction({ hash: hash as `0x${string}` }); }
+        catch (error) {
+          if (!(error instanceof Error) || error.name !== "TransactionNotFoundError") throw error;
+        }
+        if (transaction) {
+          try { requireExactMintTransaction(before.intent, hash, transaction, before.attempt.nonce); matched = true; }
+          catch { result = unissued("MISMATCH"); }
+          if (matched) result = await inspectMintTransaction(before.intent, hash, reader, before.attempt.nonce);
+        }
       }
     } catch { result = unissued("UNAVAILABLE"); }
   }
@@ -140,7 +158,7 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
     if (current.attempt.observationVersion !== before.attempt.observationVersion || current.attempt.discoveryVersion !== before.attempt.discoveryVersion) {
       return { status: "SUPERSEDED" as const, issued: false as const, canResend: false as const };
     }
-    if (selection.kind !== "report") {
+    if (selection.kind === "result" || selection.kind === "finalize") {
       const transaction = await tx.publicationMintTransaction.findFirst({ where: {
         id: selection.transactionId, attemptId, nonce: current.attempt.nonce, transactionHash: hash!,
       } });
@@ -172,7 +190,7 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
     }
     const revision = current.attempt.observationVersion + 1;
     const row = await tx.publicationMintObservation.create({ data: { attemptId, revision, reportedHash: hash, transactionId,
-      status: result.status, resultJson: canonicalize({ version: 1, ...result }) } });
+      status: result.status, resultJson: canonicalize({ version: 1, ...(before.failed?.status === "CANCELLED" ? { proofKind: "CANCELLATION" } : {}), ...result }) } });
     await tx.publicationMintAttempt.update({ where: { id: attemptId }, data: { observationVersion: revision } });
     await tx.auditLog.create({ data: { passportId, publicationId: current.publication.id, actorId: "system:publication-recovery",
       version: current.publication.passportVersion, action: "PUBLICATION_MINT_OBSERVED", fromStatus: "APPROVED", toStatus: "APPROVED", note: `Mint observation: ${row.id}` } });
@@ -192,7 +210,7 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
     }
     let publicationStatus = current.publication.status;
     if (current.failed) {
-      const sameFailure = result.status === "REVERTED" && result.transactionHash === current.failed.transactionHash &&
+      const sameFailure = (result.status === "REVERTED" || result.status === "CANCELLED") && result.status === current.failed.status && result.transactionHash === current.failed.transactionHash &&
         result.blockNumber === current.failed.blockNumber && result.blockHash === current.failed.blockHash &&
         result.contractAddress === current.failed.contractAddress && result.intentSha256 === current.failed.intentSha256 &&
         BigInt(result.confirmations) >= BigInt(current.failed.confirmations) && Date.now() >= startedAt && Date.now() - startedAt < resultFreshnessMs;

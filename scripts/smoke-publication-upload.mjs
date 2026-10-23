@@ -11,6 +11,7 @@ import { smokeMintResult } from "./smoke-publication-mint-result.mjs";
 import { smokeMintFinalization } from "./smoke-publication-mint-finalization.mjs";
 import { smokeMintDiscovery } from "./smoke-publication-mint-discovery.mjs";
 import { smokeMintMonitor } from "./smoke-publication-mint-monitor.mjs";
+import { smokeMintCancellation } from "./smoke-publication-mint-cancellation.mjs";
 import { smokeMintFailure, smokeLateMintFailure } from "./smoke-publication-mint-failure.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
@@ -32,7 +33,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
   let chain;
   try {
     if (process.env.PUBLICATION_LOCAL_CHAIN === "1") chain = await localMintChain(signingAccount);
-    for (const scenario of ["success", "lost-ack", "before-write-failure", "quarantine-probe", "failure-probe"]) {
+    for (const scenario of ["success", "lost-ack", "before-write-failure", "quarantine-probe", "failure-probe", "cancellation-probe"]) {
       const blocks = new Map();
       let writes = 0;
       const transport = realLocalNode ? fetch : async (address, options) => {
@@ -87,7 +88,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
         if (scenario === "lost-ack") throw new Error("Fictional lost acknowledgement after storage");
       } };
       const cid = rawCidFromSha256(confirmation.preview.sha256); ownedCids.push(cid);
-      if (scenario === "success" || scenario === "quarantine-probe" || scenario === "failure-probe") {
+      if (scenario === "success" || scenario === "quarantine-probe" || scenario === "failure-probe" || scenario === "cancellation-probe") {
         const results = await Promise.allSettled([execute(wrapped), execute(wrapped), execute(wrapped)]);
         assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
         assert.ok(results.filter((r) => r.status === "rejected").every((r) => r.reason.status === 409));
@@ -113,6 +114,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
       const candidate = await smokeMintPreparation({ db, publisherId, passportId, publication: stored, pin: savedAttempt, chainTarget: chain?.target });
       if (candidate) candidates.push(candidate);
     }
+    await smokeMintCancellation({ db, publisherId, candidate: candidates[4], peer: candidates[0], probe: candidates[1], chain });
     const failure = await smokeMintFailure({ db, publisherId, candidate: candidates[3], peer: candidates[0], chain });
     const dispatched = await smokeMintDispatch({ db, publisherId, candidates: candidates.slice(0, 2), chain });
     assert.equal(dispatched.command.request.nonce, failure.command.request.nonce + 1, "a new passport uses a new nonce after reviewed failure");

@@ -9,7 +9,7 @@ import { publicationPublisherAccess } from "./service";
 import { lockDispatchedMint } from "./mint-observation";
 import { mintWalletHistory, verifyMintWalletAnchors } from "./mint-wallet";
 import { inspectMintTransaction, type MintReader } from "./chain-mint";
-import { boundedMintMonitorReader } from "./mint-monitor";
+import { boundedMintMonitorReader } from "./mint-reader";
 
 const sha = z.string().regex(/^[0-9a-f]{64}$/);
 const inputSchema = z.strictObject({ requestId: z.uuid(), transactionId: z.uuid(), expectedIntentSha256: sha,

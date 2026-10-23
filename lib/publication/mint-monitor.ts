@@ -6,7 +6,7 @@ import { getDb } from "@/lib/db";
 import { WorkflowError } from "@/lib/review/service";
 import type { MintIntent, MintReader } from "./chain-mint";
 import { discoverMintTransaction } from "./mint-discovery";
-import { lockDispatchedMint, finalizeMintPublication, reconcileMintResult } from "./mint-observation";
+import { lockDispatchedMint, finalizeMintPublication, reconcileMintResult, reconcileMintCancellation } from "./mint-observation";
 import { requireMintMonitorLease } from "./mint-monitor-lease";
 import { boundedMintMonitorReader } from "./mint-reader";
 
@@ -45,7 +45,9 @@ export async function monitorMintAttempt(passportId: string, attemptId: string, 
       return saved;
     });
     const reader = boundedMintMonitorReader(readerFor(context.intent));
-    if (context.finalized || context.failed) {
+    if (context.failed?.status === "CANCELLED") {
+      status = (await reconcileMintCancellation(passportId, attemptId, {}, reader, lease)).status;
+    } else if (context.finalized || context.failed) {
       // Preserve the original proof and sticky quarantine; never substitute a
       // replacement for an already closed transaction, successful or failed.
       const transactionId = (context.attempt.finalizedObservation ?? context.attempt.failedObservation)!.transactionId!;

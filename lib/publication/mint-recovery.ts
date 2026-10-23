@@ -7,9 +7,9 @@ import { canonicalize, sha256Hex } from "@/lib/hash";
 import { WorkflowError } from "@/lib/review/service";
 import { publicationPublisherAccess } from "./service";
 import { lockDispatchedMint } from "./mint-observation";
-import { CLOSED_MINT_STATUSES, lockMintWallet, finalizedMintReceipt, failedMintReceipt, MAX_MINT_WALLET_RECEIPTS, verifyMintWalletAnchors } from "./mint-wallet";
+import { CLOSED_MINT_STATUSES, lockMintWallet, finalizedMintReceipt, failedMintReceipt, closedMintReceipt, MAX_MINT_WALLET_RECEIPTS, verifyMintWalletAnchors } from "./mint-wallet";
 import { inspectMintTransaction, type MintReader } from "./chain-mint";
-import { boundedMintMonitorReader } from "./mint-monitor";
+import { boundedMintMonitorReader } from "./mint-reader";
 
 const sha = z.string().regex(/^[0-9a-f]{64}$/);
 const recoverySchema = z.strictObject({ requestId: z.uuid(), expectedIntentSha256: sha, expectedWalletStateSha256: sha,
@@ -38,6 +38,7 @@ async function load(tx: Prisma.TransactionClient, adminId: string, passportId: s
   const original = kind === "SUCCESS" ? context.finalized : context.failed;
   const originalObservation = kind === "SUCCESS" ? context.attempt.finalizedObservation : context.attempt.failedObservation;
   if (!original || !originalObservation) throw new WorkflowError(409, "Recovery kind does not match the closed original mint");
+  if (kind === "FAILURE" && original.status !== "REVERTED") throw new WorkflowError(409, "Cancellation quarantine requires a separate recovery policy");
   await lockMintWallet(tx, context.attempt.chainId, context.attempt.publisherWallet);
   await requirePublisher(tx, adminId, context.attempt.publisherWallet);
   const transaction = await tx.publicationMintTransaction.findFirst({ where: { id: originalObservation.transactionId!,
@@ -49,7 +50,7 @@ async function load(tx: Prisma.TransactionClient, adminId: string, passportId: s
   if (rows.length > MAX_MINT_WALLET_RECEIPTS + 1 || closed.length > MAX_MINT_WALLET_RECEIPTS) {
     throw new WorkflowError(503, "Wallet recovery exceeds the bounded verification history");
   }
-  const anchors = closed.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: row.status === "FAILED_TERMINAL" ? failedMintReceipt(row.failedObservation) : finalizedMintReceipt(row.finalizedObservation) }));
+  const anchors = closed.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: closedMintReceipt(row) }));
   const walletBinding = canonicalize(rows.map(row => ({ id: row.id, nonce: row.nonce.toString(), status: row.status,
     observationVersion: row.observationVersion, discoveryVersion: row.discoveryVersion,
     quarantinedAt: row.quarantinedAt?.toISOString() ?? null, finalizedAt: row.finalizedAt?.toISOString() ?? null,

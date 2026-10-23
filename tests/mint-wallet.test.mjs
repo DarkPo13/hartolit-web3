@@ -57,3 +57,22 @@ test("closed reverted sends retain canonical nonce anchors and independently qua
   }
   await assert.rejects(mintWalletHistory({ ...tx, publicationMintAttempt: { findMany: async () => [{ ...failed, quarantinedAt: new Date() }] } }, 97, "fictional-wallet"), error => error.status === 409);
 });
+
+test("closed cancellation proofs retain the exact nonce/wallet without becoming matched mint transactions", async () => {
+  const { tokenId: ignored, ...base } = receipt; void ignored;
+  const publisherWallet = `0x${"2".repeat(40)}`;
+  const cancellation = { ...base, status: "CANCELLED", proofKind: "CANCELLATION", nonce: "7", publisherWallet,
+    headBlockNumber: "7", headBlockHash: hash("c") };
+  const proof = { ...observation, status: "CANCELLED", transactionId: null, resultJson: JSON.stringify(cancellation) };
+  const row = { ...rows[0], status: "FAILED_TERMINAL", publisherWallet, finalizedObservation: null, failedObservation: proof };
+  assert.equal(failedMintReceipt(proof).status, "CANCELLED");
+  const history = await mintWalletHistory(transaction([row]), 97, publisherWallet);
+  assert.equal(history.anchors[0].nonce, 7n); assert.equal(history.anchors[0].receipt.status, "CANCELLED");
+  for (const patch of [{ transactionId: "fictional-mint-transaction" }, { reportedHash: hash("d") },
+    { resultJson: JSON.stringify({ ...cancellation, headBlockNumber: "6" }) }, { resultJson: JSON.stringify({ ...cancellation, tokenId: "1" }) }]) {
+    assert.throws(() => failedMintReceipt({ ...proof, ...patch }), error => error.status === 409);
+  }
+  for (const patch of [{ nonce: 8n }, { publisherWallet: `0x${"3".repeat(40)}` }, { quarantinedAt: new Date() }]) {
+    await assert.rejects(mintWalletHistory(transaction([{ ...row, ...patch }]), 97, publisherWallet), error => error.status === 409);
+  }
+});

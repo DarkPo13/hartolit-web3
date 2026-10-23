@@ -14,13 +14,20 @@ const receiptSchema = z.strictObject({ version: z.literal(1), status: z.literal(
   tokenId: z.string().regex(/^[1-9][0-9]{0,77}$/), confirmations: integer.refine(value => BigInt(value) >= 2n),
 });
 const failedReceiptSchema = receiptSchema.omit({ tokenId: true, status: true }).extend({ status: z.literal("REVERTED") });
+const cancelledReceiptSchema = failedReceiptSchema.omit({ status: true }).extend({ status: z.literal("CANCELLED"), proofKind: z.literal("CANCELLATION"), nonce: integer,
+  publisherWallet: z.string().regex(/^0x[0-9a-f]{40}$/), headBlockNumber: integer, headBlockHash: hex,
+}).refine(value => BigInt(value.headBlockNumber) >= BigInt(value.blockNumber) &&
+  BigInt(value.headBlockNumber) - BigInt(value.blockNumber) + 1n === BigInt(value.confirmations));
 export const MAX_MINT_WALLET_RECEIPTS = 64;
 export const CLOSED_MINT_STATUSES = ["FINALIZED", "FAILED_TERMINAL"] as const;
 
 export function failedMintReceipt(row: PublicationMintObservation | null) {
   try {
-    if (!row || row.status !== "REVERTED" || !row.transactionId) throw new Error();
-    const receipt = failedReceiptSchema.parse(JSON.parse(row.resultJson));
+    if (!row) throw new Error();
+    const receipt = row.status === "CANCELLED" && !row.transactionId
+      ? cancelledReceiptSchema.parse(JSON.parse(row.resultJson))
+      : row.status === "REVERTED" && row.transactionId ? failedReceiptSchema.parse(JSON.parse(row.resultJson)) : null;
+    if (!receipt) throw new Error();
     if (receipt.transactionHash !== row.reportedHash) throw new Error();
     return receipt;
   } catch { throw new WorkflowError(409, "Closed failed mint receipt is invalid"); }
@@ -33,6 +40,14 @@ export function finalizedMintReceipt(row: PublicationMintObservation | null) {
     if (receipt.transactionHash !== row.reportedHash) throw new Error();
     return receipt;
   } catch { throw new WorkflowError(409, "Finalized mint receipt is invalid"); }
+}
+
+export function closedMintReceipt(row: { status: string; nonce: bigint; publisherWallet: string; failedObservation: PublicationMintObservation | null; finalizedObservation: PublicationMintObservation | null }) {
+  const receipt = row.status === "FAILED_TERMINAL" ? failedMintReceipt(row.failedObservation) : finalizedMintReceipt(row.finalizedObservation);
+  if (receipt.status === "CANCELLED" && (receipt.nonce !== row.nonce.toString() || receipt.publisherWallet !== row.publisherWallet)) {
+    throw new WorkflowError(409, "Cancellation proof wallet or nonce changed");
+  }
+  return receipt;
 }
 
 export async function lockMintWallet(tx: Prisma.TransactionClient, chainId: number, wallet: string) {
@@ -49,7 +64,7 @@ export async function mintWalletHistory(tx: Prisma.TransactionClient, chainId: n
     orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 1, include: { finalizedObservation: true, failedObservation: true } });
   if (rows.some(row => row.quarantinedAt)) throw new WorkflowError(409, "Publisher wallet is quarantined; no new send or finalization is allowed");
   if (rows.length > MAX_MINT_WALLET_RECEIPTS) throw new WorkflowError(503, "Wallet history exceeds the bounded verification limit; no new permission is allowed");
-  const anchors = rows.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: row.status === "FAILED_TERMINAL" ? failedMintReceipt(row.failedObservation) : finalizedMintReceipt(row.finalizedObservation) }));
+  const anchors = rows.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: closedMintReceipt(row) }));
   return { anchors, binding: canonicalize(rows.map(row => ({ id: row.id, nonce: row.nonce.toString(),
     status: row.status, revision: row.observationVersion, finalizedAt: row.finalizedAt?.toISOString() ?? null,
     failedAt: row.failedAt?.toISOString() ?? null, proof: row.finalizedObservation?.resultJson ?? row.failedObservation?.resultJson }))) };

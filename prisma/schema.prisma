@@ -37,6 +37,7 @@ model User {
   productFeedback  ProductFeedback[]
   mintRecoveries   PublicationMintRecovery[]
   mintFailures     PublicationMintFailure[]
+  mintCancellations PublicationMintCancellation[]
 
   @@unique([email])
   @@map("user")
@@ -187,6 +188,7 @@ enum PublicationMintObservationStatus {
   CONFIRMING
   VERIFIED
   REVERTED
+  CANCELLED
   REORG
 }
 
@@ -239,6 +241,7 @@ enum AuditAction {
   PUBLICATION_MINT_RESTORED
   PUBLICATION_MINT_FAILED
   PUBLICATION_MINT_FAILURE_RESTORED
+  PUBLICATION_MINT_CANCELLED
 }
 
 model Farmer {
@@ -534,6 +537,7 @@ model PublicationMintAttempt {
   failureStatus   PublicationMintObservationStatus?
   failedObservation PublicationMintObservation? @relation("MintFailureProof", fields: [failedObservationId, id, failureStatus], references: [id, attemptId, status], onDelete: NoAction, map: "PublicationMintAttempt_failure_proof_fkey")
   failure         PublicationMintFailure?
+  cancellation    PublicationMintCancellation?
 
   @@unique([id, nonce])
   @@unique([finalizedObservationId, id, finalizationStatus])
@@ -579,11 +583,13 @@ model PublicationMintObservation {
   recoveryVerification PublicationMintRecovery? @relation("MintRecoveryVerification")
   failedAttempt PublicationMintAttempt? @relation("MintFailureProof")
   failureClosure PublicationMintFailure? @relation("MintFailureClosure")
+  cancellationClosure PublicationMintCancellation? @relation("MintCancellationClosure")
 
   @@unique([attemptId, revision])
   @@unique([id, attemptId])
   @@unique([id, attemptId, status])
   @@unique([id, attemptId, transactionId, status], map: "PublicationMintObservation_failure_binding_key")
+  @@unique([id, attemptId, reportedHash, status], map: "PublicationMintObservation_cancellation_binding_key")
 }
 
 // Reviewed consumed-nonce failure; never permission to resend this preparation.
@@ -604,6 +610,32 @@ model PublicationMintFailure {
   closedAt        DateTime @default(now())
 
   @@unique([observationId, attemptId, transactionId, proofStatus])
+}
+
+// Reviewed canonical self-send; separate from exact-call REVERTED mint proofs.
+model PublicationMintCancellation {
+  id              String @id @default(uuid()) @db.Uuid
+  attemptId       String @unique @db.Uuid
+  attempt         PublicationMintAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  requestId       String @unique @db.Uuid
+  actorId         String
+  actor           User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  discoveryId     String @db.Uuid
+  discoveryStatus PublicationMintDiscoveryStatus @default(CONFLICT)
+  discovery       PublicationMintDiscovery @relation(fields: [discoveryId, attemptId, transactionHash, discoveryStatus], references: [id, attemptId, transactionHash, status], onDelete: Restrict, map: "PublicationMintCancellation_discovery_fkey")
+  transactionHash String @db.VarChar(66)
+  observationId   String @unique @db.Uuid
+  proofStatus     PublicationMintObservationStatus @default(CANCELLED)
+  observation     PublicationMintObservation @relation("MintCancellationClosure", fields: [observationId, attemptId, transactionHash, proofStatus], references: [id, attemptId, reportedHash, status], onDelete: Restrict, map: "PublicationMintCancellation_proof_fkey")
+  reviewedObservationVersion Int
+  reviewedDiscoveryVersion Int
+  intentSha256    String @db.Char(64)
+  walletStateSha256 String @db.Char(64)
+  closedAt        DateTime @default(now())
+
+  @@unique([observationId, attemptId, transactionHash, proofStatus])
+  @@index([discoveryId])
+  @@index([actorId])
 }
 
 // Append-only explicit review of an unchanged original receipt after quarantine.
@@ -652,8 +684,10 @@ model PublicationMintDiscovery {
   transactionId       String? @db.Uuid
   transaction         PublicationMintTransaction? @relation(fields: [transactionId, attemptId, transactionHash], references: [id, attemptId, transactionHash], onDelete: Restrict)
   observedAt          DateTime @default(now())
+  cancellations       PublicationMintCancellation[]
 
   @@unique([attemptId, revision])
+  @@unique([id, attemptId, transactionHash, status], map: "PublicationMintDiscovery_cancellation_binding_key")
 }
 
 // A revocable, as-of projection. Never issuance, finality or permission to release a nonce.
