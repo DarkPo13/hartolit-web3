@@ -1,17 +1,21 @@
 # STATE — the frontier
 
-- **Last updated:** 2026-10-22
+- **Last updated:** 2026-10-23
 - **Branch:** `master`
 - **Commit workflow:** user authorized separate local commits after each verified functional increment on 2026-10-22. Upload `e39499b`, pin consent `5f861b3`, chain verification `6682389`, mint preparation `0072571`, single-use nonce permission `5a2944b`, historical observations `6c2ae73`, revocable result selection `723eaff`, finalization/quarantine `490a664`. Anchored discovery is committed as `a4ce897`. Bounded monitoring is committed as `9d2b5e4`. Unchanged-original restoration is committed as `a86a72a`; reviewed reverted-send closure/monitoring is committed as `6180f33`. Unchanged failed-proof restoration is committed as `712e86c`. This checkpoint adds read-only exact same-nonce self-send cancellation verification; no cancellation slot release is implemented. No push was requested. Prior green CI does not cover new local commits.
 - **Checkpoint:** application commit `21be79e` and handoff commit `f94edf9` are pushed to `origin/master`. **2026-10-21 correction:** the GitHub authentication blocker is resolved; Credential Manager had multiple accounts and a command-local account selector enabled the authorized HTTPS push without changing global settings. No user credential action remains pending.
 - **Recorded green application CI:** `f94edf9`, [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254), completed **success** for both web and contract jobs. It covers the wallet UI build, attempts/readback, both migrations and configured tests. Later local application increments are not covered by that run; inspect exact pushed-commit CI after an authorized push.
 - **2026-10-21 handoff correction:** earlier dated goal/validation paragraphs were archival and contained superseded uncommitted/pending claims. They are consolidated into the dated history in `PROGRESS.md`; this file is the current frontier.
 
-Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D46.
+Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D47.
 
 ## Current goal
 
 **User direction, 2026-10-21:** continue local implementation/testing autonomously before requesting external accounts or real scenarios. Finish remaining local publication UI, chain lifecycle, issued/public views and operational safeguards, then prepare an exact external-connection handoff. Ownership signing is not publication consent. Only fictional local fixtures are used; no customer data, public-network pin, deployed external contract, mint or hosted release is authorized or exists.
+
+## Local continuation, 2026-10-23
+
+- D47 fixes domain-error recognition across duplicate server module instances without weakening lease/auth checks. Focused isolated-loader/expired-lease regression passes and fails with branded instanceof disabled. Full current-worktree lint/typecheck/build, 31 Node tests and default PG/production HTTP smoke exited 0; these runs also include the separately pending cancellation changes, not a new pushed checkpoint. Cancellation closure/migration/monitoring remains in progress pending actual owned-Anvil acceptance. No push requested.
 
 ## Implemented in this checkpoint
 
@@ -98,4 +102,4 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Open questions
 
-PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D46 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.
+PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D47 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.

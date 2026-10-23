@@ -7,9 +7,8 @@ import { isSupportedTimeZone } from "@/lib/time-zone";
 import { publicCropSchema, publicTreatmentCategorySchema } from "@/lib/public-snapshot/schema";
 import type { ReviewDecision } from "./schema";
 
-export class WorkflowError extends Error {
-  constructor(public readonly status: 403 | 404 | 409 | 422 | 503, message: string, public readonly issues?: string[]) { super(message); }
-}
+import { WorkflowError } from "./errors";
+export { WorkflowError } from "./errors";
 
 const detailInclude = {
   owner: { select: { id: true, name: true, email: true } },
