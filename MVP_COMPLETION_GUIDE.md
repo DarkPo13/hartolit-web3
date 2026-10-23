@@ -117,7 +117,7 @@ The steps are ordered so that engineering can proceed while provider and legal d
 
 ### 8. Implement retention, preservation holds and recovery
 
-**Status, 2026-10-23:** preservation holds are implemented as an engineering default (D59): audited place/release, application checks and database triggers that block deletion and purging while a hold is active. Unused-draft notice and deletion are implemented as an operator command (D60). Backup/restore remains.
+**Status, 2026-10-23:** preservation holds are implemented as an engineering default (D59): audited place/release, application checks and database triggers that block deletion and purging while a hold is active. Unused-draft notice and deletion are implemented as an operator command (D60). A local matched backup/restore drill with journal reapply exists (D61); hosted backups, the journal store and the rolling window remain.
 
 **Owner:** agent implements after counsel/pilot review of the policy; user approves provider configuration. **Owning layers:** database services/jobs, private object store, admin controls and operations runbook.
 
