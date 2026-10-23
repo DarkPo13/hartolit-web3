@@ -189,7 +189,7 @@ Ask for the accounts below only when those three pass locally. Then each externa
 | Scheduler and monitoring | A trusted scheduled job (every few minutes) for the runner from gap 3 and for `retention:drafts`/`evidence:prune`; error monitoring and alerts for failed jobs, backup, scanner, SMTP and expiring credentials | Defined with gap 3 | Missed run alerts; a forced failure reaches the on-call contact |
 | People and review | Counsel/pilot review of D25, D58, D59, D60 defaults; pilot organization contact; incident contacts | none | Written sign-off before real data (Q1, S6) |
 
-Not needed now: WalletConnect (`NEXT_PUBLIC_WALLETCONNECT_ID`), Pinata (`PINATA_JWT`, `PINATA_GATEWAY`) and Diia keys belong to legacy demo or deferred features; Mainnet is a separate decision (step 10).
+Not needed: WalletConnect (removed, D66). Not needed now: Pinata (`PINATA_JWT`, `PINATA_GATEWAY`) and Diia keys belong to legacy demo or deferred features; Mainnet is a separate decision (step 10).
 
 ### Later, with the user: external acceptance
 

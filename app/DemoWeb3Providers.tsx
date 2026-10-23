@@ -2,7 +2,6 @@
 
 import { useState, type ReactNode } from "react";
 import { WagmiProvider } from "wagmi";
-import { RainbowKitProvider, lightTheme } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { wagmiConfig } from "@/lib/wagmi";
 
@@ -12,20 +11,7 @@ export function DemoWeb3Providers({ children }: { children: ReactNode }) {
   }));
   return (
     <WagmiProvider config={wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider
-          theme={lightTheme({
-            accentColor: "#10b981",
-            accentColorForeground: "white",
-            borderRadius: "medium",
-            fontStack: "system",
-          })}
-          appInfo={{ appName: "Hartolit Field Passport", learnMoreUrl: "https://hartolit-agro.com" }}
-          showRecentTransactions
-        >
-          {children}
-        </RainbowKitProvider>
-      </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </WagmiProvider>
   );
 }

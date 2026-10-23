@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createConfig, http, WagmiProvider, useAccount, useConfig, useConnect, useDisconnect, useSignMessage, useSwitchChain } from "wagmi";
-import { getAccount } from "wagmi/actions";
+import { createConfig, http, WagmiProvider, useConfig, useConnect, useConnection, useConnectors, useDisconnect, useSignMessage, useSwitchChain } from "wagmi";
+import { getConnection } from "wagmi/actions";
 import { injected } from "wagmi/connectors";
 import { bscTestnet } from "wagmi/chains";
 import { Button } from "@/components/ui/Button";
@@ -41,11 +41,12 @@ function WalletControls({ base, reservation, walletAddress, certificateId, disab
   const t = useT().publisher;
   const { locale } = useLocale();
   const config = useConfig();
-  const { address, chainId, isConnected, connector } = useAccount();
-  const { connectAsync, connectors } = useConnect();
-  const { disconnectAsync } = useDisconnect();
-  const { switchChainAsync } = useSwitchChain();
-  const { signMessageAsync } = useSignMessage();
+  const { address, chainId, isConnected, connector } = useConnection();
+  const { mutateAsync: connectAsync } = useConnect();
+  const connectors = useConnectors();
+  const { mutateAsync: disconnectAsync } = useDisconnect();
+  const { mutateAsync: switchChainAsync } = useSwitchChain();
+  const { mutateAsync: signMessageAsync } = useSignMessage();
   const [challenge, setChallenge] = useState<{ value: WalletChallenge; connectorId: string } | null>(null);
   const [phase, setPhase] = useState<"idle" | "connecting" | "switching" | "preparing" | "signing" | "saving" | "disconnecting">("idle");
   const [error, setError] = useState<"rejected" | "walletError" | "changed" | "actionError" | "accessDenied" | "saveUncertain" | null>(null);
@@ -68,7 +69,7 @@ function WalletControls({ base, reservation, walletAddress, certificateId, disab
   const busy = phase !== "idle";
 
   function stillConnected() {
-    const account = getAccount(config);
+    const account = getConnection(config);
     return account.isConnected && account.address?.toLowerCase() === walletAddress && account.chainId === 97 && account.connector?.uid === connector?.uid;
   }
 

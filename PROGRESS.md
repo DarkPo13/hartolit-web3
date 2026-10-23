@@ -855,3 +855,9 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - Still exit 1 at high: 15 advisories, all in the wallet tree pulled in by `wagmi` 2 connectors and RainbowKit (nested zod 3.22/3.25 without a patched 3.x line, nested viem/abitype in WalletConnect). `overrides` would force incompatible majors. The fix is wagmi 3, whose third-party connector SDKs are optional peers; RainbowKit only supports wagmi 2 and only serves the legacy demo. That is the next increment. A push before it would fail the CI audit step.
 - Local run needed: a STARTTLS Mailpit on 1025/8025 like CI with `SMTP_HOST=localhost` and its CA in `NODE_EXTRA_CA_CERTS`, the app on port 3000 (evidence CORS) and the `publication-local` Kubo profile.
 - Wrote the external-connection handoff (guide, "External connection handoff"). Main finding: three local gaps (upload action, browser-wallet mint send with configured server RPC, monitoring runner) must close before accounts are useful. Corrected three stale README checklist lines (Mainnet, "public evidence" CIDs, legacy upload routes).
+
+## 2026-10-24 - Injected-only wagmi 3 clears the audit gate (D66)
+
+- Continued after fad5d10 (STATE next step 1a). RainbowKit 2.2.11 still peers on wagmi ^2.9, so wagmi 3 meant removing it; it only served the legacy demo and shipped its stylesheet to every user. wagmi 3 renames the account hook/action and deprecates the `*Async` aliases in favour of `mutateAsync`; the publisher component keeps its local names by aliasing, so its D30 checks are untouched.
+- The account-change case confirmed the D30 behavior on wagmi 3: after a switch away and back, the prepared message is discarded and must be prepared again.
+- Validation: see STATE (full gate run on the new tree) and D66 (browser pass, audit 0).

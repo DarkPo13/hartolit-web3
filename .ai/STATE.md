@@ -2,12 +2,12 @@
 
 - **Last updated:** 2026-10-24
 - **Branch:** `master`
-- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the Next.js 16.4.3 / Zod 4.6.7 security update and the external-connection handoff on top of `8bb0b6f` (D65). `master` is ahead of the locally recorded `origin/master` (37 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
+- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the injected-only wagmi 3 wallet stack (D66) on top of `fad5d10` and `2cc3221` (Next.js/Zod security update, external-connection handoff). `master` is ahead of the locally recorded `origin/master` (39 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
 - **Checkpoint:** application commit `21be79e` and handoff commit `f94edf9` are pushed to `origin/master`. **2026-10-21 correction:** the GitHub authentication blocker is resolved; Credential Manager had multiple accounts and a command-local account selector enabled the authorized HTTPS push without changing global settings. No user credential action remains pending.
 - **Recorded green application CI:** `f94edf9`, [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254), completed **success** for both web and contract jobs. It covers the wallet UI build, attempts/readback, both migrations and configured tests. Later local application increments are not covered by that run; inspect exact pushed-commit CI after an authorized push.
 - **2026-10-21 handoff correction:** earlier dated goal/validation paragraphs were archival and contained superseded uncommitted/pending claims. They are consolidated into the dated history in `PROGRESS.md`; this file is the current frontier.
 
-Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D65.
+Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D66.
 
 ## Current goal
 
@@ -90,6 +90,8 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Validation
 
+**Full local gate run on the wagmi 3 tree (D66), 2026-10-24:** all 34 validators exited 0, **including `npm audit --omit=dev --audit-level=high` (0 vulnerabilities)**: lint, typecheck, nine Node suites, Prisma validate/deploy/status/diff, build, contracts build/test, ABI check, public-boundary, drafts/evidence/review/feedback/auth/retention smokes, backup drill, chain and verifier smokes, default/actual-chain/offline-Kubo publication smokes. Wallet browser pass 10/10. Not pushed, so no CI result.
+
 **Full local gate run, 2026-10-24, Windows, Node 24.18.0, Anvil 1.8.6:** every CI validator plus `backup:drill` and offline-Kubo `publication:smoke` exited 0 before and after the Next.js/Zod update, except `npm audit --omit=dev --audit-level=high`: exit 1 with 15 high advisories in the wagmi 2/RainbowKit wallet tree (the critical Next.js advisory is fixed). Details and local service setup in PROGRESS.
 
 **Full fictional workflow browser pass and D65, 2026-10-23, headless Chrome:** 42 checks from MFA enrolment and invitation through upload/scan, submission, approval and confirmation (UK/EN, keyboard, offline save, 390px); lint, typecheck, build, 50 Node tests, drafts/evidence/review smokes and `test:public-boundary` exited 0; no residue. Needs a STARTTLS Mailpit for production mail (PROGRESS).
@@ -139,7 +141,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Next steps
 
-1. **Agent, next local slices, in order:** (a) clear the audit gate: wagmi 3 with the injected connector only, remove RainbowKit and its CSS, rewrite the demo connect button; (b) the three gaps in the guide's "External connection handoff": upload action after consent, browser-wallet mint send with a configured server chain reader, monitoring runner command. Test each against owned Anvil and offline Kubo; commit each separately.
+1. **Agent, next local slices, in order:** the three gaps in the guide's "External connection handoff": upload action after consent, browser-wallet mint send with a configured server chain reader, monitoring runner command. Test each against owned Anvil and offline Kubo; commit each separately.
 2. **Agent, optional local work that needs no user input:** a STARTTLS Mailpit Compose profile; a written proposal for the changed-outcome/lost-proof incident policy; scheduler/alert design without activation; a committed browser-acceptance script once Playwright is a pinned dev dependency.
 3. **Later user participation:** choose providers/regions and actual MFA publisher/public wallet; installed-extension acceptance, hosted infrastructure, actual IPFS compatibility/retention, Testnet deployment and hosted/device acceptance, counsel/pilot review. No seed/private key sharing. These choices do not block the next local slice.
 
@@ -152,4 +154,4 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Open questions
 
-PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D65 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.
+PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D66 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.

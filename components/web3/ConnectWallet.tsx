@@ -1,8 +1,9 @@
 "use client";
 
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useConnect, useConnection, useConnectors, useDisconnect, useSwitchChain } from "wagmi";
 import { Wallet, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { TARGET_CHAIN, TARGET_CHAIN_ID } from "@/lib/wagmi";
 import { cn } from "@/lib/utils";
 
 interface ConnectWalletProps {
@@ -10,82 +11,45 @@ interface ConnectWalletProps {
   className?: string;
 }
 
+// Legacy demo control for the browser's injected wallet.
 export function ConnectWallet({ compact, className }: ConnectWalletProps) {
-  return (
-    <ConnectButton.Custom>
-      {({
-        account,
-        chain,
-        openAccountModal,
-        openChainModal,
-        openConnectModal,
-        authenticationStatus,
-        mounted,
-      }) => {
-        const ready = mounted && authenticationStatus !== "loading";
-        const connected =
-          ready &&
-          account &&
-          chain &&
-          (!authenticationStatus || authenticationStatus === "authenticated");
+  const { address, chainId, isConnected } = useConnection();
+  const connectors = useConnectors();
+  const connect = useConnect();
+  const disconnect = useDisconnect();
+  const switchChain = useSwitchChain();
+  const size = compact ? "sm" : "md";
 
-        return (
-          <div
-            className={cn(className)}
-            {...(!ready && {
-              "aria-hidden": true,
-              style: { opacity: 0, pointerEvents: "none", userSelect: "none" },
-            })}
-          >
-            {!connected ? (
-              <Button
-                onClick={openConnectModal}
-                variant="primary"
-                size={compact ? "sm" : "md"}
-                leadingIcon={<Wallet className="h-4 w-4" />}
-              >
-                Підключити гаманець
-              </Button>
-            ) : chain.unsupported ? (
-              <Button
-                onClick={openChainModal}
-                variant="danger"
-                size={compact ? "sm" : "md"}
-                leadingIcon={<AlertTriangle className="h-4 w-4" />}
-              >
-                Невірна мережа
-              </Button>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={openChainModal}
-                  variant="secondary"
-                  size={compact ? "sm" : "md"}
-                  className="font-mono text-xs"
-                >
-                  {chain.hasIcon && chain.iconUrl && (
-                    <img
-                      src={chain.iconUrl}
-                      alt={chain.name}
-                      className="h-4 w-4 rounded-full"
-                    />
-                  )}
-                  {compact ? "" : chain.name}
-                </Button>
-                <Button
-                  onClick={openAccountModal}
-                  variant="secondary"
-                  size={compact ? "sm" : "md"}
-                  className="font-mono text-xs"
-                >
-                  {account.displayName}
-                  {!compact && account.displayBalance ? ` · ${account.displayBalance}` : ""}
-                </Button>
-              </div>
-            )}
-          </div>
-        );
-      }}
-    </ConnectButton.Custom>
+  return (
+    <div className={cn(className)}>
+      {!isConnected || !address ? (
+        <Button
+          onClick={() => connectors[0] && connect.mutate({ connector: connectors[0] })}
+          disabled={!connectors[0] || connect.isPending}
+          variant="primary"
+          size={size}
+          leadingIcon={<Wallet className="h-4 w-4" />}
+        >
+          Підключити гаманець
+        </Button>
+      ) : chainId !== TARGET_CHAIN_ID ? (
+        <Button
+          onClick={() => switchChain.mutate({ chainId: TARGET_CHAIN_ID })}
+          disabled={switchChain.isPending}
+          variant="danger"
+          size={size}
+          leadingIcon={<AlertTriangle className="h-4 w-4" />}
+        >
+          Невірна мережа
+        </Button>
+      ) : (
+        <div className="flex items-center gap-2">
+          {!compact && <span className="font-mono text-xs text-ink-muted">{TARGET_CHAIN.name}</span>}
+          <Button onClick={() => disconnect.mutate()} variant="secondary" size={size} className="font-mono text-xs">
+            {`${address.slice(0, 6)}…${address.slice(-4)}`}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }

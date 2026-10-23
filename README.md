@@ -333,7 +333,7 @@ Only one designated, active Hartolit MFA admin may publish Testnet records, usin
 | Forms | React Hook Form + Zod validation |
 | State | PostgreSQL is authoritative for signed-in structured drafts; Zustand and tab-scoped `sessionStorage` recover unsynced edits |
 | Accounts | Better Auth + PostgreSQL + Prisma; invite-only users and admin TOTP |
-| Web3 | Wagmi v2 + Viem + RainbowKit |
+| Web3 | Wagmi v3 + Viem, injected browser wallet only |
 | Blockchain | BNB Smart Chain — Mainnet (56) + Testnet (97) |
 | Smart Contract | Solidity `^0.8.24` source, compiled with 0.8.28; OpenZeppelin v5 + Foundry |
 | IPFS | Pinata HTTP API through a server-only `fetch` helper; publication remains disabled |
@@ -371,7 +371,6 @@ contracts/              # Foundry contract, tests, and deployment script
 - Node.js 24, matching CI
 - Docker for local PostgreSQL, private storage, malware scanner, and Mailpit
 - [Foundry](https://getfoundry.sh/) for contract builds and tests
-- WalletConnect project ID for the optional local wallet demo
 - An approved operator wallet with test BNB only when the Testnet release gates are met; never place its private key in the website environment
 
 ### 1. Install dependencies
@@ -406,9 +405,6 @@ The local inbox captures password reset emails. For hosting, configure a managed
 Edit `.env.local`:
 
 ```env
-# Required only for the optional local wallet demo
-NEXT_PUBLIC_WALLETCONNECT_ID=your_project_id
-
 # Set after deploying the contract (see below)
 NEXT_PUBLIC_CONTRACT_ADDRESS=0x...
 NEXT_PUBLIC_CHAIN_ID=97           # 97 = BSC Testnet, 56 = Mainnet

@@ -9,7 +9,7 @@ import {
   XCircle,
   ExternalLink,
 } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useConnection } from "wagmi";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -37,7 +37,7 @@ export function Step2Blockchain() {
   const pendingPayload = useWizardStore((s) => s.pendingPayload);
   const setPendingPayload = useWizardStore((s) => s.setPendingPayload);
   const existingResult = useWizardStore((s) => s.mintResult);
-  const { address } = useAccount();
+  const { address } = useConnection();
   const t = useT();
 
   const STEPS_TEMPLATE: Omit<StepStatus, "state">[] = [

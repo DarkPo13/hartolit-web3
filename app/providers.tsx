@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
-import "@rainbow-me/rainbowkit/styles.css";
 import { Toaster } from "sonner";
 import { LocaleProvider } from "@/lib/i18n/context";
 import { isDemoMode } from "@/lib/demo-mode";
