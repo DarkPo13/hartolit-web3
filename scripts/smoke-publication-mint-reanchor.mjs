@@ -11,6 +11,8 @@ const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAl
 const { beginMintDispatch } = await jiti.import("@/lib/publication/mint-dispatch");
 const { observeMintAttempt, finalizeMintPublication } = await jiti.import("@/lib/publication/mint-observation");
 const { getMintReanchorReview, adoptReincludedMintAnchor, getMintRecoveryReview, restoreOriginalMint } = await jiti.import("@/lib/publication/mint-recovery");
+const { checkpointMintWallet } = await jiti.import("@/lib/publication/mint-checkpoint");
+const { mintWalletHistory } = await jiti.import("@/lib/publication/mint-wallet");
 const rejects = (promise, status = 409) => assert.rejects(promise, error => error.status === status);
 const digits = digit => `0x${digit.repeat(64)}`;
 const dispatchInput = candidate => ({ preparationId: candidate.preparationId, requestId: randomUUID(), expectedIntentSha256: candidate.intent.sha256, acknowledgement: "SEND_EXACT_MINT" });
@@ -26,7 +28,7 @@ const recoveryBody = review => ({ requestId: randomUUID(), expectedIntentSha256:
  * on actual Anvil, reverts to its starting snapshot so later stages are unaffected.
  */
 export async function smokeMintReanchor({ db, publisherId, candidate, peer, chain }) {
-  const owned = [];
+  const owned = [], checkpoints = [];
   const preflight = { getChainId: async () => 97, getCode: async () => "0x60006000",
     getBlock: async () => ({ number: 4n, hash: digits("a") }), getTransactionCount: async () => 7,
     readContract: async ({ functionName }) => ({ MINTER_ROLE: digits("b"), paused: false, hasRole: true, hashToTokenId: 0n })[functionName] };
@@ -56,6 +58,7 @@ export async function smokeMintReanchor({ db, publisherId, candidate, peer, chai
     if (chain) {
       assert.equal(await chain.reader.request({ method: "evm_revert", params: [branch] }), true);
       await chain.reader.request({ method: "anvil_mine", params: ["0x1"] });
+      branch = await chain.reader.request({ method: "evm_snapshot" });
       assert.equal(await chain.reader.request({ method: "eth_sendRawTransaction", params: [raw] }), hash);
       await chain.reader.waitForTransactionReceipt({ hash });
       await chain.reader.request({ method: "anvil_mine", params: ["0x2"] });
@@ -136,9 +139,55 @@ export async function smokeMintReanchor({ db, publisherId, candidate, peer, chai
     assert.equal(recovered.currentlyQuarantined, false, "unchanged-anchor restoration still works after re-inclusion");
     assert.equal((await db.publicationMintRecovery.findUniqueOrThrow({ where: { id: recovered.recoveryId } })).finalizedObservationId, original.finalizedObservationId);
 
-    // Another passport's permission verifies the wallet against the adopted anchor.
+    // Wallet checkpoint (D51): attests the current anchor, not the first block.
+    const wallet = candidate.intent.publisherWallet, target = { chainId: 97, publisherWallet: wallet };
+    const history = () => db.$transaction(tx => mintWalletHistory(tx, 97, wallet));
+    const checkpoint = async reader => { const row = await checkpointMintWallet(target, reader); if (row.status === "CHECKPOINTED") checkpoints.push(row.checkpointId); return row; };
+    await rejects(checkpointMintWallet({ ...target, fromNonce: 0 }, offline), 422);
+    await rejects(checkpoint(offline), 503);
+    const first1 = await checkpoint(moved);
+    assert.equal(first1.status, "CHECKPOINTED"); assert.equal(first1.coveredCount, 1); assert.equal(first1.coveredThroughNonce, String(nonce));
+    const cp1 = await db.publicationMintWalletCheckpoint.findUniqueOrThrow({ where: { id: first1.checkpointId } });
+    assert.equal(cp1.blockHash, anchorProof.blockHash); assert.equal(cp1.blockNumber.toString(), anchorProof.blockNumber); assert.equal(cp1.baseCheckpointId, null);
+    const compact = await history();
+    assert.equal(compact.uncheckpointed, 0); assert.equal(compact.anchors.length, 1); assert.equal(compact.anchors[0].attemptId, null);
+    assert.equal((await checkpoint(moved)).status, "CURRENT");
+
+    // A covered quarantine still blocks the wallet; a checkpoint does not clear it.
+    await tickMintMonitor(db, passportId, attemptId, offline);
+    await rejects(history());
+    assert.equal((await checkpoint(moved)).status, "CURRENT");
+    assert.equal((await restoreOriginalMint(publisherId, passportId, attemptId,
+      recoveryBody(await getMintRecoveryReview(publisherId, passportId, attemptId)), moved)).currentlyQuarantined, false);
+
+    // A deeper reorg moves the covered transaction again: the checkpoint block is
+    // no longer canonical, then the re-anchor makes it stale, and a new one starts over.
+    if (chain) {
+      assert.equal(await chain.reader.request({ method: "evm_revert", params: [branch] }), true);
+      await chain.reader.request({ method: "anvil_mine", params: ["0x1"] });
+      assert.equal(await chain.reader.request({ method: "eth_sendRawTransaction", params: [raw] }), hash);
+      await chain.reader.waitForTransactionReceipt({ hash });
+      await chain.reader.request({ method: "anvil_mine", params: ["0x2"] });
+    }
+    const third = chain?.reader ?? frame({ blockNumber: 9n, blockHash: digits("f"), head: { number: 11n, hash: digits("1") } });
+    await rejects(checkpoint(third), 503);
+    assert.equal(await db.publicationMintWalletCheckpoint.count({ where: { id: { in: checkpoints } } }), 1);
+    await tickMintMonitor(db, passportId, attemptId, third);
+    assert.ok((await attempt()).quarantinedAt);
+    const second = await adoptReincludedMintAnchor(publisherId, passportId, attemptId, body(await getMintReanchorReview(publisherId, passportId, attemptId)), third);
+    const secondJournal = await db.publicationMintReanchor.findUniqueOrThrow({ where: { id: second.reanchorId } });
+    assert.equal(secondJournal.previousAnchorObservationId, anchor.id);
+    await rejects(history(), 503);
+    const fresh2 = await checkpoint(third);
+    assert.equal(fresh2.status, "CHECKPOINTED"); assert.equal(fresh2.coveredCount, 1);
+    const cp2 = await db.publicationMintWalletCheckpoint.findUniqueOrThrow({ where: { id: fresh2.checkpointId } });
+    assert.equal(cp2.sequence, cp1.sequence + 1); assert.equal(cp2.baseCheckpointId, null, "a stale checkpoint is never a base");
+    assert.notEqual(cp2.blockHash, cp1.blockHash);
+    assert.equal((await history()).uncheckpointed, 0);
+
+    // Another passport's permission verifies the wallet through the checkpoint.
     const next = await beginMintDispatch(publisherId, peer.passportId, dispatchInput(peer), peer.target, chain?.reader ??
-      { ...moved, getTransactionCount: async () => nonce + 1, readContract: preflight.readContract });
+      { ...third, getTransactionCount: async () => nonce + 1, readContract: preflight.readContract });
     owned.push(next.attemptId); assert.equal(next.request.nonce, nonce + 1);
 
     const client = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 3000 }); await client.connect();
@@ -153,6 +202,11 @@ export async function smokeMintReanchor({ db, publisherId, candidate, peer, chai
         ['UPDATE "PublicationMintAttempt" SET "anchorObservationId"="finalizedObservationId" WHERE "id"=$1', [attemptId], "23514", "PublicationMintAttempt_anchor_check"],
         ['UPDATE "PublicationMintAttempt" SET "anchorObservationId"=$2 WHERE "id"=$1', [attemptId, randomUUID()], "23503", "PublicationMintAttempt_anchor_fkey"],
         ['UPDATE "PublicationMintAttempt" SET "anchorObservationId"=$2 WHERE "id"=$1', [next.attemptId, anchor.id], "23514", "PublicationMintAttempt_anchor_check"],
+        ['UPDATE "PublicationMintWalletCheckpoint" SET "confirmations"=1 WHERE "id"=$1', [cp2.id], "23514", "PublicationMintWalletCheckpoint_shape_check"],
+        ['UPDATE "PublicationMintWalletCheckpoint" SET "headBlockNumber"="blockNumber" - 1 WHERE "id"=$1', [cp2.id], "23514", "PublicationMintWalletCheckpoint_shape_check"],
+        ['UPDATE "PublicationMintWalletCheckpoint" SET "publisherWallet"=$2 WHERE "id"=$1', [cp2.id, `0x${"0".repeat(40)}`], "23514", "PublicationMintWalletCheckpoint_shape_check"],
+        ['UPDATE "PublicationMintWalletCheckpoint" SET "baseCheckpointId"=$2 WHERE "id"=$1', [cp2.id, randomUUID()], "23503", "PublicationMintWalletCheckpoint_base_fkey"],
+        ['UPDATE "PublicationMintWalletCheckpoint" SET "sequence"=$2 WHERE "id"=$1', [cp2.id, cp1.sequence], "23505", "PublicationMintWalletCheckpoint_chainId_publisherWallet_seq_key"],
       ]) {
         await client.query("BEGIN");
         try {
@@ -161,9 +215,10 @@ export async function smokeMintReanchor({ db, publisherId, candidate, peer, chai
         } finally { await client.query("ROLLBACK"); }
       }
     } finally { await client.end(); }
-    process.stdout.write(`Mint re-inclusion passed: separate MFA review, same transaction/outcome/token at a new canonical block, refused unchanged/changed/shallow/missing proof, atomic journal with immutable first proof, anchor-based monitoring/restoration and next permission (${chain ? "actual signed re-broadcast after rollback" : "injected RPC"} plus PostgreSQL).\n`);
+    process.stdout.write(`Mint re-inclusion passed: separate MFA review, same transaction/outcome/token at a new canonical block, refused unchanged/changed/shallow/missing proof, atomic journal with immutable first proof, anchor-based monitoring/restoration, wallet checkpoint use/staleness/restart and next permission (${chain ? "actual signed re-broadcast after rollback" : "injected RPC"} plus PostgreSQL).\n`);
   } finally {
     // Only disposable fixture records are deleted; no business cleanup path exists.
+    for (const id of checkpoints.reverse()) await db.publicationMintWalletCheckpoint.delete({ where: { id } });
     await db.$transaction(async tx => {
       const where = { attemptId: { in: owned } };
       await tx.publicationMintRecovery.deleteMany({ where });

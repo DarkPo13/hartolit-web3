@@ -83,23 +83,70 @@ export async function lockMintWallet(tx: Prisma.TransactionClient, chainId: numb
   await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text AS locked`;
 }
 
+export type MintWalletAnchor = { attemptId: string | null; nonce: bigint; receipt: { blockNumber: string; blockHash: string; confirmations: string } };
+type Checkpoint = Awaited<ReturnType<Prisma.TransactionClient["publicationMintWalletCheckpoint"]["findFirst"]>>;
+
+/** DB-side validity of a checkpoint: the covered closed set and covered anchors
+ * are unchanged since it was attested. Chain validity is its block (an ancestor
+ * of every covered inclusion block) staying canonical, checked with the anchors.
+ */
+export async function mintCheckpointCurrent(tx: Prisma.TransactionClient, checkpoint: NonNullable<Checkpoint>) {
+  const covered = { chainId: checkpoint.chainId, publisherWallet: checkpoint.publisherWallet, nonce: { lte: checkpoint.coveredThroughNonce } };
+  const [closed, open, reanchors] = await Promise.all([
+    tx.publicationMintAttempt.count({ where: { ...covered, status: { in: [...CLOSED_MINT_STATUSES] } } }),
+    tx.publicationMintAttempt.count({ where: { ...covered, status: { notIn: [...CLOSED_MINT_STATUSES] } } }),
+    tx.publicationMintReanchor.count({ where: { attempt: covered } }),
+  ]);
+  return closed === checkpoint.coveredCount && open === 0 && reanchors === checkpoint.coveredReanchorCount;
+}
+
+export function checkpointAnchor(checkpoint: NonNullable<Checkpoint>): MintWalletAnchor {
+  return { attemptId: null, nonce: checkpoint.coveredThroughNonce, receipt: { blockNumber: checkpoint.blockNumber.toString(),
+    blockHash: checkpoint.blockHash, confirmations: checkpoint.confirmations.toString() } };
+}
+
+/** Bounded wallet state after the latest verified checkpoint. Quarantine is read
+ * across the whole wallet, including attempts the checkpoint covers.
+ */
+export async function mintWalletState(tx: Prisma.TransactionClient, chainId: number, wallet: string, { allowStaleCheckpoint = false } = {}) {
+  await lockMintWallet(tx, chainId, wallet);
+  const checkpoint = await tx.publicationMintWalletCheckpoint.findFirst({ where: { chainId, publisherWallet: wallet }, orderBy: { sequence: "desc" } });
+  const stale = !!checkpoint && !await mintCheckpointCurrent(tx, checkpoint);
+  // Recovery may read a stale checkpoint (a covered proof was re-anchored); its
+  // anchor then fails chain verification, so nothing is unblocked through it.
+  if (stale && !allowStaleCheckpoint) {
+    throw new WorkflowError(503, "Wallet checkpoint is stale; a new verified checkpoint is required before another permission");
+  }
+  const rows = await tx.publicationMintAttempt.findMany({ where: { chainId, publisherWallet: wallet,
+    ...(checkpoint ? { nonce: { gt: checkpoint.coveredThroughNonce } } : {}) },
+  orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 2, include: closedMintProofInclude });
+  const closed = rows.filter(row => CLOSED_MINT_STATUSES.some(status => status === row.status));
+  const quarantined = await tx.publicationMintAttempt.findMany({ where: { chainId, publisherWallet: wallet, quarantinedAt: { not: null } },
+    orderBy: { id: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 1, select: { id: true, quarantinedAt: true, observationVersion: true } });
+  if (rows.length > MAX_MINT_WALLET_RECEIPTS + 1 || closed.length > MAX_MINT_WALLET_RECEIPTS || quarantined.length > MAX_MINT_WALLET_RECEIPTS) {
+    throw new WorkflowError(503, "Wallet history exceeds the bounded verification limit; a verified checkpoint is required");
+  }
+  const anchors: MintWalletAnchor[] = [...(checkpoint ? [checkpointAnchor(checkpoint)] : []),
+    ...closed.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: closedMintAnchor(row) }))];
+  const checkpointBinding = checkpoint ? { id: checkpoint.id, sequence: checkpoint.sequence, coveredThroughNonce: checkpoint.coveredThroughNonce.toString(),
+    coveredCount: checkpoint.coveredCount, coveredReanchorCount: checkpoint.coveredReanchorCount, blockHash: checkpoint.blockHash, stale } : null;
+  return { checkpoint, checkpointBinding, rows, closed, quarantined, anchors };
+}
+
 /** Bounded revalidation before releasing/consuming another shared-wallet slot.
  * Historical nonce claims are permanent. Do not truncate an oversized history.
  */
 export async function mintWalletHistory(tx: Prisma.TransactionClient, chainId: number, wallet: string) {
-  await lockMintWallet(tx, chainId, wallet);
-  const rows = await tx.publicationMintAttempt.findMany({ where: { chainId, publisherWallet: wallet, status: { in: [...CLOSED_MINT_STATUSES] } },
-    orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 1, include: closedMintProofInclude });
-  if (rows.some(row => row.quarantinedAt)) throw new WorkflowError(409, "Publisher wallet is quarantined; no new send or finalization is allowed");
-  if (rows.length > MAX_MINT_WALLET_RECEIPTS) throw new WorkflowError(503, "Wallet history exceeds the bounded verification limit; no new permission is allowed");
-  const anchors = rows.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: closedMintAnchor(row) }));
-  return { anchors, binding: canonicalize(rows.map(row => ({ id: row.id, nonce: row.nonce.toString(),
-    status: row.status, revision: row.observationVersion, finalizedAt: row.finalizedAt?.toISOString() ?? null,
-    failedAt: row.failedAt?.toISOString() ?? null, proof: row.finalizedObservation?.resultJson ?? row.failedObservation?.resultJson,
-    anchor: row.currentReanchor?.anchorObservation.resultJson ?? null }))) };
+  const state = await mintWalletState(tx, chainId, wallet);
+  if (state.quarantined.length) throw new WorkflowError(409, "Publisher wallet is quarantined; no new send or finalization is allowed");
+  return { anchors: state.anchors, uncheckpointed: state.closed.length, binding: canonicalize({ checkpoint: state.checkpointBinding,
+    rows: state.closed.map(row => ({ id: row.id, nonce: row.nonce.toString(),
+      status: row.status, revision: row.observationVersion, finalizedAt: row.finalizedAt?.toISOString() ?? null,
+      failedAt: row.failedAt?.toISOString() ?? null, proof: row.finalizedObservation?.resultJson ?? row.failedObservation?.resultJson,
+      anchor: row.currentReanchor?.anchorObservation.resultJson ?? null })) }) };
 }
 
-export async function verifyMintWalletAnchors(anchors: Awaited<ReturnType<typeof mintWalletHistory>>["anchors"], reader: MintReader,
+export async function verifyMintWalletAnchors(anchors: MintWalletAnchor[], reader: MintReader,
   head?: Awaited<ReturnType<MintReader["getBlock"]>>) {
   if (!anchors.length) return null;
   try {

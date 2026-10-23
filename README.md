@@ -744,6 +744,12 @@ A reorg deeper than the configured depth can put the **same** signed transaction
 
 Additive migration `20261023150000_publication_mint_reanchor` adds an append-only journal bound by composite SQL foreign keys to the attempt's first proof and to same-attempt/hash/status proofs, plus the attempt's current anchor pointer. Monitoring, wallet history and unchanged-proof restoration then compare with the current anchor. A lost proof, changed outcome or token ID, or a different transaction at the nonce stays quarantined with no in-app resolution. No send, HTTP/UI or certificate is enabled. The actual-Anvil fixture finalizes a mint, rolls its branch back and re-broadcasts the identical signed bytes one block later.
 
+## Verified wallet checkpoints
+
+New permissions used to stop permanently at 64 closed proofs. `checkpointMintWallet({ chainId: 97, publisherWallet }, reader)` is an internal building block for a future trusted scheduler (no HTTP action, no consent, no unblocking effect). It attests that every closed proof up to a nonce had its current inclusion anchor at or below one canonical block; because blocks are hash-linked, later checks verify that block plus at most 64 newer proofs. Each checkpoint covers at most 64 more proofs, starting from the newest checkpoint whose block is still canonical (or the wallet start), and a broken proof anchor fails it.
+
+Additive migration `20261023180000_publication_mint_wallet_checkpoint` adds the append-only table. A checkpoint is stale when its covered closed set, an open attempt inside its range or a covered re-anchor changes; stale or non-canonical checkpoints make permission checks fail with 503 until a new one is created. Quarantine is still read across the whole wallet. The re-inclusion fixture exercises creation, compact checks, covered quarantine, a reorg that invalidates the checkpoint, staleness after re-anchoring and a fresh restart, on actual Anvil as well.
+
 ## Product feedback and responsible treatment reminder
 
 Signed-in users can open `/feedback` from the home-page footer. The private confirmed certificate preview opens an accessible responsibility dialog with a reminder to record doses and weather and care for Ukraine's soils; its **Leave feedback** button opens the same form. The dialog can be dismissed and reopened without submitting feedback. It does not claim that a certificate has been issued or that a treatment is environmentally safe.

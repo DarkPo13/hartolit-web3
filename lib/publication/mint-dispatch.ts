@@ -29,7 +29,7 @@ async function load(tx: Prisma.TransactionClient, adminId: string, passportId: s
   // Passport locks are independent. Serialize the shared wallet's eligibility
   // check and write too; the SQL unique index remains an independent backstop.
   const history = await mintWalletHistory(tx, candidate.intent.chainId, candidate.intent.publisherWallet);
-  if (history.anchors.length >= MAX_MINT_WALLET_RECEIPTS) throw new WorkflowError(503, "Wallet history needs a verified checkpoint before another send");
+  if (history.uncheckpointed >= MAX_MINT_WALLET_RECEIPTS) throw new WorkflowError(503, "Wallet history needs a verified checkpoint before another send");
   const attempt = await tx.publicationMintAttempt.findFirst({ where: { OR: [
     { preparationId: preparation.id }, { requestId: data.requestId },
     { chainId: candidate.intent.chainId, publisherWallet: candidate.intent.publisherWallet, status: { notIn: [...CLOSED_MINT_STATUSES] } },

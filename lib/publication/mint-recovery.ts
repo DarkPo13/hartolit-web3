@@ -7,8 +7,7 @@ import { canonicalize, sha256Hex } from "@/lib/hash";
 import { WorkflowError } from "@/lib/review/service";
 import { publicationPublisherAccess } from "./service";
 import { lockDispatchedMint } from "./mint-observation";
-import { CLOSED_MINT_STATUSES, lockMintWallet, finalizedMintReceipt, failedMintReceipt, closedMintAnchor, closedMintProofInclude, sameClosedMintOutcome,
-  MAX_MINT_WALLET_RECEIPTS, verifyMintWalletAnchors } from "./mint-wallet";
+import { lockMintWallet, finalizedMintReceipt, failedMintReceipt, mintWalletState, sameClosedMintOutcome, verifyMintWalletAnchors } from "./mint-wallet";
 import { inspectMintTransaction, type MintReader } from "./chain-mint";
 import { inspectMintCancellation } from "./mint-cancellation";
 import { boundedMintMonitorReader } from "./mint-reader";
@@ -60,19 +59,17 @@ async function load(tx: Prisma.TransactionClient, adminId: string, passportId: s
     attemptId, nonce: context.attempt.nonce, transactionHash: original.transactionHash } });
   if (kind === "CANCELLATION" ? !cancellation || originalObservation.transactionId || context.attempt.dispatchBlockNumber === null ||
     !context.attempt.dispatchBlockHash : !transaction) throw new WorkflowError(409, "Original matched transaction changed");
-  const rows = await tx.publicationMintAttempt.findMany({ where: { chainId: context.attempt.chainId, publisherWallet: context.attempt.publisherWallet },
-    orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 2, include: closedMintProofInclude });
-  const closed = rows.filter(row => CLOSED_MINT_STATUSES.some(status => status === row.status));
-  if (rows.length > MAX_MINT_WALLET_RECEIPTS + 1 || closed.length > MAX_MINT_WALLET_RECEIPTS) {
-    throw new WorkflowError(503, "Wallet recovery exceeds the bounded verification history");
-  }
-  const anchors = closed.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: closedMintAnchor(row) }));
-  const walletBinding = canonicalize(rows.map(row => ({ id: row.id, nonce: row.nonce.toString(), status: row.status,
+  // Attempts covered by a checkpoint are verified through its block; their
+  // quarantine stamps are still bound below.
+  const wallet = await mintWalletState(tx, context.attempt.chainId, context.attempt.publisherWallet, { allowStaleCheckpoint: true });
+  const anchors = wallet.anchors;
+  const walletBinding = canonicalize({ checkpoint: wallet.checkpointBinding, quarantined: wallet.quarantined.map(row => ({ id: row.id,
+    quarantinedAt: row.quarantinedAt!.toISOString(), observationVersion: row.observationVersion })), rows: wallet.rows.map(row => ({ id: row.id, nonce: row.nonce.toString(), status: row.status,
     observationVersion: row.observationVersion, discoveryVersion: row.discoveryVersion,
     quarantinedAt: row.quarantinedAt?.toISOString() ?? null, finalizedAt: row.finalizedAt?.toISOString() ?? null,
     finalizedObservationId: row.finalizedObservationId, failedAt: row.failedAt?.toISOString() ?? null,
     failedObservationId: row.failedObservationId, proof: row.finalizedObservation?.resultJson ?? row.failedObservation?.resultJson ?? null,
-    anchorObservationId: row.anchorObservationId, anchor: row.currentReanchor?.anchorObservation.resultJson ?? null })));
+    anchorObservationId: row.anchorObservationId, anchor: row.currentReanchor?.anchorObservation.resultJson ?? null })) });
   return { ...context, original, originalObservation, cancellation, anchors, walletBinding, walletStateSha256: await sha256Hex(walletBinding) };
 }
 

@@ -655,6 +655,32 @@ model PublicationMintCancellation {
   @@index([actorId])
 }
 
+// Append-only verified wallet checkpoint: every closed proof up to
+// coveredThroughNonce had its current anchor at or below this canonical block.
+// Later checks verify this block plus only the proofs after it.
+model PublicationMintWalletCheckpoint {
+  id                   String @id @default(uuid()) @db.Uuid
+  chainId              Int
+  publisherWallet      String @db.VarChar(42)
+  sequence             Int
+  baseCheckpointId     String? @db.Uuid
+  base                 PublicationMintWalletCheckpoint? @relation("MintWalletCheckpointBase", fields: [baseCheckpointId, chainId, publisherWallet], references: [id, chainId, publisherWallet], onDelete: Restrict, map: "PublicationMintWalletCheckpoint_base_fkey")
+  successors           PublicationMintWalletCheckpoint[] @relation("MintWalletCheckpointBase")
+  coveredThroughNonce  BigInt
+  coveredCount         Int
+  coveredReanchorCount Int
+  blockNumber          BigInt
+  blockHash            String @db.VarChar(66)
+  confirmations        Int
+  headBlockNumber      BigInt
+  headBlockHash        String @db.VarChar(66)
+  coveredSha256        String @db.Char(64)
+  createdAt            DateTime @default(now())
+
+  @@unique([chainId, publisherWallet, sequence])
+  @@unique([id, chainId, publisherWallet])
+}
+
 // Append-only reviewed adoption of a new canonical inclusion for the SAME first
 // transaction and outcome. The first proof stays immutable history.
 model PublicationMintReanchor {
