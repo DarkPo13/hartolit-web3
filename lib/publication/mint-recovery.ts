@@ -1,13 +1,14 @@
 import "server-only";
 
 import { z } from "zod";
-import type { Prisma, PublicationMintRecovery } from "@/generated/prisma/client";
+import type { Prisma, PublicationMintReanchor, PublicationMintRecovery } from "@/generated/prisma/client";
 import { getDb } from "@/lib/db";
 import { canonicalize, sha256Hex } from "@/lib/hash";
 import { WorkflowError } from "@/lib/review/service";
 import { publicationPublisherAccess } from "./service";
 import { lockDispatchedMint } from "./mint-observation";
-import { CLOSED_MINT_STATUSES, lockMintWallet, finalizedMintReceipt, failedMintReceipt, closedMintReceipt, MAX_MINT_WALLET_RECEIPTS, verifyMintWalletAnchors } from "./mint-wallet";
+import { CLOSED_MINT_STATUSES, lockMintWallet, finalizedMintReceipt, failedMintReceipt, closedMintAnchor, closedMintProofInclude, sameClosedMintOutcome,
+  MAX_MINT_WALLET_RECEIPTS, verifyMintWalletAnchors } from "./mint-wallet";
 import { inspectMintTransaction, type MintReader } from "./chain-mint";
 import { inspectMintCancellation } from "./mint-cancellation";
 import { boundedMintMonitorReader } from "./mint-reader";
@@ -21,6 +22,9 @@ const failedRecoverySchema = recoverySchema.omit({ expectedFinalizedObservationI
 });
 const cancelledRecoverySchema = recoverySchema.omit({ expectedFinalizedObservationId: true, acknowledgement: true }).extend({
   expectedCancelledObservationId: z.uuid(), expectedCancellationId: z.uuid(), acknowledgement: z.literal("RESTORE_CANCELLED_MINT"),
+});
+const reanchorSchema = recoverySchema.omit({ expectedFinalizedObservationId: true, acknowledgement: true }).extend({
+  expectedFirstObservationId: z.uuid(), expectedAnchorObservationId: z.uuid(), acknowledgement: z.literal("ADOPT_REINCLUDED_MINT_ANCHOR"),
 });
 type RecoveryKind = "SUCCESS" | "FAILURE" | "CANCELLATION";
 type RecoveryInput = Omit<z.infer<typeof recoverySchema>, "expectedFinalizedObservationId" | "acknowledgement"> &
@@ -57,17 +61,18 @@ async function load(tx: Prisma.TransactionClient, adminId: string, passportId: s
   if (kind === "CANCELLATION" ? !cancellation || originalObservation.transactionId || context.attempt.dispatchBlockNumber === null ||
     !context.attempt.dispatchBlockHash : !transaction) throw new WorkflowError(409, "Original matched transaction changed");
   const rows = await tx.publicationMintAttempt.findMany({ where: { chainId: context.attempt.chainId, publisherWallet: context.attempt.publisherWallet },
-    orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 2, include: { finalizedObservation: true, failedObservation: true } });
+    orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 2, include: closedMintProofInclude });
   const closed = rows.filter(row => CLOSED_MINT_STATUSES.some(status => status === row.status));
   if (rows.length > MAX_MINT_WALLET_RECEIPTS + 1 || closed.length > MAX_MINT_WALLET_RECEIPTS) {
     throw new WorkflowError(503, "Wallet recovery exceeds the bounded verification history");
   }
-  const anchors = closed.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: closedMintReceipt(row) }));
+  const anchors = closed.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: closedMintAnchor(row) }));
   const walletBinding = canonicalize(rows.map(row => ({ id: row.id, nonce: row.nonce.toString(), status: row.status,
     observationVersion: row.observationVersion, discoveryVersion: row.discoveryVersion,
     quarantinedAt: row.quarantinedAt?.toISOString() ?? null, finalizedAt: row.finalizedAt?.toISOString() ?? null,
     finalizedObservationId: row.finalizedObservationId, failedAt: row.failedAt?.toISOString() ?? null,
-    failedObservationId: row.failedObservationId, proof: row.finalizedObservation?.resultJson ?? row.failedObservation?.resultJson ?? null })));
+    failedObservationId: row.failedObservationId, proof: row.finalizedObservation?.resultJson ?? row.failedObservation?.resultJson ?? null,
+    anchorObservationId: row.anchorObservationId, anchor: row.currentReanchor?.anchorObservation.resultJson ?? null })));
   return { ...context, original, originalObservation, cancellation, anchors, walletBinding, walletStateSha256: await sha256Hex(walletBinding) };
 }
 
@@ -95,7 +100,8 @@ async function recoveryReview(adminId: string, passportId: string, attemptId: st
     if (!current.attempt.quarantinedAt) throw new WorkflowError(409, "Mint is not quarantined");
     return { cancellationId: current.cancellation?.id ?? null, review: { attemptId, intentSha256: current.intent.sha256, walletStateSha256: current.walletStateSha256,
       originalObservationId: current.originalObservation.id, observationVersion: current.attempt.observationVersion,
-      quarantinedAt: current.attempt.quarantinedAt.toISOString(), originalReceipt: current.original, issued: false as const, canResend: false as const } };
+      quarantinedAt: current.attempt.quarantinedAt.toISOString(), originalReceipt: current.original, anchorReceipt: current.anchor,
+      issued: false as const, canResend: false as const } };
   });
 }
 
@@ -189,7 +195,8 @@ async function restoreReviewed(adminId: string, passportId: string, attemptId: s
     if (!head || (await reader.getBlock({ blockNumber: head.number })).hash !== head.hash || await reader.getChainId() !== 97) throw new Error();
   } catch { throw new WorkflowError(503, "Original wallet receipts could not be freshly verified; quarantine remains"); }
   const original = before.original;
-  if (!matchesOriginalMintReceipt(original, result)) {
+  // "Unchanged" means unchanged from the current canonical anchor (D50).
+  if (!matchesOriginalMintReceipt(before.anchor!, result)) {
     throw new WorkflowError(409, "Original receipt is not unchanged and verified; quarantine remains");
   }
   return getDb().$transaction(async tx => {
@@ -223,5 +230,137 @@ async function restoreReviewed(adminId: string, passportId: string, attemptId: s
         CANCELLATION: "PUBLICATION_MINT_CANCELLATION_RESTORED" } as const)[kind],
       fromStatus: "APPROVED", toStatus: "APPROVED", note: `Original ${kind.toLowerCase()} mint recovery: ${recovery.id}` } });
     return recorded(recovery, false);
+  });
+}
+
+async function loadClosed(tx: Prisma.TransactionClient, adminId: string, passportId: string, attemptId: string) {
+  const access = publicationPublisherAccess(adminId);
+  if (!access.walletAddress) throw new WorkflowError(403, "Recovery requires the current designated MFA publisher");
+  await requirePublisher(tx, adminId, access.walletAddress);
+  const row = await tx.publicationMintAttempt.findFirst({ where: { id: attemptId, preparation: { publication: { passportId } } },
+    select: { status: true, failureStatus: true } });
+  const kind = row?.status === "FINALIZED" ? "SUCCESS" as const : row?.failureStatus === "REVERTED" ? "FAILURE" as const
+    : row?.failureStatus === "CANCELLED" ? "CANCELLATION" as const : null;
+  if (!kind) throw new WorkflowError(409, "A closed mint attempt is required");
+  // load() relocks and rechecks that the closed proof matches this kind.
+  return { ...await load(tx, adminId, passportId, attemptId, kind), kind };
+}
+
+/** Internal review of a quarantined closed attempt whose first transaction may
+ * have been re-included in another canonical block. No send or HTTP action.
+ */
+export async function getMintReanchorReview(adminId: string, passportId: string, attemptId: string) {
+  return getDb().$transaction(async tx => {
+    const current = await loadClosed(tx, adminId, passportId, attemptId);
+    if (!current.attempt.quarantinedAt) throw new WorkflowError(409, "Mint is not quarantined");
+    return { attemptId, intentSha256: current.intent.sha256, walletStateSha256: current.walletStateSha256,
+      firstObservationId: current.originalObservation.id, anchorObservationId: current.attempt.anchorObservationId ?? current.originalObservation.id,
+      observationVersion: current.attempt.observationVersion, quarantinedAt: current.attempt.quarantinedAt.toISOString(),
+      firstReceipt: current.original, anchorReceipt: current.anchor, issued: false as const, canResend: false as const };
+  });
+}
+
+/** The same first transaction and outcome at a different canonical inclusion,
+ * at least as deep as the anchor it replaces. Never a lost, replaced or
+ * changed-outcome transaction.
+ */
+export function matchesReincludedMintReceipt(first: Parameters<typeof sameClosedMintOutcome>[0],
+  anchor: { blockNumber: string; blockHash: string; confirmations: string },
+  result: Awaited<ReturnType<typeof inspectMintTransaction>> | Awaited<ReturnType<typeof inspectMintCancellation>>) {
+  if (result.status !== "VERIFIED" && result.status !== "REVERTED" && result.status !== "CANCELLED") return false;
+  return sameClosedMintOutcome(first, result) && (result.blockNumber !== anchor.blockNumber || result.blockHash !== anchor.blockHash) &&
+    BigInt(result.confirmations) >= BigInt(anchor.confirmations);
+}
+
+type ReanchorInput = z.infer<typeof reanchorSchema>;
+function reanchorMatches(row: PublicationMintReanchor, adminId: string, attemptId: string, data: ReanchorInput) {
+  return row.actorId === adminId && row.attemptId === attemptId && row.intentSha256 === data.expectedIntentSha256 &&
+    row.walletStateSha256 === data.expectedWalletStateSha256 && row.reviewedObservationVersion === data.expectedObservationVersion &&
+    row.quarantinedAt.toISOString() === data.expectedQuarantinedAt && (row.finalizedObservationId ?? row.failedObservationId) === data.expectedFirstObservationId &&
+    (row.previousAnchorObservationId ?? data.expectedFirstObservationId) === data.expectedAnchorObservationId;
+}
+function requireReanchorReview(current: Awaited<ReturnType<typeof loadClosed>>, data: ReanchorInput) {
+  if (current.attempt.quarantinedAt?.toISOString() !== data.expectedQuarantinedAt || current.attempt.observationVersion !== data.expectedObservationVersion ||
+    current.walletStateSha256 !== data.expectedWalletStateSha256 || current.intent.sha256 !== data.expectedIntentSha256 ||
+    current.originalObservation.id !== data.expectedFirstObservationId ||
+    (current.attempt.anchorObservationId ?? current.originalObservation.id) !== data.expectedAnchorObservationId) {
+    throw new WorkflowError(409, "Re-inclusion review changed; inspect the current quarantine again");
+  }
+}
+const reanchored = (row: PublicationMintReanchor, quarantined: boolean) => ({ status: "RECORDED" as const, reanchorId: row.id,
+  reanchoredAt: row.reanchoredAt.toISOString(), currentlyQuarantined: quarantined, issued: false as const, canResend: false as const });
+
+/** Adopt a new canonical inclusion anchor for the unchanged first transaction
+ * after separate current-publisher review. The first proof, public chain fields,
+ * nonce/preparation claims, other quarantines and later active slots are kept.
+ */
+export async function adoptReincludedMintAnchor(adminId: string, passportId: string, attemptId: string, input: unknown, trustedReader: MintReader) {
+  const parsed = reanchorSchema.safeParse(input);
+  if (!parsed.success) throw new WorkflowError(422, "Exact re-inclusion review and acknowledgement are required");
+  const data = parsed.data;
+  const before = await getDb().$transaction(async tx => {
+    const current = await loadClosed(tx, adminId, passportId, attemptId);
+    const existing = await tx.publicationMintReanchor.findUnique({ where: { requestId: data.requestId } });
+    if (existing) {
+      if (!reanchorMatches(existing, adminId, attemptId, data)) throw new WorkflowError(409, "Re-inclusion request belongs to another review");
+      return { ...current, existing };
+    }
+    requireReanchorReview(current, data);
+    return { ...current, existing: null };
+  });
+  if (before.existing) return reanchored(before.existing, !!before.attempt.quarantinedAt);
+  const startedAt = Date.now(), reader = boundedMintMonitorReader(trustedReader), cancellation = before.kind === "CANCELLATION";
+  let result;
+  try {
+    // Only this transaction's own inclusion is re-proved; every wallet anchor is
+    // still verified in full before any new permission or finalization.
+    const dispatched = async () => {
+      if (!cancellation) return;
+      const anchor = await reader.getBlock({ blockNumber: before.attempt.dispatchBlockNumber! });
+      if (anchor.number !== before.attempt.dispatchBlockNumber || anchor.hash !== before.attempt.dispatchBlockHash) throw new Error();
+    };
+    await dispatched();
+    result = cancellation
+      ? await inspectMintCancellation(before.intent, before.original.transactionHash, before.attempt.nonce, reader)
+      : await inspectMintTransaction(before.intent, before.original.transactionHash, reader, before.attempt.nonce);
+    await dispatched();
+    if (await reader.getChainId() !== 97) throw new Error();
+  } catch { throw new WorkflowError(503, "Re-included transaction could not be freshly verified; quarantine remains"); }
+  if (!matchesReincludedMintReceipt(before.original, before.anchor!, result) ||
+    (cancellation && "blockNumber" in result && BigInt(result.blockNumber) <= before.attempt.dispatchBlockNumber!)) {
+    throw new WorkflowError(409, "Only the same transaction and outcome at a new sufficiently deep canonical block can replace the anchor");
+  }
+  return getDb().$transaction(async tx => {
+    const current = await loadClosed(tx, adminId, passportId, attemptId);
+    const existing = await tx.publicationMintReanchor.findUnique({ where: { requestId: data.requestId } });
+    if (existing) {
+      if (!reanchorMatches(existing, adminId, attemptId, data)) throw new WorkflowError(409, "Re-inclusion request belongs to another review");
+      return reanchored(existing, !!current.attempt.quarantinedAt);
+    }
+    requireReanchorReview(current, data);
+    if (current.binding !== before.binding || current.walletBinding !== before.walletBinding ||
+      Date.now() < startedAt || Date.now() - startedAt >= 15_000) throw new WorkflowError(409, "Re-inclusion check expired or its commitment changed");
+    const status = current.original.status, success = current.kind === "SUCCESS";
+    const observation = await tx.publicationMintObservation.create({ data: { attemptId, revision: data.expectedObservationVersion + 1,
+      reportedHash: current.original.transactionHash, transactionId: current.originalObservation.transactionId, status,
+      resultJson: canonicalize({ version: 1, ...(cancellation ? { proofKind: "CANCELLATION" } : {}), ...result }) } });
+    const row = await tx.publicationMintReanchor.create({ data: { attemptId, requestId: data.requestId, actorId: adminId,
+      quarantinedAt: current.attempt.quarantinedAt!, reviewedObservationVersion: data.expectedObservationVersion,
+      intentSha256: data.expectedIntentSha256, walletStateSha256: data.expectedWalletStateSha256,
+      transactionHash: current.original.transactionHash, proofStatus: status,
+      finalizedObservationId: success ? current.originalObservation.id : null, failedObservationId: success ? null : current.originalObservation.id,
+      previousAnchorObservationId: current.attempt.anchorObservationId, anchorObservationId: observation.id, reanchoredAt: observation.observedAt } });
+    await tx.publicationMintAttempt.update({ where: { id: attemptId }, data: { anchorObservationId: observation.id, quarantinedAt: null,
+      observationVersion: observation.revision } });
+    await tx.publication.update({ where: { id: current.publication.id }, data: { status: success ? "PUBLISHED" : "CHAIN_FAILED" } });
+    const previous = await tx.publicationMintResult.findUnique({ where: { attemptId } });
+    const verifiedObservationId = success ? observation.id : previous?.verifiedObservationId ?? null;
+    const selected = { status: success ? "VERIFIED" as const : "SUSPENDED" as const, checkedObservationId: observation.id,
+      verifiedObservationId, verificationStatus: verifiedObservationId ? "VERIFIED" as const : null };
+    await tx.publicationMintResult.upsert({ where: { attemptId }, create: { attemptId, ...selected }, update: selected });
+    await tx.auditLog.create({ data: { passportId, publicationId: current.publication.id, actorId: adminId,
+      version: current.publication.passportVersion, action: "PUBLICATION_MINT_REANCHORED", fromStatus: "APPROVED", toStatus: "APPROVED",
+      note: `Re-included ${current.kind.toLowerCase()} mint anchor: ${row.id}` } });
+    return reanchored(row, false);
   });
 }

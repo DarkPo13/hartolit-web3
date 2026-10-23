@@ -12,6 +12,7 @@ import { smokeMintFinalization } from "./smoke-publication-mint-finalization.mjs
 import { smokeMintDiscovery } from "./smoke-publication-mint-discovery.mjs";
 import { smokeMintMonitor } from "./smoke-publication-mint-monitor.mjs";
 import { smokeMintCancellation } from "./smoke-publication-mint-cancellation.mjs";
+import { smokeMintReanchor } from "./smoke-publication-mint-reanchor.mjs";
 import { smokeMintFailure, smokeLateMintFailure } from "./smoke-publication-mint-failure.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
@@ -115,6 +116,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
       if (candidate) candidates.push(candidate);
     }
     await smokeMintCancellation({ db, publisherId, candidate: candidates[4], peer: candidates[0], probe: candidates[1], chain });
+    await smokeMintReanchor({ db, publisherId, candidate: candidates[4], peer: candidates[0], chain });
     const failure = await smokeMintFailure({ db, publisherId, candidate: candidates[3], peer: candidates[0], chain });
     const dispatched = await smokeMintDispatch({ db, publisherId, candidates: candidates.slice(0, 2), chain });
     assert.equal(dispatched.command.request.nonce, failure.command.request.nonce + 1, "a new passport uses a new nonce after reviewed failure");

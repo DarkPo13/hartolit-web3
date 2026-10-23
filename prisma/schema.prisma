@@ -38,6 +38,7 @@ model User {
   mintRecoveries   PublicationMintRecovery[]
   mintFailures     PublicationMintFailure[]
   mintCancellations PublicationMintCancellation[]
+  mintReanchors    PublicationMintReanchor[]
 
   @@unique([email])
   @@map("user")
@@ -244,6 +245,7 @@ enum AuditAction {
   PUBLICATION_MINT_FAILURE_RESTORED
   PUBLICATION_MINT_CANCELLED
   PUBLICATION_MINT_CANCELLATION_RESTORED
+  PUBLICATION_MINT_REANCHORED
 }
 
 model Farmer {
@@ -540,8 +542,16 @@ model PublicationMintAttempt {
   failedObservation PublicationMintObservation? @relation("MintFailureProof", fields: [failedObservationId, id, failureStatus], references: [id, attemptId, status], onDelete: NoAction, map: "PublicationMintAttempt_failure_proof_fkey")
   failure         PublicationMintFailure?
   cancellation    PublicationMintCancellation?
+  // Current canonical inclusion of the unchanged first transaction after a
+  // reviewed re-inclusion; null means the first proof is still the anchor.
+  anchorObservationId String? @db.Uuid
+  currentReanchor PublicationMintReanchor? @relation("MintCurrentAnchor", fields: [id, anchorObservationId], references: [attemptId, anchorObservationId], onDelete: NoAction, map: "PublicationMintAttempt_anchor_fkey")
+  reanchors       PublicationMintReanchor[] @relation("MintReanchors")
+  firstSuccessReanchors PublicationMintReanchor[] @relation("MintReanchorFirstSuccess")
+  firstFailureReanchors PublicationMintReanchor[] @relation("MintReanchorFirstFailure")
 
   @@unique([id, nonce])
+  @@unique([id, anchorObservationId])
   @@unique([finalizedObservationId, id, finalizationStatus])
   @@unique([failedObservationId, id, failureStatus])
   @@unique([chainId, publisherWallet, nonce])
@@ -586,6 +596,9 @@ model PublicationMintObservation {
   failedAttempt PublicationMintAttempt? @relation("MintFailureProof")
   failureClosure PublicationMintFailure? @relation("MintFailureClosure")
   cancellationClosure PublicationMintCancellation? @relation("MintCancellationClosure")
+  reanchorFirstSuccess PublicationMintReanchor[] @relation("MintReanchorFirstSuccessProof")
+  reanchorFirstFailure PublicationMintReanchor[] @relation("MintReanchorFirstFailureProof")
+  reanchorProofs  PublicationMintReanchor[] @relation("MintReanchorProof")
 
   @@unique([attemptId, revision])
   @@unique([id, attemptId])
@@ -639,6 +652,41 @@ model PublicationMintCancellation {
   @@unique([observationId, attemptId, transactionHash, proofStatus])
   @@unique([id, attemptId, observationId])
   @@index([discoveryId])
+  @@index([actorId])
+}
+
+// Append-only reviewed adoption of a new canonical inclusion for the SAME first
+// transaction and outcome. The first proof stays immutable history.
+model PublicationMintReanchor {
+  id                  String @id @default(uuid()) @db.Uuid
+  attemptId           String @db.Uuid
+  attempt             PublicationMintAttempt @relation("MintReanchors", fields: [attemptId], references: [id], onDelete: Restrict)
+  requestId           String @unique @db.Uuid
+  actorId             String
+  actor               User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  quarantinedAt       DateTime
+  reviewedObservationVersion Int
+  intentSha256        String @db.Char(64)
+  walletStateSha256   String @db.Char(64)
+  transactionHash     String @db.VarChar(66)
+  proofStatus         PublicationMintObservationStatus
+  finalizedObservationId String? @db.Uuid
+  failedObservationId String? @db.Uuid
+  firstSuccess        PublicationMintAttempt? @relation("MintReanchorFirstSuccess", fields: [finalizedObservationId, attemptId, proofStatus], references: [finalizedObservationId, id, finalizationStatus], onDelete: Restrict, map: "PublicationMintReanchor_first_success_fkey")
+  firstFailure        PublicationMintAttempt? @relation("MintReanchorFirstFailure", fields: [failedObservationId, attemptId, proofStatus], references: [failedObservationId, id, failureStatus], onDelete: Restrict, map: "PublicationMintReanchor_first_failure_fkey")
+  firstSuccessProof   PublicationMintObservation? @relation("MintReanchorFirstSuccessProof", fields: [finalizedObservationId, attemptId, transactionHash, proofStatus], references: [id, attemptId, reportedHash, status], onDelete: Restrict, map: "PublicationMintReanchor_first_success_proof_fkey")
+  firstFailureProof   PublicationMintObservation? @relation("MintReanchorFirstFailureProof", fields: [failedObservationId, attemptId, transactionHash, proofStatus], references: [id, attemptId, reportedHash, status], onDelete: Restrict, map: "PublicationMintReanchor_first_failure_proof_fkey")
+  previousAnchorObservationId String? @db.Uuid
+  previous            PublicationMintReanchor? @relation("MintReanchorChain", fields: [attemptId, previousAnchorObservationId], references: [attemptId, anchorObservationId], onDelete: Restrict, map: "PublicationMintReanchor_previous_fkey")
+  next                PublicationMintReanchor[] @relation("MintReanchorChain")
+  anchorObservationId String @unique @db.Uuid
+  anchorObservation   PublicationMintObservation @relation("MintReanchorProof", fields: [anchorObservationId, attemptId, transactionHash, proofStatus], references: [id, attemptId, reportedHash, status], onDelete: Restrict, map: "PublicationMintReanchor_anchor_proof_fkey")
+  currentFor          PublicationMintAttempt? @relation("MintCurrentAnchor")
+  reanchoredAt        DateTime @default(now())
+
+  @@unique([attemptId, anchorObservationId])
+  @@unique([attemptId, reviewedObservationVersion])
+  @@index([attemptId, reanchoredAt])
   @@index([actorId])
 }
 

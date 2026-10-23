@@ -42,12 +42,40 @@ export function finalizedMintReceipt(row: PublicationMintObservation | null) {
   } catch { throw new WorkflowError(409, "Finalized mint receipt is invalid"); }
 }
 
-export function closedMintReceipt(row: { status: string; nonce: bigint; publisherWallet: string; failedObservation: PublicationMintObservation | null; finalizedObservation: PublicationMintObservation | null }) {
+type ClosedMintRow = { status: string; nonce: bigint; publisherWallet: string; failedObservation: PublicationMintObservation | null;
+  finalizedObservation: PublicationMintObservation | null; currentReanchor?: { anchorObservation: PublicationMintObservation } | null };
+export const closedMintProofInclude = { finalizedObservation: true, failedObservation: true,
+  currentReanchor: { include: { anchorObservation: true } } } as const;
+
+/** The immutable first closed proof. */
+export function closedMintReceipt(row: ClosedMintRow) {
   const receipt = row.status === "FAILED_TERMINAL" ? failedMintReceipt(row.failedObservation) : finalizedMintReceipt(row.finalizedObservation);
   if (receipt.status === "CANCELLED" && (receipt.nonce !== row.nonce.toString() || receipt.publisherWallet !== row.publisherWallet)) {
     throw new WorkflowError(409, "Cancellation proof wallet or nonce changed");
   }
   return receipt;
+}
+
+type ClosedMintOutcome = { status: string; transactionHash: string; contractAddress: string; intentSha256: string;
+  tokenId?: string; nonce?: string; publisherWallet?: string };
+
+/** Same transaction and outcome; only the inclusion block/depth may differ. */
+export function sameClosedMintOutcome(first: ClosedMintOutcome, other: ClosedMintOutcome) {
+  return other.status === first.status && other.transactionHash === first.transactionHash &&
+    other.contractAddress === first.contractAddress && other.intentSha256 === first.intentSha256 &&
+    (first.status !== "VERIFIED" || (other.status === "VERIFIED" && other.tokenId === first.tokenId)) &&
+    (first.status !== "CANCELLED" || (other.status === "CANCELLED" && other.nonce === first.nonce && other.publisherWallet === first.publisherWallet));
+}
+
+/** Current canonical inclusion anchor: a reviewed re-inclusion of the unchanged
+ * first transaction, or the first proof itself. Never a different transaction.
+ */
+export function closedMintAnchor(row: ClosedMintRow) {
+  const first = closedMintReceipt(row), saved = row.currentReanchor?.anchorObservation;
+  if (!saved) return first;
+  const anchor = closedMintReceipt({ ...row, finalizedObservation: saved, failedObservation: saved });
+  if (!sameClosedMintOutcome(first, anchor)) throw new WorkflowError(409, "Re-included mint anchor does not match its first proof");
+  return anchor;
 }
 
 export async function lockMintWallet(tx: Prisma.TransactionClient, chainId: number, wallet: string) {
@@ -61,13 +89,14 @@ export async function lockMintWallet(tx: Prisma.TransactionClient, chainId: numb
 export async function mintWalletHistory(tx: Prisma.TransactionClient, chainId: number, wallet: string) {
   await lockMintWallet(tx, chainId, wallet);
   const rows = await tx.publicationMintAttempt.findMany({ where: { chainId, publisherWallet: wallet, status: { in: [...CLOSED_MINT_STATUSES] } },
-    orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 1, include: { finalizedObservation: true, failedObservation: true } });
+    orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 1, include: closedMintProofInclude });
   if (rows.some(row => row.quarantinedAt)) throw new WorkflowError(409, "Publisher wallet is quarantined; no new send or finalization is allowed");
   if (rows.length > MAX_MINT_WALLET_RECEIPTS) throw new WorkflowError(503, "Wallet history exceeds the bounded verification limit; no new permission is allowed");
-  const anchors = rows.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: closedMintReceipt(row) }));
+  const anchors = rows.map(row => ({ attemptId: row.id, nonce: row.nonce, receipt: closedMintAnchor(row) }));
   return { anchors, binding: canonicalize(rows.map(row => ({ id: row.id, nonce: row.nonce.toString(),
     status: row.status, revision: row.observationVersion, finalizedAt: row.finalizedAt?.toISOString() ?? null,
-    failedAt: row.failedAt?.toISOString() ?? null, proof: row.finalizedObservation?.resultJson ?? row.failedObservation?.resultJson }))) };
+    failedAt: row.failedAt?.toISOString() ?? null, proof: row.finalizedObservation?.resultJson ?? row.failedObservation?.resultJson,
+    anchor: row.currentReanchor?.anchorObservation.resultJson ?? null }))) };
 }
 
 export async function verifyMintWalletAnchors(anchors: Awaited<ReturnType<typeof mintWalletHistory>>["anchors"], reader: MintReader,

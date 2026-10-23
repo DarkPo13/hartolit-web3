@@ -738,6 +738,12 @@ Atomically append a fresh CANCELLED observation (proofKind=CANCELLATION, no matc
 
 Default PG/production HTTP and actual owned-Anvil suites cover consent and kind isolation, stale review refused before RPC, outage/changed-anchor/wrong-nonce/missing/pending refusal, authority/config/confirmation/expiry races, concurrent idempotence, old-observer supersession, stored rows, renewed incidents, a newer active slot and SQL shape/foreign-key probes. Actual Anvil restores after an injected outage and refuses after a real rollback.
 
+## Reviewed re-inclusion anchor
+
+A reorg deeper than the configured depth can put the **same** signed transaction into another block. Every closed attempt keeps its immutable first proof; `getMintReanchorReview` / `adoptReincludedMintAnchor` let the current designated active MFA publisher separately acknowledge **ADOPT_REINCLUDED_MINT_ANCHOR** for a quarantined closed attempt. Fresh RPC must show the same hash and outcome (success with the same token ID, REVERTED, or the same-nonce cancellation) in a different canonical block, at least as deep as the anchor it replaces. Authority, commitment, wallet state and the 15-second gate are rechecked after RPC.
+
+Additive migration `20261023150000_publication_mint_reanchor` adds an append-only journal bound by composite SQL foreign keys to the attempt's first proof and to same-attempt/hash/status proofs, plus the attempt's current anchor pointer. Monitoring, wallet history and unchanged-proof restoration then compare with the current anchor. A lost proof, changed outcome or token ID, or a different transaction at the nonce stays quarantined with no in-app resolution. No send, HTTP/UI or certificate is enabled. The actual-Anvil fixture finalizes a mint, rolls its branch back and re-broadcasts the identical signed bytes one block later.
+
 ## Product feedback and responsible treatment reminder
 
 Signed-in users can open `/feedback` from the home-page footer. The private confirmed certificate preview opens an accessible responsibility dialog with a reminder to record doses and weather and care for Ukraine's soils; its **Leave feedback** button opens the same form. The dialog can be dismissed and reopened without submitting feedback. It does not claim that a certificate has been issued or that a treatment is environmentally safe.

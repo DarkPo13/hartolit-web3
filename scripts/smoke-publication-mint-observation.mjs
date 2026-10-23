@@ -12,20 +12,21 @@ const { HARTOLIT_PASSPORT_ABI: abi } = await jiti.import("../lib/contract.ts");
 const rejects = (promise, status = 409) => assert.rejects(promise, error => error.status === status);
 const hash = digit => `0x${digit.repeat(64)}`;
 
-export function syntheticMintFrame(intent, nonce, code, txHash) {
+export function syntheticMintFrame(intent, nonce, code, txHash, { blockNumber = 5n, blockHash = hash("b"), tokenId = 1n,
+  head = { number: 7n, hash: hash("d") }, status = "success" } = {}) {
   const tx = { hash: txHash, chainId: 97, from: intent.publisherWallet, to: intent.contractAddress, input: intent.data,
-    value: 0n, nonce, blockNumber: 5n, blockHash: hash("b"), transactionIndex: 0 };
-  const receipt = { transactionHash: txHash, blockNumber: 5n, blockHash: hash("b"), transactionIndex: 0,
-    from: tx.from, to: tx.to, status: "success", logs: [{ address: tx.to, blockNumber: 5n, blockHash: hash("b"),
+    value: 0n, nonce, blockNumber, blockHash, transactionIndex: 0 };
+  const receipt = { transactionHash: txHash, blockNumber, blockHash, transactionIndex: 0,
+    from: tx.from, to: tx.to, status, logs: status !== "success" ? [] : [{ address: tx.to, blockNumber, blockHash,
       transactionHash: txHash, transactionIndex: 0, logIndex: 0, removed: false,
-      topics: encodeEventTopics({ abi, eventName: "PassportMinted", args: { tokenId: 1n, mintedBy: tx.from, to: intent.recipientWallet } }),
+      topics: encodeEventTopics({ abi, eventName: "PassportMinted", args: { tokenId, mintedBy: tx.from, to: intent.recipientWallet } }),
       data: encodeAbiParameters([{ type: "bytes32" }, { type: "string" }], [`0x${intent.payloadHash}`, `ipfs://${intent.ipfsCid}`]),
     }] };
   return { tx, receipt, reader: {
     getChainId: async () => 97, getCode: async () => code,
-    getBlock: async args => args?.blockNumber === 5n ? { number: 5n, hash: hash("b") } : { number: 7n, hash: hash("d") },
+    getBlock: async args => args?.blockNumber === blockNumber ? { number: blockNumber, hash: blockHash } : head,
     getTransaction: async () => tx, getTransactionReceipt: async () => receipt,
-    readContract: async ({ functionName }) => ({ ownerOf: intent.recipientWallet, tokenURI: `ipfs://${intent.ipfsCid}`, payloadHash: `0x${intent.payloadHash}`, hashToTokenId: 1n })[functionName],
+    readContract: async ({ functionName }) => ({ ownerOf: intent.recipientWallet, tokenURI: `ipfs://${intent.ipfsCid}`, payloadHash: `0x${intent.payloadHash}`, hashToTokenId: tokenId })[functionName],
   } };
 }
 

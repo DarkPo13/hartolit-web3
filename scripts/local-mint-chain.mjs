@@ -47,6 +47,12 @@ export async function localMintChain(account) {
         return wallet.sendTransaction({ to: command.request.to, data: command.request.data, nonce: command.request.nonce, value: BigInt(command.request.value), gas,
           ...(gasPrice === undefined ? {} : { gasPrice }) });
       },
+      async sign(command, gas = 500_000n) {
+        // Test-only signed bytes, so the same transaction hash can be re-broadcast on another branch.
+        assert.equal(command.request.from, account.address.toLowerCase()); assert.equal(command.request.chainId, 97);
+        return wallet.signTransaction(await wallet.prepareTransactionRequest({ to: command.request.to, data: command.request.data,
+          nonce: command.request.nonce, value: BigInt(command.request.value), gas }));
+      },
       async cancel(command) {
         // Test-only same-nonce cancellation outside the application process.
         assert.equal(command.request.from, account.address.toLowerCase());
