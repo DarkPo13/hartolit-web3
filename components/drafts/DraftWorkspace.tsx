@@ -44,7 +44,7 @@ export function DraftWorkspace() {
     setSubmitError(false);
     setDrafts((items) => items.some((item) => item.id === record.id) ? items : [{
       id: record.id, status: "DRAFT", version: record.version, updatedAt: record.updatedAt,
-      farmerName: record.data.farmer.farmerName, crop: record.data.farmer.crop,
+      farmerName: record.data.farmer.farmerName, crop: record.data.farmer.crop, correctsTokenId: null,
     }, ...items]);
     const cached = useWizardStore.getState().draftSync;
     if (preserveCache && cached?.id === id && cached.cacheDirty) {
@@ -116,6 +116,7 @@ export function DraftWorkspace() {
         const updated: DraftListItem = {
           id: record.id, status: "DRAFT", version: record.version, updatedAt: record.updatedAt,
           farmerName: record.data.farmer.farmerName, crop: record.data.farmer.crop,
+          correctsTokenId: items.find((item) => item.id === record.id)?.correctsTokenId ?? null,
         };
         return [updated, ...items.filter((item) => item.id !== updated.id)];
       });
@@ -148,7 +149,7 @@ export function DraftWorkspace() {
       replaceDraft(fromDraftData(record.data), record.id, record.version);
       setDrafts((items) => [{
         id: record.id, status: "DRAFT", version: record.version, updatedAt: record.updatedAt,
-        farmerName: "", crop: "",
+        farmerName: "", crop: "", correctsTokenId: null,
       }, ...items]);
       setSelectedId(record.id);
       setPublicFieldReference(record.publicFieldReference);
@@ -239,7 +240,7 @@ export function DraftWorkspace() {
               {t.drafts.choose}
               <select value={selectedId ?? ""} onChange={(event) => void choose(event.target.value)} disabled={busy || dirty || status === "saving" || status === "error" || status === "conflict"} className="mt-1 block w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm disabled:opacity-50">
                 {!selectedId && <option value="">{t.drafts.choose}</option>}
-                {drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.farmerName || t.drafts.untitled} · {new Date(draft.updatedAt).toLocaleDateString()}</option>)}
+                {drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.correctsTokenId ? `${t.drafts.correctionOf} #${draft.correctsTokenId} · ` : ""}{draft.farmerName || t.drafts.untitled} · {new Date(draft.updatedAt).toLocaleDateString()}</option>)}
               </select>
             </label>}
             <button type="button" onClick={() => void create()} disabled={busy || dirty || legacyCache || status === "saving" || status === "error" || status === "conflict"} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">{t.drafts.newDraft}</button>
@@ -255,6 +256,7 @@ export function DraftWorkspace() {
             <button type="button" onClick={() => void keepChanges()} disabled={busy} className="text-sm font-medium text-brand-700 underline disabled:opacity-50">{t.drafts.overwrite}</button>
           </>}
         </div>}
+        {selectedId && drafts.find((draft) => draft.id === selectedId)?.correctsTokenId && <p role="status" className="mt-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-sm text-ink">{t.drafts.correctionOf} #{drafts.find((draft) => draft.id === selectedId)?.correctsTokenId}. {t.drafts.correctionBanner}</p>}
         {selectedId && publicFieldReference && <p className="mt-3 break-all text-sm text-ink-muted">{t.drafts.publicFieldReference}: <span className="font-mono text-ink">{publicFieldReference}</span></p>}
         {selectedId && reviewNote && <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-ink" role="status">{t.review.previousNote}: {reviewNote}</p>}
         {selectedId && !loadError && <div className="mt-4 border-t border-border pt-4">

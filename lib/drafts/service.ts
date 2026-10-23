@@ -85,6 +85,7 @@ export async function listDrafts(ownerId: string): Promise<DraftListItem[]> {
       id: true, status: true, version: true, updatedAt: true,
       farmer: { select: { legalName: true } },
       field: { select: { crop: true } },
+      correctionOf: { select: { supersededPublication: { select: { tokenId: true } } }, take: 1 },
     },
   });
   return rows.map((row) => ({
@@ -94,6 +95,7 @@ export async function listDrafts(ownerId: string): Promise<DraftListItem[]> {
     updatedAt: row.updatedAt.toISOString(),
     farmerName: str(row.farmer.legalName),
     crop: str(row.field.crop),
+    correctsTokenId: row.correctionOf[0]?.supersededPublication.tokenId ?? null,
   }));
 }
 

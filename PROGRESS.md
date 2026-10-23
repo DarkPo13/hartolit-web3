@@ -818,3 +818,10 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - Continued after fe00dfd. Headless Chrome on the actual-chain `withdrawal` fixture at 390px: a recall before withdrawal was refused with the generic "passport changed, reload" message, and the pinned record showed a red "changed" alert only because the smoke app has no storage target. Fixed as D63. Rerun: 13 checks passed (refusal names the started publication, no stale/false alerts, withdraw gated by acknowledgement, stopped state, recall afterwards, EN, no overflow).
 - Harness note: the first rerun raced a stale "checkpoint ready" line from the previous log; wait on a fresh log file.
 - Validation: lint, typecheck, build, 50 Node tests, default and actual-chain `publication:smoke` exited 0; removing the code exits 1 at the new assertion; no residue.
+
+## 2026-10-23 - Record-list marks for issued records and correction drafts (D64)
+
+- Continued after 95e4d58 (STATE next step 1). Marks come from one server helper so the queue, the operator's submitted list and the draft list agree. The first browser pass found the queue stale after returning from a detail with the same filter (the open-correction badge appeared only after a fresh load); "Back to queue" now reloads.
+- The smoke assertions first failed because the correction stage deletes its correction before returning; they now run in its `whileOpen` hook.
+- Observed, left as is: the release banners ("Publication is disabled until the controlled publication phase", operator "Passport issuance is not yet available") still show next to an issued fixture record. They describe the absent app publish action and are part of the release gate.
+- Validation: lint, typecheck, build, 50 Node tests, default and actual-chain `publication:smoke`, `drafts:smoke`, `evidence:smoke`, `review:smoke` exited 0; two controls exit 1; browser pass 9 checks; no residue.

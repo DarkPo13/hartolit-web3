@@ -20,7 +20,7 @@ const { beginMintDispatch, recordUnknownMintOutcome } = await jiti.import("../li
 const { discoverMintTransaction } = await jiti.import("../lib/publication/mint-discovery.ts");
 const rejects = (promise, status = 409) => assert.rejects(promise, error => error.status === status);
 
-export async function smokeMintFinalization({ api, base: appBase, publisher, db, publisherId, dispatched, chain, finalizationFixture, probe, failure, uploaded }) {
+export async function smokeMintFinalization({ api, base: appBase, publisher, operator, db, publisherId, dispatched, chain, finalizationFixture, probe, failure, uploaded }) {
   const { winner, loser, command } = dispatched, attemptId = command.attemptId, passportId = winner.passportId;
   const { transactionId, hash } = finalizationFixture;
   const code = chain ? await chain.reader.getCode({ address: winner.target.contractAddress }) : "0x60006000";
@@ -108,16 +108,34 @@ export async function smokeMintFinalization({ api, base: appBase, publisher, db,
     assert.equal(new URL(response.headers.get("location"), "http://x.invalid").pathname, `/passports/${published.tokenId}`);
   }
   if (browserStage("issued")) {
-    const pause = links => browserCheckpoint("issued", { base: appBase, actors: { "/publisher": publisher }, label: `${passportId}, unissued ${probe.passportId}`, links });
+    const pause = links => browserCheckpoint("issued", { base: appBase, actors: { "/publisher": publisher, ...(operator ? { "/operator": operator } : {}) }, label: `${passportId}, unissued ${probe.passportId}`, links });
     if (chain && uploaded) await withIssuedPublicPage({ publication: published, chain, uploaded }, page => pause({ "/public": `${page}/passports/${published.tokenId}` }));
     else await pause();
     stopAfterBrowserStage("issued");
   }
+  // List marks (D64), checked while the correction is open: the issued filter,
+  // the open correction, and the operator's views.
+  const checkMarks = async () => {
+    const json = async (route, user) => { const response = await api(route, { user }); assert.equal(response.status, 200, route); return response.json(); };
+    const issuedQueue = await json("/api/admin/passports?status=ISSUED", publisher);
+    assert.deepEqual(issuedQueue.items.find(item => item.id === passportId)?.marks, { issuedTokenId: published.tokenId, correctsTokenId: null, correctionOpened: true },
+      "the queue marks the issued record and its open correction");
+    assert.ok(issuedQueue.items.length && issuedQueue.items.every(item => item.marks.issuedTokenId), "the issued filter lists only issued records");
+    const unissued = (await json("/api/admin/passports?status=ALL", publisher)).items.find(item => item.id === probe.passportId);
+    assert.deepEqual(unissued?.marks, { issuedTokenId: null, correctsTokenId: null, correctionOpened: false }, "an unissued record carries no marks");
+    const correctionDraft = (await db.publicationCorrection.findUniqueOrThrow({ where: { supersededPublicationId: published.id } })).correctionPassportId;
+    assert.equal((await json("/api/drafts", operator)).drafts.find(draft => draft.id === correctionDraft)?.correctsTokenId, published.tokenId,
+      "the operator's draft list marks the correction draft");
+    assert.equal((await json("/api/passports/mine", operator)).passports.find(item => item.id === passportId)?.marks.issuedTokenId, published.tokenId,
+      "the operator's passports mark the issued record");
+  };
   // Post-mint correction on the real published record; on the actual chain the
   // anonymous page must also be VALID and say a correction is in progress.
   // An offline Kubo run has no captured upload bytes for the page check.
-  await smokePublicationCorrection({ api, db, publisherId, publisher, publication: published, passportId,
-    whileOpen: chain && uploaded ? () => smokeIssuedPublicPage({ publication: published, passportId, chain, uploaded, correctionPending: true }) : null });
+  await smokePublicationCorrection({ api, db, publisherId, publisher, publication: published, passportId, whileOpen: async () => {
+    await checkMarks();
+    if (chain && uploaded) await smokeIssuedPublicPage({ publication: published, passportId, chain, uploaded, correctionPending: true });
+  } });
   await smokeEvidenceAccess({ api, db, publisher, issuedPassportId: passportId, unissuedPassportId: probe.passportId });
   await smokePreservationHolds({ api, db, publisherId, publisher, issuedPassportId: passportId });
   const repeats = await Promise.all([finalize(), finalize()]);

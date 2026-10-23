@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/lib/i18n/context";
+import { PassportMarkList } from "@/components/PassportMarkList";
 
-type Item = { id: string; status: string; version: number; submittedAt: string | null; reviewedAt: string | null; reviewNote: string | null; farmerName: string; crop: string; reviewerName: string | null };
+type Item = { id: string; status: string; version: number; submittedAt: string | null; reviewedAt: string | null; reviewNote: string | null; farmerName: string; crop: string; reviewerName: string | null;
+  marks: { issuedTokenId: string | null; correctsTokenId: string | null; correctionOpened: boolean } };
 
 export function ReviewStatusPanel({ revision, onReopened }: { revision: number; onReopened: (id: string) => Promise<void> }) {
   const t = useT().review;
@@ -40,7 +42,7 @@ export function ReviewStatusPanel({ revision, onReopened }: { revision: number; 
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 id="my-reviews-heading" className="text-xl font-semibold text-ink">{t.myPassports}</h2><p className="mt-1 text-sm text-ink-muted">{t.myPassportsHint}</p></div><button type="button" onClick={() => void load()} className="text-sm font-medium text-brand-700 underline">{t.refresh}</button></div>
     {loading ? <p role="status" className="mt-4 text-sm text-ink-muted">{t.loading}</p> : error ? <p role="alert" className="mt-4 text-sm text-danger">{t.loadError}</p> : !items.length ? <p className="mt-4 text-sm text-ink-muted">{t.noSubmissions}</p> : <ul className="mt-4 divide-y divide-border">
       {items.map((item) => <li key={item.id} className="flex flex-wrap items-start justify-between gap-3 py-3 text-sm">
-        <div><p className="font-medium text-ink">{item.farmerName || t.untitled} · {item.crop || "—"}</p><p className="text-ink-muted">{status[item.status] ?? item.status}{item.reviewerName ? ` · ${item.reviewerName}` : ""}</p>{item.reviewNote && <p className="mt-2 max-w-xl whitespace-pre-wrap text-ink">{item.reviewNote}</p>}</div>
+        <div><p className="font-medium text-ink">{item.farmerName || t.untitled} · {item.crop || "—"}</p><p className="text-ink-muted">{status[item.status] ?? item.status}{item.reviewerName ? ` · ${item.reviewerName}` : ""}</p><PassportMarkList marks={item.marks} />{item.reviewNote && <p className="mt-2 max-w-xl whitespace-pre-wrap text-ink">{item.reviewNote}</p>}</div>
         {(item.status === "REJECTED" || item.status === "CORRECTION_REQUIRED") && <button type="button" onClick={() => void reopen(item)} disabled={busyId !== null} className="font-medium text-brand-700 underline disabled:opacity-50">{busyId === item.id ? t.reopening : t.reopen}</button>}
       </li>)}
     </ul>}

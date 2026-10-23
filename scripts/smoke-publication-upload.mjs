@@ -28,7 +28,7 @@ const { rawCidFromSha256 } = await jiti.import("../lib/publication/raw-cid.ts");
 const rejects = (promise, status = 409) => assert.rejects(promise, (error) => error.status === status);
 
 /** Called only by the local-database-guarded publication smoke. Never loaded by the app. */
-export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publisherId, publisher, signingAccount, base }) {
+export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publisherId, publisher, operator, signingAccount, base }) {
   const realLocalNode = process.env.PUBLICATION_LOCAL_KUBO === "1";
   if (realLocalNode) assertOfflineKubo();
   const ownedCids = [];
@@ -131,7 +131,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
     await smokeMintDiscovery({ db, publisherId, dispatched, chain });
     const resultFixture = await smokeMintObservation({ db, publisherId, dispatched, chain });
     const finalizationFixture = await smokeMintResult({ db, publisherId, dispatched, chain, resultFixture });
-    await smokeMintFinalization({ api, base, publisher, db, publisherId, dispatched, chain, finalizationFixture, probe: candidates[2], failure, uploaded: realLocalNode ? null : uploaded });
+    await smokeMintFinalization({ api, base, publisher, operator, db, publisherId, dispatched, chain, finalizationFixture, probe: candidates[2], failure, uploaded: realLocalNode ? null : uploaded });
     await smokeLateMintFailure({ db, publisherId, failure, chain });
     process.stdout.write(`Upload driver passed: target binding, explicit intent, single send, lost acknowledgement, failed-before-write and no resend (${realLocalNode ? "isolated offline Kubo" : "injected transport"}).\n`);
   } finally {

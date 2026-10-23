@@ -66,6 +66,8 @@ export interface Translations {
   };
   drafts: {
     title: string;
+    correctionOf: string;
+    correctionBanner: string;
     description: string;
     newDraft: string;
     empty: string;
@@ -128,6 +130,7 @@ export interface Translations {
     backToQueue: string; owner: string; reviewer: string; unassigned: string;
     assign: string; claim: string; release: string; decision: string;
     note: string; reasonRequired: string; approve: string; reject: string; issuedDecision: string; publicationStarted: string;
+    issuedBadge: string; correctsBadge: string; correctionOpenBadge: string; issuedFilter: string;
     requestCorrection: string; saveDecision: string; actionError: string;
     changed: string; detailsError: string; dashboard: string; activity: string;
     farmerField: string; treatment: string; meteo: string; chemical: string;

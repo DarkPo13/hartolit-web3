@@ -310,7 +310,7 @@ try {
   assert.equal(racingReserved.status, 201);
   await smokePinRecallRace({ api, db, publisherId, publisher, passportId: racing.passport.id,
     publicationId: (await racingReserved.json()).reservation.id, confirmation: racingConfirmation, signingAccount });
-  await smokePinUploads({ api, db, fixture, confirm, ownerId, publisherId, publisher, signingAccount, base });
+  await smokePinUploads({ api, db, fixture, confirm, ownerId, publisherId, publisher, operator, signingAccount, base });
   await smokePublicationPreparation({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, unverified, operator, signingAccount,
     restart: async target => { await stopServer(); await startServer(publisherId, wallet, target); }, base });
   process.stdout.write("Publication smoke passed: exact bytes, private EOA proof, bound upload target, explicit intent, single send, lost acknowledgement/readback, concurrency, recall, constraints and audit. No public side effects.\n");

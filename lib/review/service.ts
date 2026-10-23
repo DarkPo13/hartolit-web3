@@ -8,6 +8,7 @@ import { publicCropSchema, publicTreatmentCategorySchema } from "@/lib/public-sn
 import type { ReviewDecision } from "./schema";
 
 import { WorkflowError } from "./errors";
+import { passportMarks, passportMarksSelect } from "@/lib/passport-marks";
 export { WorkflowError } from "./errors";
 
 const detailInclude = {
@@ -179,17 +180,17 @@ export async function decideReview(adminId: string, id: string, input: ReviewDec
 }
 
 export async function mine(ownerId: string) {
-  const rows = await getDb().passport.findMany({ where: { ownerId, status: { not: "DRAFT" } }, orderBy: { updatedAt: "desc" }, take: 50, select: { id: true, status: true, version: true, submittedAt: true, reviewedAt: true, reviewNote: true, farmer: { select: { legalName: true } }, field: { select: { crop: true } }, reviewer: { select: { name: true } } } });
-  return rows.map((row) => ({ id: row.id, status: row.status, version: row.version, submittedAt: row.submittedAt?.toISOString() ?? null, reviewedAt: row.reviewedAt?.toISOString() ?? null, reviewNote: row.reviewNote, farmerName: row.farmer.legalName ?? "", crop: row.field.crop ?? "", reviewerName: row.reviewer?.name ?? null }));
+  const rows = await getDb().passport.findMany({ where: { ownerId, status: { not: "DRAFT" } }, orderBy: { updatedAt: "desc" }, take: 50, select: { id: true, status: true, version: true, submittedAt: true, reviewedAt: true, reviewNote: true, farmer: { select: { legalName: true } }, field: { select: { crop: true } }, reviewer: { select: { name: true } }, ...passportMarksSelect } });
+  return rows.map((row) => ({ id: row.id, status: row.status, version: row.version, submittedAt: row.submittedAt?.toISOString() ?? null, reviewedAt: row.reviewedAt?.toISOString() ?? null, reviewNote: row.reviewNote, farmerName: row.farmer.legalName ?? "", crop: row.field.crop ?? "", reviewerName: row.reviewer?.name ?? null, marks: passportMarks(row) }));
 }
 
-export async function adminQueue(status: "ALL" | PassportStatus, page: number, search: string) {
-  const where: Prisma.PassportWhereInput = { status: status === "ALL" ? { not: "DRAFT" } : status, ...(search ? { OR: [{ farmer: { legalName: { contains: search, mode: "insensitive" } } }, { owner: { email: { contains: search, mode: "insensitive" } } }] } : {}) };
+export async function adminQueue(status: "ALL" | "ISSUED" | PassportStatus, page: number, search: string) {
+  const where: Prisma.PassportWhereInput = { ...(status === "ISSUED" ? { status: { not: "DRAFT" }, publications: { some: { status: "PUBLISHED", tokenId: { not: null } } } } : { status: status === "ALL" ? { not: "DRAFT" } : status }), ...(search ? { OR: [{ farmer: { legalName: { contains: search, mode: "insensitive" } } }, { owner: { email: { contains: search, mode: "insensitive" } } }] } : {}) };
   const [rows, total] = await Promise.all([
-    getDb().passport.findMany({ where, orderBy: [{ submittedAt: "desc" }, { id: "desc" }], skip: page * 20, take: 20, select: { id: true, status: true, version: true, submittedAt: true, reviewedAt: true, owner: { select: { name: true, email: true } }, reviewer: { select: { name: true } }, farmer: { select: { legalName: true } }, field: { select: { crop: true } } } }),
+    getDb().passport.findMany({ where, orderBy: [{ submittedAt: "desc" }, { id: "desc" }], skip: page * 20, take: 20, select: { id: true, status: true, version: true, submittedAt: true, reviewedAt: true, owner: { select: { name: true, email: true } }, reviewer: { select: { name: true } }, farmer: { select: { legalName: true } }, field: { select: { crop: true } }, ...passportMarksSelect } }),
     getDb().passport.count({ where }),
   ]);
-  return { total, page, items: rows.map((row) => ({ ...row, submittedAt: row.submittedAt?.toISOString() ?? null, reviewedAt: row.reviewedAt?.toISOString() ?? null })) };
+  return { total, page, items: rows.map(({ publications, correctionOf, supersededBy, ...row }) => ({ ...row, marks: passportMarks({ publications, correctionOf, supersededBy }), submittedAt: row.submittedAt?.toISOString() ?? null, reviewedAt: row.reviewedAt?.toISOString() ?? null })) };
 }
 
 export async function adminDetail(id: string) {

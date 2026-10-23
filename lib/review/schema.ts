@@ -8,7 +8,7 @@ export const decisionSchema = z.strictObject({
   note: z.string().trim().max(1000).default(""),
 });
 export const queueQuerySchema = z.strictObject({
-  status: z.enum(["ALL", "SUBMITTED", "APPROVED", "REJECTED", "CORRECTION_REQUIRED"]).default("SUBMITTED"),
+  status: z.enum(["ALL", "SUBMITTED", "APPROVED", "REJECTED", "CORRECTION_REQUIRED", "ISSUED"]).default("SUBMITTED"),
   page: z.coerce.number().int().min(0).max(500).default(0),
   search: z.string().trim().max(100).default(""),
 });

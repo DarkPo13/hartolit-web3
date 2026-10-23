@@ -77,4 +77,6 @@ export type DraftRecord = {
 export type DraftListItem = Pick<DraftRecord, "id" | "status" | "version" | "updatedAt"> & {
   farmerName: string;
   crop: string;
+  /** Public token this draft corrects (D64), if it is a correction draft. */
+  correctsTokenId: string | null;
 };
