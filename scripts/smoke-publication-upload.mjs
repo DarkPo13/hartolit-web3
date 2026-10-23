@@ -15,6 +15,7 @@ import { smokeMintCancellation } from "./smoke-publication-mint-cancellation.mjs
 import { smokeMintReanchor } from "./smoke-publication-mint-reanchor.mjs";
 import { smokePublicationWithdrawal } from "./smoke-publication-withdrawal.mjs";
 import { smokeMintFailure, smokeLateMintFailure } from "./smoke-publication-mint-failure.mjs";
+import { browserCheckpoint, stopAfterBrowserStage } from "./publication-browser-checkpoint.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -27,7 +28,7 @@ const { rawCidFromSha256 } = await jiti.import("../lib/publication/raw-cid.ts");
 const rejects = (promise, status = 409) => assert.rejects(promise, (error) => error.status === status);
 
 /** Called only by the local-database-guarded publication smoke. Never loaded by the app. */
-export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publisherId, publisher, signingAccount }) {
+export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publisherId, publisher, signingAccount, base }) {
   const realLocalNode = process.env.PUBLICATION_LOCAL_KUBO === "1";
   if (realLocalNode) assertOfflineKubo();
   const ownedCids = [];
@@ -119,6 +120,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
       const candidate = await smokeMintPreparation({ db, publisherId, passportId, publication: stored, pin: savedAttempt, chainTarget: chain?.target });
       if (candidate) candidates.push(candidate);
     }
+    if (await browserCheckpoint("withdrawal", { base, actors: { "/publisher": publisher }, label: candidates[5].passportId })) stopAfterBrowserStage("withdrawal");
     await smokePublicationWithdrawal({ api, db, publisherId, publisher, candidate: candidates[5], pinTarget: pinTargets.get("withdrawal-probe"), chain });
     await smokeMintCancellation({ db, publisherId, candidate: candidates[4], peer: candidates[0], probe: candidates[1], chain });
     await smokeMintReanchor({ db, publisherId, candidate: candidates[4], peer: candidates[0], chain });
@@ -129,7 +131,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
     await smokeMintDiscovery({ db, publisherId, dispatched, chain });
     const resultFixture = await smokeMintObservation({ db, publisherId, dispatched, chain });
     const finalizationFixture = await smokeMintResult({ db, publisherId, dispatched, chain, resultFixture });
-    await smokeMintFinalization({ api, publisher, db, publisherId, dispatched, chain, finalizationFixture, probe: candidates[2], failure, uploaded: realLocalNode ? null : uploaded });
+    await smokeMintFinalization({ api, base, publisher, db, publisherId, dispatched, chain, finalizationFixture, probe: candidates[2], failure, uploaded: realLocalNode ? null : uploaded });
     await smokeLateMintFailure({ db, publisherId, failure, chain });
     process.stdout.write(`Upload driver passed: target binding, explicit intent, single send, lost acknowledgement, failed-before-write and no resend (${realLocalNode ? "isolated offline Kubo" : "injected transport"}).\n`);
   } finally {

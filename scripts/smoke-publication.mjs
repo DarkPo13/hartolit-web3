@@ -310,7 +310,7 @@ try {
   assert.equal(racingReserved.status, 201);
   await smokePinRecallRace({ api, db, publisherId, publisher, passportId: racing.passport.id,
     publicationId: (await racingReserved.json()).reservation.id, confirmation: racingConfirmation, signingAccount });
-  await smokePinUploads({ api, db, fixture, confirm, ownerId, publisherId, publisher, signingAccount });
+  await smokePinUploads({ api, db, fixture, confirm, ownerId, publisherId, publisher, signingAccount, base });
   await smokePublicationPreparation({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, unverified, operator, signingAccount,
     restart: async target => { await stopServer(); await startServer(publisherId, wallet, target); }, base });
   process.stdout.write("Publication smoke passed: exact bytes, private EOA proof, bound upload target, explicit intent, single send, lost acknowledgement/readback, concurrency, recall, constraints and audit. No public side effects.\n");
@@ -319,6 +319,10 @@ try {
   // A cleanup failure must not replace the assertion that caused it: record it,
   // continue with the other fixtures and fail the run explicitly.
   const cleanupFailures = [];
+  // Correction drafts are created by the server, also from the browser fixture.
+  for (const row of await db.publicationCorrection.findMany({ where: { supersededPassportId: { in: passportIds } }, select: { correctionPassportId: true } }).catch(() => [])) {
+    if (!passportIds.includes(row.correctionPassportId)) passportIds.push(row.correctionPassportId);
+  }
   for (const id of passportIds) try {
     const row = await db.passport.findUnique({ where: { id }, select: { farmerId: true, fieldId: true } });
     if (!row) continue;

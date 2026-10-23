@@ -53,6 +53,9 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
     r.passportVersion === confirmation.preview.passportVersion && r.payloadHash === confirmation.preview.sha256);
   const blocked = data?.reservations.some(r => r.status !== "RESERVED" && r.status !== "CANCELLED");
   const cancelled = data?.reservations.some(r => r.confirmationId === confirmation.id && r.status === "CANCELLED");
+  // Once issued (or suspended after issuance) the preparation steps are history, not actions.
+  const issued = data?.reservations.find(r => r.status === "PUBLISHED")?.issued ?? null;
+  const suspended = data?.reservations.some(r => r.status === "CHAIN_SUSPENDED");
   const publication = data?.reservations.find(r => r.confirmationId === confirmation.id && r.status !== "CANCELLED" &&
     r.passportVersion === confirmation.preview.passportVersion && r.payloadHash === confirmation.preview.sha256);
 
@@ -83,7 +86,12 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
     {error && <p role="alert" className="text-sm text-danger">{t[error]}</p>}
     <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading || busy || disabled}>{t.refresh}</Button>
     {data && <>
-      {!data.publisher.configured ? <p className="text-sm text-ink-muted">{t.notConfigured}</p> : !data.publisher.canProve ? <p className="text-sm text-ink-muted">{t.otherPublisher}</p> : <>
+      {issued ? <div role="status" className="rounded-lg border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900">
+        <p className="font-semibold">{t.issuedTitle} #{issued.tokenId}</p><p className="mt-1">{t.issuedHint}</p>
+        <dl className="mt-3 space-y-2"><div><dt className="font-medium">{t.contract}</dt><dd className="break-all font-mono text-xs">{issued.contractAddress}</dd></div>
+          <div><dt className="font-medium">{t.transaction}</dt><dd className="break-all font-mono text-xs">{issued.transactionHash}</dd></div></dl>
+        <a href={`/passports/${encodeURIComponent(issued.tokenId)}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block font-medium text-brand-700 underline">{t.openPublic}</a>
+      </div> : suspended ? <p role="status" className="text-sm">{t.suspended}</p> : !data.publisher.configured ? <p className="text-sm text-ink-muted">{t.notConfigured}</p> : !data.publisher.canProve ? <p className="text-sm text-ink-muted">{t.otherPublisher}</p> : <>
         <div className="text-sm"><p className="font-medium">{t.allowedWallet}</p><code className="mt-1 block break-all">{data.publisher.walletAddress}</code></div>
         {cancelled ? <p role="alert" className="text-sm text-danger">{t.approvalChanged}</p> : blocked ? <p role="status" className="text-sm">{t.blocked}</p> : current?.walletVerifiedAt ? <div role="status" className="rounded-lg border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900"><p className="font-semibold">{t.verified}</p><p className="mt-1">{new Date(current.walletVerifiedAt).toLocaleString(locale === "uk" ? "uk-UA" : "en-US")}</p><p className="mt-2">{t.stillPrivate}</p></div> : current && data.publisher.walletAddress ? <PublisherWallet
           key={current.id} base={base} reservation={current} walletAddress={data.publisher.walletAddress}
@@ -94,7 +102,7 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
         /> : <Button type="button" onClick={() => void reserve()} loading={busy} disabled={disabled || busy || loading}>{t.reserve}</Button>}
       </>}
       {data.reservations.some(r => r.status === "PUBLISHED") && <PublicationCorrection base={base} canWrite={data.publisher.canProve} disabled={disabled || busy || loading} />}
-      {publication && <PublicationPreparation key={`${publication.id}:${confirmation.id}:${confirmation.preview.sha256}:${data.pinning.target?.configurationSha256}:${data.publisher.canProve}`} base={base}
+      {publication && !issued && !suspended && <PublicationPreparation key={`${publication.id}:${confirmation.id}:${confirmation.preview.sha256}:${data.pinning.target?.configurationSha256}:${data.publisher.canProve}`} base={base}
         confirmation={confirmation} reservation={publication} data={data} disabled={disabled || busy || loading} reload={load} />}
     </>}
   </section>;

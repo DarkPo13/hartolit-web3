@@ -13,6 +13,7 @@ const configurationSchema = z.strictObject({ userId: z.string().trim().min(1).ma
 const reservationSelect = {
   id: true, confirmationId: true, status: true, passportVersion: true, approvedVersion: true,
   payloadHash: true, publisherWallet: true, createdAt: true, cancelledAt: true, walletVerifiedAt: true,
+  tokenId: true, chainId: true, contractAddress: true, transactionHash: true,
 } satisfies Prisma.PublicationSelect;
 type ReservationRow = Prisma.PublicationGetPayload<{ select: typeof reservationSelect }>;
 
@@ -43,6 +44,9 @@ function reservationResponse(row: ReservationRow) {
     payloadHash: row.payloadHash, walletAddress: row.publisherWallet,
     createdAt: row.createdAt.toISOString(), cancelledAt: row.cancelledAt?.toISOString() ?? null,
     walletVerifiedAt: row.walletVerifiedAt?.toISOString() ?? null,
+    // Public chain identifiers, only once finalized (suspended keeps them for review).
+    issued: row.tokenId && row.chainId && row.contractAddress && row.transactionHash && (row.status === "PUBLISHED" || row.status === "CHAIN_SUSPENDED")
+      ? { tokenId: row.tokenId, chainId: row.chainId, contractAddress: row.contractAddress, transactionHash: row.transactionHash } : null,
   };
 }
 

@@ -7,6 +7,20 @@ const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAl
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
 const { uk } = await jiti.import("../lib/i18n/translations/uk.ts");
 
+/** Serves the anonymous page for an issued record while `run(base)` runs (browser fixture). */
+export async function withIssuedPublicPage({ publication, chain, uploaded }, run) {
+  assert.ok(uploaded.get(publication.ipfsCid), "the uploader sent the published block");
+  const gateway = await startRawGateway(uploaded);
+  let server;
+  try {
+    server = await startVerifierServer({ rpcUrl: chain.url, gatewayUrl: gateway.url, target: chain.target });
+    return await run(server.base);
+  } finally {
+    await server?.stop();
+    await gateway.close();
+  }
+}
+
 /** End-to-end issue-to-verify: the record just finalized through the internal
  * services is VALID on the anonymous public page, from the bytes the uploader
  * actually sent and the actual chain, with no database access by the page.

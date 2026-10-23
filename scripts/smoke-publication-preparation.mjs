@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID, createHash } from "node:crypto";
-import { createServer } from "node:http";
 import path from "node:path";
 import { createJiti } from "jiti";
+import { browserCheckpoint } from "./publication-browser-checkpoint.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -14,27 +14,6 @@ const configured = { key: "fictional-consent", scope: "offline-test-account", ap
 const fingerprint = target => createHash("sha256").update(JSON.stringify({ accountScope: target.scope,
   apiUrl: target.apiUrl, gatewayUrl: target.gatewayUrl, key: target.key, kind: "kubo-raw-v1",
   storageProfile: "raw-cidv1-sha256-64k-v1" })).digest("hex");
-
-// Optional manual browser checkpoint, guarded by the caller's local DB fixture.
-// Its test account cookies stay in this process and Set-Cookie, never in logs/files.
-async function browserCheckpoint({ base, publisher, other, id }) {
-  if (process.env.PUBLICATION_BROWSER_FIXTURE !== "1") return;
-  let finish;
-  const done = new Promise(resolve => { finish = resolve; });
-  const server = createServer((req, res) => {
-    if (req.url === "/finish") { res.end("finished"); finish(); return; }
-    if (!["/publisher", "/other"].includes(req.url)) { res.writeHead(404); res.end(); return; }
-    const actor = req.url === "/other" ? other : publisher;
-    res.writeHead(302, { "Set-Cookie": actor.header().split("; ").map(cookie => `${cookie}; Path=/; HttpOnly; SameSite=Lax`),
-      Location: `${base}/admin`, "Cache-Control": "no-store" }); res.end();
-  });
-  const timer = setTimeout(finish, 20 * 60_000);
-  try {
-    await new Promise((resolve, reject) => { server.once("error", reject); server.listen(3103, "127.0.0.1", resolve); });
-    process.stdout.write(`Fictional preparation browser checkpoint ready: ${id}. Session bootstrap on loopback port 3103.\n`);
-    await done;
-  } finally { clearTimeout(timer); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
-}
 
 export async function smokePublicationPreparation({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, unverified, operator, signingAccount, restart, base }) {
   const row = await fixture(ownerId, publisherId), id = row.passport.id;
@@ -77,7 +56,7 @@ export async function smokePublicationPreparation({ api, db, fixture, confirm, o
     error => error.status === 409, "the domain boundary must reject a changed reviewed target before creating intent");
   assert.equal((await post({ expectedTargetSha256: "0".repeat(64) })).status, 409);
   assert.equal((await post({ expectedSha256: "0".repeat(64) })).status, 409);
-  await browserCheckpoint({ base, publisher, other, id });
+  await browserCheckpoint("1", { base, actors: { "/publisher": publisher, "/other": other }, label: id });
   // A browser run can prepare/cancel this fixture; reset only its own PREPARED
   // intent through the real API so the deterministic HTTP assertions start fresh.
   for (const attempt of (await overview()).pinning.attempts.filter(a => a.status === "PREPARED")) {

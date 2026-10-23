@@ -7,7 +7,8 @@ import { syntheticMintFrame } from "./smoke-publication-mint-observation.mjs";
 import { tickMintMonitor } from "./smoke-publication-mint-monitor.mjs";
 import { smokeMintRecovery, smokeLostOriginalRecovery } from "./smoke-publication-mint-recovery.mjs";
 import { smokeFailedRecovery } from "./smoke-publication-failed-recovery.mjs";
-import { smokeIssuedPublicPage } from "./smoke-publication-public-page.mjs";
+import { smokeIssuedPublicPage, withIssuedPublicPage } from "./smoke-publication-public-page.mjs";
+import { browserCheckpoint, browserStage, stopAfterBrowserStage } from "./publication-browser-checkpoint.mjs";
 import { smokePublicationCorrection } from "./smoke-publication-correction.mjs";
 import { smokeEvidenceAccess } from "./smoke-publication-evidence-access.mjs";
 import { smokePreservationHolds } from "./smoke-publication-holds.mjs";
@@ -19,7 +20,7 @@ const { beginMintDispatch, recordUnknownMintOutcome } = await jiti.import("../li
 const { discoverMintTransaction } = await jiti.import("../lib/publication/mint-discovery.ts");
 const rejects = (promise, status = 409) => assert.rejects(promise, error => error.status === status);
 
-export async function smokeMintFinalization({ api, publisher, db, publisherId, dispatched, chain, finalizationFixture, probe, failure, uploaded }) {
+export async function smokeMintFinalization({ api, base: appBase, publisher, db, publisherId, dispatched, chain, finalizationFixture, probe, failure, uploaded }) {
   const { winner, loser, command } = dispatched, attemptId = command.attemptId, passportId = winner.passportId;
   const { transactionId, hash } = finalizationFixture;
   const code = chain ? await chain.reader.getCode({ address: winner.target.contractAddress }) : "0x60006000";
@@ -96,6 +97,22 @@ export async function smokeMintFinalization({ api, publisher, db, publisherId, d
   assert.equal(closed.quarantinedAt, null); assert.equal(closed.nonce, BigInt(command.request.nonce));
   assert.equal(published.contractAddress, winner.target.contractAddress); assert.equal(published.transactionHash, hash); assert.equal(published.tokenId, "1");
   assert.equal(JSON.parse((await db.publicationMintObservation.findUniqueOrThrow({ where: { id: closed.finalizedObservationId } })).resultJson).blockHash, receipt.blockHash);
+  // The admin views must present the record as issued, never as an unissued snapshot.
+  const overview = await (await api(`/api/admin/passports/${passportId}/publication`, { user: publisher })).json();
+  assert.deepEqual(overview.reservations.find(row => row.id === published.id).issued, { tokenId: published.tokenId, chainId: published.chainId,
+    contractAddress: published.contractAddress, transactionHash: published.transactionHash }, "issued chain identifiers reach the admin view");
+  assert.equal(overview.reservations.find(row => row.id === probe.publication.id)?.issued ?? null, null, "an unissued publication has no chain identifiers");
+  for (const view of ["certificate", "verification"]) {
+    const response = await api(`/admin/passports/${passportId}/${view}`, { user: publisher });
+    assert.equal(response.status, 307, `issued ${view} view redirects`);
+    assert.equal(new URL(response.headers.get("location"), "http://x.invalid").pathname, `/passports/${published.tokenId}`);
+  }
+  if (browserStage("issued")) {
+    const pause = links => browserCheckpoint("issued", { base: appBase, actors: { "/publisher": publisher }, label: `${passportId}, unissued ${probe.passportId}`, links });
+    if (chain && uploaded) await withIssuedPublicPage({ publication: published, chain, uploaded }, page => pause({ "/public": `${page}/passports/${published.tokenId}` }));
+    else await pause();
+    stopAfterBrowserStage("issued");
+  }
   // Post-mint correction on the real published record; on the actual chain the
   // anonymous page must also be VALID and say a correction is in progress.
   // An offline Kubo run has no captured upload bytes for the page check.

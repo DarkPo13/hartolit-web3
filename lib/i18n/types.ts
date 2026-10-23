@@ -10,6 +10,7 @@ export interface Translations {
     renew: string; prepare: string; message: string; expires: string; checkMessage: string;
     sign: string; signing: string; saving: string; rejected: string; walletError: string;
     accessDenied: string; saveUncertain: string; approvalChanged: string;
+    issuedTitle: string; issuedHint: string; contract: string; transaction: string; openPublic: string; suspended: string;
   };
   publicationPreparation: {
     title: string; hint: string; notConfigured: string; target: string; binding: string;
@@ -126,7 +127,7 @@ export interface Translations {
     previous: string; next: string; resultCount: string; details: string;
     backToQueue: string; owner: string; reviewer: string; unassigned: string;
     assign: string; claim: string; release: string; decision: string;
-    note: string; reasonRequired: string; approve: string; reject: string;
+    note: string; reasonRequired: string; approve: string; reject: string; issuedDecision: string;
     requestCorrection: string; saveDecision: string; actionError: string;
     changed: string; detailsError: string; dashboard: string; activity: string;
     farmerField: string; treatment: string; meteo: string; chemical: string;
@@ -145,7 +146,7 @@ export interface Translations {
     passports: string; status: string; yes: string; no: string;
     publicPreview: {
       title: string; hint: string; weatherSource: string; chemicalSource: string; choose: string; show: string; loading: string; loadError: string; temporary: string;
-      confirmCheck: string; confirm: string; confirming: string; confirmError: string; confirmChanged: string; confirmedTitle: string; confirmedAt: string; confirmedRecord: string; confirmationLoadError: string;
+      confirmCheck: string; confirm: string; confirming: string; confirmError: string; confirmChanged: string; confirmedTitle: string; confirmedAt: string; confirmedRecord: string; issuedRecord: string; confirmationLoadError: string;
       certificate: string; schemaName: string; schemaVersion: string; certificateId: string; snapshotAt: string; issuer: string;
       farm: string; farmLabel: string; field: string; fieldReference: string; fieldArea: string; crop: string;
       treatment: string; category: string; date: string; localTime: string; timeZone: string; treatedArea: string; droneModel: string;
