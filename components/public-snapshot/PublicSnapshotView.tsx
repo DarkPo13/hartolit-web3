@@ -15,7 +15,7 @@ export type PublicConfirmation = { id: string; confirmedAt: string; preview: Pub
 type Fact = [string, string | number | null];
 
 function Facts({ title, facts }: { title: string; facts: Fact[] }) {
-  return <section className="mt-5"><h4 className="font-semibold">{title}</h4><dl className="mt-2 grid gap-3 sm:grid-cols-2">{facts.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-ink-muted">{label}</dt><dd className="break-all text-sm">{value === null ? "—" : value}</dd></div>)}</dl></section>;
+  return <section className="mt-5 print:break-inside-avoid"><h4 className="font-semibold">{title}</h4><dl className="mt-2 grid gap-3 sm:grid-cols-2">{facts.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-ink-muted">{label}</dt><dd className="break-all text-sm">{value === null ? "—" : value}</dd></div>)}</dl></section>;
 }
 
 /** Shared readable rendering boundary for the future certificate and verifier. */
@@ -34,6 +34,6 @@ export function PublicSnapshotView({ preview, confirmed = false, note }: {
     <Facts title={t.weather} facts={[[t.temperature, s.weather.temperatureCelsius], [t.humidity, s.weather.humidityPercent], [t.wind, s.weather.windSpeedMps], [t.rainfall, s.weather.rainfallMm], [t.measuredAt, s.weather.measuredAt]]} />
     <Facts title={t.chemical} facts={[[t.product, s.chemical.product], [t.activeSubstance, s.chemical.activeSubstance], [t.dose, s.chemical.dosePerHa], [t.doseUnit, s.chemical.doseUnit === "L_PER_HA" ? "L/ha" : "kg/ha"], [t.workingVolume, s.chemical.workingVolumeLitersPerHa], [t.manufacturer, s.chemical.manufacturer], [t.registrationNumber, s.chemical.registrationNumber]]} />
     <Facts title={t.verification} facts={[[t.weatherDigest, s.evidence.weatherSha256], [t.chemicalDigest, s.evidence.chemicalSha256], [t.snapshotDigest, preview.sha256]]} />
-    <details className="mt-5"><summary className="cursor-pointer text-sm font-medium text-brand-700">{t.exactJson}</summary><pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all rounded-lg bg-surface-2 p-3 text-xs">{preview.canonicalJson}</pre></details>
+    <details className="mt-5 print:hidden"><summary className="cursor-pointer text-sm font-medium text-brand-700">{t.exactJson}</summary><pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all rounded-lg bg-surface-2 p-3 text-xs">{preview.canonicalJson}</pre></details>
   </div>;
 }

@@ -2,7 +2,7 @@
 
 - **Last updated:** 2026-10-23
 - **Branch:** `master`
-- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the local issue-to-verify check on top of `3b8112e` (D54 share/QR) and `7cc81b3` (D53). `master` is ahead of the locally recorded `origin/master` (23 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
+- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the public-page browser pass and print fix on top of `8086466` (issue-to-verify) and `3b8112e` (D54). `master` is ahead of the locally recorded `origin/master` (24 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
 - **Checkpoint:** application commit `21be79e` and handoff commit `f94edf9` are pushed to `origin/master`. **2026-10-21 correction:** the GitHub authentication blocker is resolved; Credential Manager had multiple accounts and a command-local account selector enabled the authorized HTTPS push without changing global settings. No user credential action remains pending.
 - **Recorded green application CI:** `f94edf9`, [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254), completed **success** for both web and contract jobs. It covers the wallet UI build, attempts/readback, both migrations and configured tests. Later local application increments are not covered by that run; inspect exact pushed-commit CI after an authorized push.
 - **2026-10-21 handoff correction:** earlier dated goal/validation paragraphs were archival and contained superseded uncommitted/pending claims. They are consolidated into the dated history in `PROGRESS.md`; this file is the current frontier.
@@ -83,6 +83,8 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Validation
 
+**Public page browser pass, 2026-10-23, Windows, headless Google Chrome via cached Playwright:** 25 checks passed (anonymous/no cookies, UK/EN persistence, keyboard order with visible focus, clipboard, JSON download hash, QR PNG, print media, 1440/390 without overflow, pending/mismatch/404, no page errors); screenshots and printed PDF inspected. It found a printed-layout split and a printed JSON toggle, both fixed with a view-test regression. lint, typecheck, build, 46 Node tests, `verifier:smoke` exited 0. Admin publication views, physical device/QR scan, screen reader and other browsers not covered.
+
 **Issue-to-verify, 2026-10-23:** `verifier:smoke`, default and actual-chain `publication:smoke` exited 0; serving tampered bytes makes the chain run exit 1 at that step; no DB residue.
 
 **Share/QR/download, 2026-10-23:** lint, typecheck, build, **46 Node regressions** and `verifier:smoke` exited 0; the forged-Host control (origin from Host, rebuilt) exits 1, restored and rerun green.
@@ -108,7 +110,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Next steps
 
-1. **Agent, next local slice:** a real browser/device pass of `/passports/{tokenId}` and the private admin publication views with fictional data (UK/EN, keyboard order and focus, narrow mobile width, fresh anonymous profile, copy link, print preview, JSON/QR download), using the playwright-cli skill if the tool is available; fix what it finds. Then optional DB enrichment that can only add a warning when the PUBLISHED record disagrees with the chain. Then Next steps item 2's remaining slices (correction/history, holds/deletion, backup/restore). Changed-outcome/lost-proof incidents need an explicit policy decision, not code. Commit each verified increment separately.
+1. **Agent, next local slice:** optional enrichment of `/passports/{tokenId}` from the PUBLISHED record that can only add a warning when the database disagrees with the chain (never replace or skip verification), then a browser pass of the private admin publication views with a fictional MFA admin. Then Next steps item 2's remaining slices (correction/history, holds/deletion, backup/restore). playwright-cli is not installed; the Playwright library in the local npx cache drove installed Chrome without installs (machine-local, not portable). Changed-outcome/lost-proof incidents need an explicit policy decision, not code. Commit each verified increment separately.
 2. **Agent, subsequent local slices:** integrate local-only end-to-end upload/chain flow, issued certificate and anonymous strict `2.0.0` verifier; correction/history; holds/deletion controls and matched backup/restore; full fictional browser acceptance. See the ordered local checklist in `MVP_COMPLETION_GUIDE.md`. Do not declare only external work remains until these actually pass.
 3. **Later user participation:** choose providers/regions and actual MFA publisher/public wallet; installed-extension acceptance, hosted infrastructure, actual IPFS compatibility/retention, Testnet deployment and hosted/device acceptance, counsel/pilot review. No seed/private key sharing. These choices do not block the next local slice.
 

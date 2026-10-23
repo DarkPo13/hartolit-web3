@@ -22,7 +22,7 @@ export function PublicShareActions({ tokenId, url, qrDataUrl, canonicalJson }: {
   };
   const button = "rounded-lg border border-border px-3 py-2 text-sm font-medium text-brand-700 hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-brand-600";
 
-  return <section aria-labelledby="public-share-title" className="rounded-2xl border border-border bg-surface p-5 sm:p-7">
+  return <section aria-labelledby="public-share-title" className="rounded-2xl border border-border bg-surface p-5 sm:p-7 print:break-inside-avoid">
     <h2 id="public-share-title" className="font-serif text-2xl font-semibold text-ink">{t.shareTitle}</h2>
     <p className="mt-2 text-sm text-ink-muted">{t.shareDescription}</p>
     <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-start">

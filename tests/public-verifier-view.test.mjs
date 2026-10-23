@@ -52,6 +52,11 @@ test("a VALID record offers its share link, QR, print and exact JSON download; o
     assert.ok(html.includes(text), `share section missing ${text}`);
   }
   assert.ok(html.includes('download="hartolit-passport-7-qr.png"'));
+  // Found in the browser print pass: the share card and fact groups must not split
+  // across pages, and the collapsed JSON toggle is meaningless on paper.
+  assert.match(html, /aria-labelledby="public-share-title" class="[^"]*print:break-inside-avoid/);
+  assert.match(html, /<section class="[^"]*print:break-inside-avoid"><h4/);
+  assert.match(html, /<details class="[^"]*print:hidden"/);
   assert.ok(!render(valid).includes(t.shareTitle), "no share section without a trusted share URL");
   for (const status of ["PENDING", "UNAVAILABLE", "MISMATCH", "UNSUPPORTED"]) {
     assert.ok(!render({ status, reason: "CHAIN", tokenId: "7" }, share).includes(t.shareTitle), `${status} must not be shared`);
