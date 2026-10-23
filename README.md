@@ -854,13 +854,13 @@ This is real-world utility for a population that genuinely needs decentralized t
 ## Production Deployment Checklist
 
 - [ ] Smart contract audited (at minimum, internal review with OpenZeppelin patterns)
-- [ ] Contract deployed and verified on BSC Mainnet
+- [ ] Contract deployed and verified on BSC Testnet for the pilot; Mainnet is a separate later decision (guide step 10)
 - [ ] Admin wallet moved into a Gnosis Safe multisig
 - [ ] Required secrets configured in the chosen hosting provider
 - [ ] Public pinning provider selected and limited to approved snapshots
-- [ ] Public evidence and payload CIDs replicated through a second pinning provider
+- [ ] Public payload CIDs replicated through a second pinning provider (private evidence never goes to IPFS)
 - [ ] Approved operator wallet holds `MINTER_ROLE`; the website has no server minter key
-- [ ] Wallet-authorized stateless upload routes have request limits and edge rate limiting
+- [ ] Legacy demo upload/mint routes stay closed in production (D1/D2); the external-connection list is in `MVP_COMPLETION_GUIDE.md`
 - [ ] Error monitoring (Sentry) + Vercel Analytics configured
 - [ ] SSL + custom domain → `dapp.hartolit-agro.com`
 

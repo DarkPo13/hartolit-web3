@@ -1,8 +1,8 @@
 # STATE — the frontier
 
-- **Last updated:** 2026-10-23
+- **Last updated:** 2026-10-24
 - **Branch:** `master`
-- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits localized workspace values (D65) on top of `cf9adb1` (D64 list marks) and `95e4d58` (D63). `master` is ahead of the locally recorded `origin/master` (36 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
+- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the Next.js 16.4.3 / Zod 4.6.7 security update and the external-connection handoff on top of `8bb0b6f` (D65). `master` is ahead of the locally recorded `origin/master` (37 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
 - **Checkpoint:** application commit `21be79e` and handoff commit `f94edf9` are pushed to `origin/master`. **2026-10-21 correction:** the GitHub authentication blocker is resolved; Credential Manager had multiple accounts and a command-local account selector enabled the authorized HTTPS push without changing global settings. No user credential action remains pending.
 - **Recorded green application CI:** `f94edf9`, [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254), completed **success** for both web and contract jobs. It covers the wallet UI build, attempts/readback, both migrations and configured tests. Later local application increments are not covered by that run; inspect exact pushed-commit CI after an authorized push.
 - **2026-10-21 handoff correction:** earlier dated goal/validation paragraphs were archival and contained superseded uncommitted/pending claims. They are consolidated into the dated history in `PROGRESS.md`; this file is the current frontier.
@@ -61,7 +61,7 @@ Keep this file under about 250 lines. Source/config and exact pushed-commit CI o
 
 ## Still absent / intentionally disabled
 
-No hosted uploader, dispatch UI/HTTP action/broadcaster, recurring scheduler/alerts, mempool discovery, hosted continuous reorg/replacement acceptance, original-preparation retry, genuine lost/remined-receipt resolution, recovery UI/checkpoint consolidation, issued certificate or public `2.0.0` verifier. Private pin consent has UI/API, but mint permission/history have internal injected dependencies only. Fresh D40 finalization initially writes PUBLISHED; separately reviewed D43 restoration may restore that existing result; matched hashes, historical receipts and a private selected result alone grant no publication: `PINNED`, `CHAIN_PENDING`, UNKNOWN and historical VERIFIED remain unissued with no resend. Legacy demo readers/issuance stay closed in production (D1/D2/D27).
+No hosted uploader, dispatch UI/HTTP action/broadcaster, recurring scheduler/alerts, mempool discovery, hosted continuous reorg/replacement acceptance, original-preparation retry, genuine lost/remined-receipt resolution, recovery UI/checkpoint consolidation, or app-driven upload/mint: pin and mint run only through internal services, and the anonymous public page (D53–D55) verifies records issued that way. Private pin consent has UI/API, but mint permission/history have internal injected dependencies only. Fresh D40 finalization initially writes PUBLISHED; separately reviewed D43 restoration may restore that existing result; matched hashes, historical receipts and a private selected result alone grant no publication: `PINNED`, `CHAIN_PENDING`, UNKNOWN and historical VERIFIED remain unissued with no resend. Legacy demo readers/issuance stay closed in production (D1/D2/D27).
 
 Real provider/profile compatibility, remote identity/account attestation, pin retention/monitoring and an installed browser extension/device have not been accepted. The target fingerprint binds server configuration, not independently proven provider identity. The legacy Pinata JSON helper is unsuitable for this raw profile.
 
@@ -74,8 +74,8 @@ Real provider/profile compatibility, remote identity/account attestation, pin re
 | 2 | Owner-scoped drafts, versions, audit | Implemented; local/CI acceptance |
 | 3 | Private uploads, integrity, ClamAV, expiring reads | Local implementation/acceptance; hosted gate S7 open |
 | 4 | Submit, assign, decide, reopen and admin management | Implemented locally; hosted/real-device gate S9 open |
-| 5 | Confirmed public snapshot and controlled publication | Private proof/consent, bound upload/readback, chain checks, mint preparation/permission and historical transaction/receipt observations exist. Revocable result selection, fresh successful finalization/slot release and late-check quarantine exist. Bounded anchored discovery and lease-fenced internal monitoring ticks exist; reviewed unchanged-original restoration exists; reviewed reverted-send closure/monitoring and unchanged failed-proof restoration exist; reviewed durable cancellation closure/monitoring, unchanged-cancellation restoration, reviewed re-inclusion anchors and verified wallet checkpoints exist; scheduler operation/alerts, genuine-reorg resolution, closure/recovery/wallet UI, issued/public views and live acceptance remain open |
-| 6 | Release hardening and hosted pilot | Incomplete; hosting, retention/holds and backup/restore remain open |
+| 5 | Confirmed public snapshot and controlled publication | Private proof/consent, bound upload/readback, chain checks, mint preparation/permission and historical transaction/receipt observations exist. Revocable result selection, fresh successful finalization/slot release and late-check quarantine exist. Bounded anchored discovery and lease-fenced internal monitoring ticks exist; reviewed unchanged-original restoration exists; reviewed reverted-send closure/monitoring and unchanged failed-proof restoration exist; reviewed durable cancellation closure/monitoring, unchanged-cancellation restoration, reviewed re-inclusion anchors and verified wallet checkpoints exist; scheduler operation/alerts, genuine-reorg resolution, closure/recovery/wallet send UI and live acceptance remain open. Issued/public views exist locally: public page, share/QR, issuer notes, withdrawal, correction, evidence access, admin issued state and list marks (D52–D58, D62–D64) |
+| 6 | Release hardening and hosted pilot | Local holds (D59), unused-draft retention (D60), backup/restore drill (D61) and full fictional browser workflow (D65) exist. Hosting, hosted backups and journal store, scheduler/alerts, legal review and the pushed-commit CI remain |
 
 ## Open release items
 
@@ -86,9 +86,11 @@ Real provider/profile compatibility, remote identity/account attestation, pin re
 | S8 | Original detailed plans remain local-only in ignored `docs/` | D12/Q4; committed completion guide, README and STATE carry their essentials | User decision only if those original documents should become tracked; does not block the next code slice |
 | S9 | Hosted and real-device MVP acceptance | Installed wallet, hosted workflow, actual pin/chain/public certificate tests | Q2 staging environment, S6/S7 release gates and remaining Phase 5 implementation |
 
-No open row above is closed by this checkpoint. Public field scope is approved, but integrity does not prove agronomic correctness, legal recognition or entitlement to compensation. Readers/farmers will not need a wallet/account for the future public QR verifier (D21/D29).
+No open row above is closed by this checkpoint. Public field scope is approved, but integrity does not prove agronomic correctness, legal recognition or entitlement to compensation. Readers/farmers need no wallet or account for the public QR verifier (D21/D29, D53).
 
 ## Validation
+
+**Full local gate run, 2026-10-24, Windows, Node 24.18.0, Anvil 1.8.6:** every CI validator plus `backup:drill` and offline-Kubo `publication:smoke` exited 0 before and after the Next.js/Zod update, except `npm audit --omit=dev --audit-level=high`: exit 1 with 15 high advisories in the wagmi 2/RainbowKit wallet tree (the critical Next.js advisory is fixed). Details and local service setup in PROGRESS.
 
 **Full fictional workflow browser pass and D65, 2026-10-23, headless Chrome:** 42 checks from MFA enrolment and invitation through upload/scan, submission, approval and confirmation (UK/EN, keyboard, offline save, 390px); lint, typecheck, build, 50 Node tests, drafts/evidence/review smokes and `test:public-boundary` exited 0; no residue. Needs a STARTTLS Mailpit for production mail (PROGRESS).
 
@@ -126,11 +128,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 **Verified wallet checkpoints, 2026-10-23, Windows, Node 24.18.0/Anvil 1.8.6:** lint, typecheck, production build and 34 Node regressions exited 0. Migration 30 `db:deploy`, `migrate status` and the read-only `migrate diff --from-config-datasource --to-schema --exit-code` (no difference) exited 0. Default PG/production HTTP `publication:smoke` and the actual owned-Anvil variant exited 0, including all earlier stages; actual Anvil performs two real reorgs re-broadcasting the identical signed mint, invalidating one checkpoint and restarting from the wallet start.
 
-**Negative controls:** each exits 1 and was restored byte-identical with no DB residue: ignoring re-anchor staleness; reading quarantine only after the checkpoint (smoke and unit); skipping the checkpoint base block hash check. D50 controls (stored anchor ignored, changed-block requirement) and D49 controls are in PROGRESS. Existing pg concurrent-query deprecation remains.
-
-**Limits:** no browser, installed wallet, actual Kubo, standalone Solidity/ABI, dependency audit, hosted provider/finality, recurring scheduler or public-certificate acceptance was rerun/claimed. Crossing the 64-proof cap with 64+ real attempts and multi-checkpoint chains on actual Anvil are not exercised (cap logic is unit-level). Actual-Anvil re-inclusion covers a successful mint only. No populated/production-sized migration rehearsal or hosted rolling deploy. No new CI result without authorized push.
-
-**Runtime:** smokes cleaned fictional records and stopped their owned app/Anvil children. Actual Anvil came from ignored local tooling via `ANVIL_BIN`, which does not travel through Git. Two older fictional `review-*@example.invalid` users dated 2026-10-02 predate this session and were left alone. Only the task-started PostgreSQL container was stopped after the final checks; its volume was retained. No user-facing dev server or external publication.
+**Current limits:** no installed wallet, hosted provider/finality, real device or authenticator app, recurring scheduler, populated migration rehearsal, or CI result for any commit after `f94edf9` (nothing pushed since). Browser passes use temporary scratch scripts with a locally cached Playwright; they are not committed. Smokes and passes delete their fictional records; the 2026-10-02 `review-*@example.invalid` fixture is left alone. Actual Anvil comes from ignored tooling via `ANVIL_BIN`.
 
 ## Environment and fresh-machine setup
 
@@ -141,14 +139,14 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Next steps
 
-1. **Agent, next local slice:** guide local checklist 5 connection handoff: run the full required gate set on the current commit (lint, typecheck, all Node tests, build, contracts build/test, ABI check, `npm audit`, all smokes incl. actual-chain publication, verifier, chain, retention, backup drill), then write the exact provider capabilities, configuration names and remaining hosted tests the user must supply. Optionally add a TLS Mailpit profile to `compose.yaml` so local production builds can send mail. Commit each verified increment separately.
-2. **Agent, subsequent local slices:** integrate local-only end-to-end upload/chain flow, issued certificate and anonymous strict `2.0.0` verifier; correction/history; full fictional browser acceptance. See the ordered local checklist in `MVP_COMPLETION_GUIDE.md`. Do not declare only external work remains until these actually pass.
+1. **Agent, next local slices, in order:** (a) clear the audit gate: wagmi 3 with the injected connector only, remove RainbowKit and its CSS, rewrite the demo connect button; (b) the three gaps in the guide's "External connection handoff": upload action after consent, browser-wallet mint send with a configured server chain reader, monitoring runner command. Test each against owned Anvil and offline Kubo; commit each separately.
+2. **Agent, optional local work that needs no user input:** a STARTTLS Mailpit Compose profile; a written proposal for the changed-outcome/lost-proof incident policy; scheduler/alert design without activation; a committed browser-acceptance script once Playwright is a pinned dev dependency.
 3. **Later user participation:** choose providers/regions and actual MFA publisher/public wallet; installed-extension acceptance, hosted infrastructure, actual IPFS compatibility/retention, Testnet deployment and hosted/device acceptance, counsel/pilot review. No seed/private key sharing. These choices do not block the next local slice.
 
 ## Continuation brief — 2026-10-23
 
 - Start with `CLAUDE.md` (imports `AGENTS.md`) and its bootstrap order; no user recap is needed. Local-only work; no public publication or push is authorized.
-- Next slice owner: the issued/public side. Read `MVP_COMPLETION_GUIDE.md` local checklist, `lib/public-snapshot/`, the legacy `/verify/[tokenId]` reader (D27) and the publication services' internal entry points; the Next.js guides in `node_modules/next/dist/docs/` are mandatory before page/route code. Publication internals (`lib/publication/`) are stable; never edit committed migrations.
+- Next slice: the full gate run and the external-connection handoff (guide local checklist 5). Local production mail needs a STARTTLS Mailpit and browser uploads need the app on port 3000 (evidence CORS); see PROGRESS 2026-10-23 (D65). Never edit committed migrations; `lib/publication/` internals are stable.
 - Fixtures: `scripts/smoke-publication-*.mjs` (recovery helpers in `smoke-publication-failed-recovery.mjs`, `smoke-publication-cancelled-recovery.mjs`, re-inclusion in `smoke-publication-mint-reanchor.mjs`), `tests/mint-*.test.mjs`. `npm run publication:smoke` owns its app/chain; set `PUBLICATION_LOCAL_CHAIN=1` and `ANVIL_BIN` for actual Anvil. Prove each new regression fails without its fix; keep the D47 isolated-loader regression.
 - Local skills/tooling, environment files, generated clients and Foundry binaries are ignored and do not travel through Git; verify availability on another computer.
 
