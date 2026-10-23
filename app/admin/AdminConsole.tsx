@@ -58,7 +58,9 @@ export function AdminConsole({ actorId }: { actorId: string }) {
   const [previewBusy, setPreviewBusy] = useState(false);
   const [publicConfirmation, setPublicConfirmation] = useState<PublicConfirmation | null>(null);
   const [confirmationLoading, setConfirmationLoading] = useState(false);
-  const [confirmationError, setConfirmationError] = useState("");
+  // A key, not translated text: loadDetail must not depend on the locale, or
+  // switching language would reset an in-progress review.
+  const [confirmationError, setConfirmationError] = useState<"" | "load" | "changed" | "error">("");
   const [confirmationBusy, setConfirmationBusy] = useState(false);
   const [confirmationChecked, setConfirmationChecked] = useState(false);
   const detailRequestId = useRef(0);
@@ -92,10 +94,10 @@ export function AdminConsole({ actorId }: { actorId: string }) {
       try {
         const confirmation = await getJson<{ confirmation: PublicConfirmation | null }>(`/api/admin/passports/${encodeURIComponent(id)}/public-confirmation`);
         if (requestId === detailRequestId.current) setPublicConfirmation(confirmation.confirmation);
-      } catch { if (requestId === detailRequestId.current) setConfirmationError(t.publicPreview.confirmationLoadError); }
+      } catch { if (requestId === detailRequestId.current) setConfirmationError("load"); }
     } catch { if (requestId === detailRequestId.current) setDetailError(true); }
     finally { if (requestId === detailRequestId.current) { setDetailLoading(false); setConfirmationLoading(false); } }
-  }, [t.publicPreview.confirmationLoadError]);
+  }, []);
 
   useEffect(() => { void loadQueue(); return () => { queueRequestId.current += 1; }; }, [loadQueue]);
   useEffect(() => { if (selectedId) void loadDetail(selectedId); }, [selectedId, loadDetail]);
@@ -141,12 +143,12 @@ export function AdminConsole({ actorId }: { actorId: string }) {
         body: JSON.stringify({ passportVersion: selection.passportVersion, weatherFileId: selection.weatherFileId, chemicalFileId: selection.chemicalFileId, certificateId: selection.value.snapshot.certificateId, snapshotAt: selection.value.snapshot.snapshotAt, expectedSha256: selection.value.sha256 }),
       });
       if (!response.ok) {
-        if (response.status === 409) { await loadDetail(detail.id); setConfirmationError(t.publicPreview.confirmChanged); return; }
-        setConfirmationError(t.publicPreview.confirmError); return;
+        if (response.status === 409) { await loadDetail(detail.id); setConfirmationError("changed"); return; }
+        setConfirmationError("error"); return;
       }
       await loadDetail(detail.id);
       await loadQueue();
-    } catch { setConfirmationError(t.publicPreview.confirmError); }
+    } catch { setConfirmationError("error"); }
     finally { setConfirmationBusy(false); }
   }
 
@@ -170,7 +172,7 @@ export function AdminConsole({ actorId }: { actorId: string }) {
         {detail.status === "APPROVED" && <section className="rounded-2xl border border-border bg-surface p-5" aria-labelledby="public-preview-heading">
           <h3 id="public-preview-heading" className="font-semibold">{t.publicPreview.title}</h3>
           {confirmationLoading && <p role="status" className="mt-2 text-sm">{t.loading}</p>}
-          {confirmationError && <p role="alert" className="mt-2 text-sm text-danger">{confirmationError} <button type="button" onClick={() => void loadDetail(detail.id)} className="underline">{t.refresh}</button></p>}
+          {confirmationError && <p role="alert" className="mt-2 text-sm text-danger">{{ load: t.publicPreview.confirmationLoadError, changed: t.publicPreview.confirmChanged, error: t.publicPreview.confirmError }[confirmationError]} <button type="button" onClick={() => void loadDetail(detail.id)} className="underline">{t.refresh}</button></p>}
           {publicConfirmation && <div className="mt-4"><h4 className="font-semibold">{t.publicPreview.confirmedTitle}</h4><p className="mt-1 text-sm text-ink-muted">{t.publicPreview.confirmedAt}: {date(publicConfirmation.confirmedAt)}</p><div className="mt-3 flex flex-wrap gap-4 text-sm"><Link href={`/admin/passports/${encodeURIComponent(detail.id)}/certificate`} className="font-medium text-brand-700 underline">{t.confirmedViews.openCertificate}</Link><Link href={`/admin/passports/${encodeURIComponent(detail.id)}/verification`} className="font-medium text-brand-700 underline">{t.confirmedViews.openVerification}</Link></div><PublicSnapshotView preview={publicConfirmation.preview} confirmed /></div>}
           {publicConfirmation && <PublicationPanel key={`${detail.id}:${publicConfirmation.id}`} passportId={detail.id} confirmation={publicConfirmation} disabled={busy || confirmationBusy} />}
           {!publicConfirmation && !confirmationLoading && !confirmationError && <>
