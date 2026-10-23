@@ -316,11 +316,17 @@ try {
   process.stdout.write("Publication smoke passed: exact bytes, private EOA proof, bound upload target, explicit intent, single send, lost acknowledgement/readback, concurrency, recall, constraints and audit. No public side effects.\n");
 } finally {
   await stopServer();
-  for (const id of passportIds) {
+  // A cleanup failure must not replace the assertion that caused it: record it,
+  // continue with the other fixtures and fail the run explicitly.
+  const cleanupFailures = [];
+  for (const id of passportIds) try {
     const row = await db.passport.findUnique({ where: { id }, select: { farmerId: true, fieldId: true } });
     if (!row) continue;
     await db.publicationCorrection.deleteMany({ where: { OR: [{ supersededPassportId: id }, { correctionPassportId: id }] } });
     await db.evidenceAccessGrant.deleteMany({ where: { passportId: id } });
+    // An aborted fixture may leave an active hold; release it so cleanup can delete rows.
+    await db.$executeRaw`UPDATE "PreservationHold" SET "releasedAt" = now(), "releasedById" = "placedById", "releaseNote" = 'Fictional smoke cleanup' WHERE "passportId" = ${id}::uuid AND "releasedAt" IS NULL`;
+    await db.preservationHold.deleteMany({ where: { passportId: id } });
     await db.auditLog.deleteMany({ where: { passportId: id } });
     // The finalization proof FK is deferred; delete this owned cycle atomically.
     await db.$transaction(async tx => {
@@ -343,8 +349,12 @@ try {
     await db.treatment.deleteMany({ where: { passportId: id } });
     await db.passport.delete({ where: { id } });
     await db.field.delete({ where: { id: row.fieldId } }); await db.farmer.delete({ where: { id: row.farmerId } });
+  } catch (error) { cleanupFailures.push(`${id}: ${error?.code ?? error?.name ?? "error"}`); }
+  if (cleanupFailures.length) {
+    process.exitCode = 1;
+    process.stderr.write(`Fixture cleanup incomplete for ${cleanupFailures.length} passport(s): ${cleanupFailures.join("; ")}\n`);
   }
-  await db.user.deleteMany({ where: { email: { in: emails } } });
+  await db.user.deleteMany({ where: { email: { in: emails } } }).catch(() => { process.exitCode = 1; process.stderr.write("Fixture users could not be removed\n"); });
   await db.rateLimit.deleteMany({ where: { OR: Array.from({ length: nextIp }, (_, index) => ({ key: { contains: `${ipPrefix}${index + 1}:` } })) } });
   await db.$disconnect();
 }

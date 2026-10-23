@@ -117,6 +117,8 @@ The steps are ordered so that engineering can proceed while provider and legal d
 
 ### 8. Implement retention, preservation holds and recovery
 
+**Status, 2026-10-23:** preservation holds are implemented as an engineering default (D59): audited place/release, application checks and database triggers that block deletion and purging while a hold is active. Unused-draft notice/deletion and backup/restore remain.
+
 **Owner:** agent implements after counsel/pilot review of the policy; user approves provider configuration. **Owning layers:** database services/jobs, private object store, admin controls and operations runbook.
 
 1. Start from the [README retention targets](README.md#v1-private-data-retention-policy--implementation-target): five years for issued/finalized support records, notice before removal of inactive unsubmitted drafts after 90 days, explicit claim holds, and 30-day matched DB/object backups. These are engineering defaults, **not established legal minimums**.

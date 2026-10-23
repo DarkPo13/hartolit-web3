@@ -28,6 +28,8 @@ try {
       where: {
         ...(lastId ? { id: { gt: lastId } } : {}),
         objectPurgedAt: null,
+        // Never purge objects of a record under an active preservation hold.
+        passport: { preservationHolds: { none: { releasedAt: null } } },
         OR: [
           { status: "PENDING", uploadExpiresAt: { lt: pendingBefore } },
           { status: "QUARANTINED", updatedAt: { lt: quarantineBefore } },

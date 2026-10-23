@@ -177,6 +177,8 @@ export async function removeEvidence(ownerId: string, passportId: string, id: st
   if (file.status === "SCANNING" && (!file.scanLeaseUntil || file.scanLeaseUntil > new Date())) throw new EvidenceError(409, "Evidence verification is running");
   await db.$transaction(async (tx) => {
     if (!await touchEditablePassport(tx, ownerId, passportId)) throw new EvidenceError(404, "Draft not found");
+    // Checked under the passport lock: a hold placed concurrently wins.
+    if (await tx.preservationHold.count({ where: { passportId, releasedAt: null } })) throw new EvidenceError(409, "This record is under a preservation hold");
     const changed = await tx.evidenceFile.updateMany({ where: { id, ownerId, passportId, status: file.status, ...(file.status === "SCANNING" ? { scanLeaseUntil: file.scanLeaseUntil } : {}), OR: [{ rejectionCode: null }, { rejectionCode: { not: "REMOVED" } }] }, data: { status: "REJECTED", rejectionCode: "REMOVED", scanLeaseUntil: null } });
     if (!changed.count) throw new EvidenceError(409, "Evidence changed; refresh and try again");
     await tx.auditLog.create({ data: { passportId, actorId: ownerId, action: "EVIDENCE_REMOVED", version: file.passport.version } });

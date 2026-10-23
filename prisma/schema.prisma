@@ -42,6 +42,8 @@ model User {
   publicationCorrections PublicationCorrection[]
   evidenceGrantsGiven EvidenceAccessGrant[] @relation("EvidenceGrantGranter")
   evidenceGrantsRevoked EvidenceAccessGrant[] @relation("EvidenceGrantRevoker")
+  holdsPlaced PreservationHold[] @relation("HoldPlacer")
+  holdsReleased PreservationHold[] @relation("HoldReleaser")
 
   @@unique([email])
   @@map("user")
@@ -254,6 +256,8 @@ enum AuditAction {
   EVIDENCE_ACCESS_GRANTED
   EVIDENCE_ACCESS_REVOKED
   EVIDENCE_DOWNLOADED
+  PRESERVATION_HOLD_PLACED
+  PRESERVATION_HOLD_RELEASED
 }
 
 model Farmer {
@@ -333,6 +337,7 @@ model Passport {
   correctionOf    PublicationCorrection[] @relation("CorrectionReplacementPassport")
 
   evidenceAccessGrants EvidenceAccessGrant[]
+  preservationHolds PreservationHold[]
   @@unique([id, ownerId])
   @@index([ownerId, updatedAt(sort: Desc), id(sort: Desc)])
   @@index([status, updatedAt(sort: Desc)])
@@ -668,6 +673,27 @@ model PublicationMintCancellation {
   @@unique([id, attemptId, observationId])
   @@index([discoveryId])
   @@index([actorId])
+}
+
+// A claim/dispute hold: while active, the record, its farm/field linkage and its
+// evidence rows/objects cannot be deleted or purged (also enforced by SQL
+// triggers, see migration). Engineering default pending counsel review (D59).
+model PreservationHold {
+  id           String @id @default(uuid()) @db.Uuid
+  passportId   String @db.Uuid
+  passport     Passport @relation(fields: [passportId], references: [id], onDelete: Restrict)
+  reference    String @db.VarChar(200)
+  reason       String @db.VarChar(500)
+  placedById   String
+  placedBy     User @relation("HoldPlacer", fields: [placedById], references: [id], onDelete: Restrict)
+  placedAt     DateTime @default(now())
+  releasedAt   DateTime?
+  releasedById String?
+  releasedBy   User? @relation("HoldReleaser", fields: [releasedById], references: [id], onDelete: Restrict)
+  releaseNote  String? @db.VarChar(500)
+
+  @@index([passportId, releasedAt])
+  @@index([placedById])
 }
 
 enum EvidenceAccessBasis {

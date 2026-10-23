@@ -493,6 +493,9 @@ export interface Translations {
     lFileSize: string;
     lContentType: string;
   };
+  holds: {
+    title: string; hint: string; held: string; notHeld: string; active: string; released: string; releaseNote: string; release: string; place: string; reference: string; reason: string; consent: string; placeButton: string; loadError: string; actionError: string;
+  };
   evidenceAccess: {
     title: string; hint: string; loadError: string; actionError: string; none: string; revoked: string; expired: string; download: string; revoke: string; create: string; organization: string; basis: string; basisReference: string; scope: string; purpose: string; days: string; consent: string; record: string;
     bases: { DATA_SUBJECT_CONSENT: string; CONTRACT: string; LEGAL_OBLIGATION: string; LEGITIMATE_INTEREST: string; };

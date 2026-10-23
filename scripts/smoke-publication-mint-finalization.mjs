@@ -10,6 +10,7 @@ import { smokeFailedRecovery } from "./smoke-publication-failed-recovery.mjs";
 import { smokeIssuedPublicPage } from "./smoke-publication-public-page.mjs";
 import { smokePublicationCorrection } from "./smoke-publication-correction.mjs";
 import { smokeEvidenceAccess } from "./smoke-publication-evidence-access.mjs";
+import { smokePreservationHolds } from "./smoke-publication-holds.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -101,6 +102,7 @@ export async function smokeMintFinalization({ api, publisher, db, publisherId, d
   await smokePublicationCorrection({ api, db, publisherId, publisher, publication: published, passportId,
     whileOpen: chain && uploaded ? () => smokeIssuedPublicPage({ publication: published, passportId, chain, uploaded, correctionPending: true }) : null });
   await smokeEvidenceAccess({ api, db, publisher, issuedPassportId: passportId, unissuedPassportId: probe.passportId });
+  await smokePreservationHolds({ api, db, publisherId, publisher, issuedPassportId: passportId });
   const repeats = await Promise.all([finalize(), finalize()]);
   assert.ok(repeats.every(row => row.status === "SUPERSEDED" || row.publicationStatus === "PUBLISHED"));
   assert.equal((await attempt()).finalizedObservationId, first.observationId, "first finalization proof never changes on replay");

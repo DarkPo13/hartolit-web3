@@ -7,6 +7,7 @@ import { PublicSnapshotView, type PublicConfirmation, type PublicPreview } from 
 import { AdminRecords } from "./AdminRecords";
 import { PublicationPanel } from "./PublicationPanel";
 import { EvidenceAccess } from "./EvidenceAccess";
+import { PreservationHolds } from "./PreservationHolds";
 
 type Person = { id: string; name: string; email: string };
 type Item = { id: string; status: string; version: number; submittedAt: string | null; farmer: { legalName: string | null }; field: { crop: string | null }; owner: Person; reviewer: Person | null };
@@ -171,6 +172,7 @@ export function AdminConsole({ actorId }: { actorId: string }) {
           <section className="rounded-2xl border border-border bg-surface p-5"><h3 className="font-semibold">{t.chemical}</h3><Fields values={[[t.product, detail.chemical?.product], [t.activeSubstance, detail.chemical?.activeSubstance], [t.dose, detail.chemical?.dosePerHa], [t.doseUnit, detail.chemical?.doseUnit === "L_PER_HA" ? "L/ha" : detail.chemical?.doseUnit === "KG_PER_HA" ? "kg/ha" : null], [t.volume, detail.chemical?.workingVolume], [t.manufacturer, detail.chemical?.manufacturer], [t.registration, detail.chemical?.registrationNo], [t.supplier, detail.chemical?.supplierName]]} /></section>
         </div>
         <section className="rounded-2xl border border-border bg-surface p-5"><h3 className="font-semibold">{t.evidence}</h3>{!detail.evidence.length ? <p className="mt-3 text-sm text-ink-muted">{t.noEvidence}</p> : <ul className="mt-3 divide-y divide-border">{detail.evidence.map((file) => <li key={file.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm"><span className="break-all">{file.filename} · {file.kind} · {file.status}</span>{file.status === "READY" && !detail.issued && <a href={`/api/admin/passports/${detail.id}/evidence/${file.id}/preview`} target="_blank" rel="noopener noreferrer" className="text-brand-700 underline">{t.download}</a>}</li>)}</ul>}{detail.issued && <EvidenceAccess passportId={detail.id} />}</section>
+        <PreservationHolds key={detail.id} passportId={detail.id} />
         {detail.status === "APPROVED" && <section className="rounded-2xl border border-border bg-surface p-5" aria-labelledby="public-preview-heading">
           <h3 id="public-preview-heading" className="font-semibold">{t.publicPreview.title}</h3>
           {confirmationLoading && <p role="status" className="mt-2 text-sm">{t.loading}</p>}
