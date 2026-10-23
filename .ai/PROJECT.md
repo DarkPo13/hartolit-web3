@@ -60,11 +60,11 @@ Versions reflect `package.json` on 2026-10-04. "Pinned" means an exact version i
 
 | Layer | Choice | Why / prohibition / expiry |
 |---|---|---|
-| Web framework | Next.js 16.3.8 (App Router, Turbopack), React 19.2 | APIs differ from older Next; read `node_modules/next/dist/docs/` before writing Next code. `proxy.ts` is the Next 16 name for middleware. |
+| Web framework | Next.js 16.4.3 (App Router, Turbopack), React 19.2 | APIs differ from older Next; read `node_modules/next/dist/docs/` before writing Next code. `proxy.ts` is the Next 16 name for middleware. |
 | Language | TypeScript 5.9, `strict` + `noUncheckedIndexedAccess` | `allowJs` is false, so `scripts/*.mjs` are not type-checked (see AGENTS → Validation). |
 | Database | PostgreSQL 17.6 (local image), Prisma ORM 7.10.0 pinned, driver adapter `@prisma/adapter-pg` | Do not upgrade to Prisma 8 while it is a release candidate (D10). Expiry: re-evaluate when Prisma 8 is stable. |
 | Auth | Better Auth 1.7.5 pinned, with `admin` and `twoFactor` plugins and its Prisma adapter | Use its maintained password, session, rate-limit and TOTP facilities; do not hand-roll password or session cryptography. |
-| Validation | Zod 4.6.5 pinned | Strict DTOs at every request boundary (`z.strictObject`). |
+| Validation | Zod 4.6.7 pinned | Strict DTOs at every request boundary (`z.strictObject`). |
 | Evidence storage | Any S3-compatible private bucket (`@aws-sdk/client-s3` 3.1136.0); SeaweedFS 4.47 locally | The hosted provider and region are **not chosen** (STATE, open decision). |
 | Malware scan | ClamAV 1.5.4 over the clamd TCP protocol | Evidence cannot become `READY` without a clean verdict. |
 | Email | Nodemailer 10.0.14 over SMTP; Mailpit locally | Used for password reset and operator password setup invitations. Reset returns 503 when SMTP is not configured. |
