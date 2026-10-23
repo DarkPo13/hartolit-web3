@@ -88,8 +88,10 @@ export type RawBlockReader = (cid: string) => Promise<Uint8Array>;
 /** Trustless raw-block gateway read for public verification: no credential is
  * sent and the caller must hash the bytes itself. Same HTTPS/redirect/size rules.
  */
-export function createRawGatewayReader(gatewayUrl: string | undefined, request: typeof fetch = fetch): RawBlockReader {
-  const gateway = endpoint(gatewayUrl);
+export function createRawGatewayReader(gatewayUrl: string | undefined, request: typeof fetch = fetch, { loopbackHttp = false } = {}): RawBlockReader {
+  // A self-hosted node on this machine may serve plain HTTP on loopback only.
+  const local = loopbackHttp && !!gatewayUrl && /^http:\/\/(127\.0\.0\.1|\[::1\])(:\d+)?\/$/.test(gatewayUrl);
+  const gateway = local ? new URL(gatewayUrl!) : endpoint(gatewayUrl);
   if (gateway.pathname !== "/") throw new IpfsReadError();
   return async (cid) => {
     try {

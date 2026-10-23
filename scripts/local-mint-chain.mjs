@@ -40,7 +40,7 @@ export async function localMintChain(account) {
     const deployed = await reader.waitForTransactionReceipt({ hash: await wallet.deployContract({ abi: artifact.abi, bytecode, args: [account.address] }) });
     assert.equal(deployed.status, "success"); assert.ok(deployed.contractAddress);
     assert.equal(await reader.getCode({ address: deployed.contractAddress }), runtime);
-    return { reader, stop, target: { chainId: 97, contractAddress: deployed.contractAddress.toLowerCase(), contractCodeHash: keccak256(runtime),
+    return { reader, stop, url, target: { chainId: 97, contractAddress: deployed.contractAddress.toLowerCase(), contractCodeHash: keccak256(runtime),
       publisherWallet: account.address.toLowerCase(), recipientWallet: account.address.toLowerCase(), requiredConfirmations: 3 },
       async send(command, gasPrice, gas = 500_000n) {
         assert.equal(command.request.from, account.address.toLowerCase()); assert.equal(command.request.chainId, 97);

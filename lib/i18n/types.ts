@@ -492,6 +492,9 @@ export interface Translations {
     lFileSize: string;
     lContentType: string;
   };
+  publicVerifier: {
+    navigation: string; home: string; title: string; subtitle: string; testnet: string; token: string; contract: string; owner: string; cid: string; payloadHash: string; checkedBlock: string; confirmations: string; validBadge: string; validTitle: string; validDescription: string; pendingBadge: string; pendingTitle: string; pendingDescription: string; unavailableBadge: string; unavailableTitle: string; unavailableDescription: string; notConfigured: string; mismatchBadge: string; mismatchTitle: string; mismatchDescription: string; mismatchChainState: string; mismatchUri: string; mismatchBytes: string; unsupportedBadge: string; unsupportedTitle: string; unsupportedDescription: string; limits: string; checkAgain: string; publishedRecord: string; factsTitle: string;
+  };
   notFound: {
     title: string;
     desc: string;

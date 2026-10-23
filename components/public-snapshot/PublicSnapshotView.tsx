@@ -19,12 +19,14 @@ function Facts({ title, facts }: { title: string; facts: Fact[] }) {
 }
 
 /** Shared readable rendering boundary for the future certificate and verifier. */
-export function PublicSnapshotView({ preview, confirmed = false }: { preview: PublicPreview; confirmed?: boolean }) {
+export function PublicSnapshotView({ preview, confirmed = false, note }: {
+  preview: Pick<PublicPreview, "snapshot" | "canonicalJson" | "sha256">; confirmed?: boolean; note?: string;
+}) {
   const translations = useT();
   const t = translations.review.publicPreview;
   const s = preview.snapshot;
   return <div className="mt-4 rounded-xl border border-border bg-surface p-4">
-    <p className="text-sm text-ink-muted">{confirmed ? t.confirmedRecord : t.temporary}</p>
+    <p className="text-sm text-ink-muted">{note ?? (confirmed ? t.confirmedRecord : t.temporary)}</p>
     <Facts title={t.certificate} facts={[[t.schemaName, s.schemaName], [t.schemaVersion, s.schemaVersion], [t.certificateId, s.certificateId], [t.snapshotAt, s.snapshotAt], [t.issuer, s.issuer]]} />
     <Facts title={t.farm} facts={[[t.farmLabel, s.farm.label]]} />
     <Facts title={t.field} facts={[[t.fieldReference, s.field.reference], [t.fieldArea, s.field.areaHectares], [t.crop, translations.crops[s.field.crop]]]} />

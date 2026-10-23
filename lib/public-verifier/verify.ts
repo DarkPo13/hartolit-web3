@@ -19,7 +19,7 @@ const tokenIdSchema = z.string().regex(/^[1-9][0-9]{0,77}$/);
 export type PublicVerificationFailure = "NOT_FOUND" | "PENDING" | "UNAVAILABLE" | "MISMATCH" | "UNSUPPORTED";
 export type PublicVerification =
   | { status: "INVALID_REQUEST" }
-  | { status: PublicVerificationFailure; reason: string; tokenId: string }
+  | { [S in PublicVerificationFailure]: { status: S; reason: string; tokenId: string } }[PublicVerificationFailure]
   | { status: "VALID"; tokenId: string; chainId: 97; contractAddress: string; owner: string; payloadHash: string; cid: string;
       checkedBlockNumber: string; checkedBlockHash: string; confirmations: string; snapshot: PublicSnapshot; canonicalJson: string };
 
@@ -33,7 +33,7 @@ export async function verifyPublicPassport(tokenIdInput: unknown, targetInput: u
   const token = tokenIdSchema.safeParse(tokenIdInput);
   if (!token.success) return { status: "INVALID_REQUEST" };
   const tokenId = token.data, id = BigInt(tokenId);
-  const fail = (status: PublicVerificationFailure, reason: string) => ({ status, reason, tokenId });
+  const fail = <S extends PublicVerificationFailure>(status: S, reason: string) => ({ status, reason, tokenId });
   const target = targetSchema.safeParse(targetInput);
   if (!target.success) return fail("UNAVAILABLE", "NOT_CONFIGURED");
   const { contractAddress, contractCodeHash, requiredConfirmations } = target.data;

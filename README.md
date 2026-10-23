@@ -752,7 +752,13 @@ Additive migration `20261023180000_publication_mint_wallet_checkpoint` adds the 
 
 ## Independent public verification core
 
-`verifyPublicPassport(tokenId, target, reader, readBlock)` checks a published passport from chain state and IPFS bytes alone; the database is never consulted. State is read `confirmations - 1` blocks below head, so a VALID result implies that depth. It requires the configured contract runtime, the token's owner, URI and committed hash, the reverse hash index, a raw-profile CID, gateway bytes whose SHA-256 equals the on-chain hash, and canonical strict `2.0.0` JSON. Results are VALID, PENDING, NOT_FOUND, UNAVAILABLE, MISMATCH or UNSUPPORTED with a coarse reason. `createRawGatewayReader` fetches the raw block over HTTPS with no credential. It is not yet exposed by a page or route. `npm run test:verifier` and the actual-Anvil `chain:smoke` cover it.
+`verifyPublicPassport(tokenId, target, reader, readBlock)` checks a published passport from chain state and IPFS bytes alone; the database is never consulted. State is read `confirmations - 1` blocks below head, so a VALID result implies that depth. It requires the configured contract runtime, the token's owner, URI and committed hash, the reverse hash index, a raw-profile CID, gateway bytes whose SHA-256 equals the on-chain hash, and canonical strict `2.0.0` JSON. Results are VALID, PENDING, NOT_FOUND, UNAVAILABLE, MISMATCH or UNSUPPORTED with a coarse reason. `createRawGatewayReader` fetches the raw block over HTTPS with no credential. `npm run test:verifier` and the actual-Anvil `chain:smoke` cover it.
+
+## Public passport page
+
+`/passports/{tokenId}` is the sign-in-free, wallet-free public surface. Each request runs the independent verifier on the server and renders only its public result: on VALID, the chain facts and every public field from the verified bytes; otherwise a distinct pending, unavailable, mismatch or unsupported state without treatment facts; unknown or malformed IDs return 404. Every state shows the Testnet notice and what a hash match does not prove. Responses are no-store, noindex and no-referrer. The database is not read.
+
+Configure it with the server-only variables listed in `.env.local.example` (`HARTOLIT_VERIFY_*`): RPC URL, independent raw-block gateway URL, contract address, contract runtime code hash and confirmations. HTTPS is required except plain HTTP to `127.0.0.1`/`[::1]` for a node on the same machine. Unset values show "not configured". `npm run verifier:smoke` runs the production build anonymously against the actual contract on an owned Anvil and a loopback gateway.
 
 ## Product feedback and responsible treatment reminder
 

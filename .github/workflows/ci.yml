@@ -138,6 +138,7 @@ jobs:
           npm run review:smoke
           npm run feedback:smoke
           PUBLICATION_LOCAL_CHAIN=1 npm run publication:smoke
+          npm run verifier:smoke
           npm run auth:smoke
       - run: npm audit --omit=dev --audit-level=high
 
