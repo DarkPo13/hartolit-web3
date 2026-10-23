@@ -7,6 +7,7 @@ import type { PublicConfirmation } from "@/components/public-snapshot/PublicSnap
 import { useLocale, useT } from "@/lib/i18n/context";
 import type { PublicationOverview } from "@/lib/publication/types";
 import { PublicationPreparation } from "./PublicationPreparation";
+import { PublicationCorrection } from "./PublicationCorrection";
 
 function WalletLoading() {
   const t = useT().publisher;
@@ -92,6 +93,7 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
           }}
         /> : <Button type="button" onClick={() => void reserve()} loading={busy} disabled={disabled || busy || loading}>{t.reserve}</Button>}
       </>}
+      {data.reservations.some(r => r.status === "PUBLISHED") && <PublicationCorrection base={base} canWrite={data.publisher.canProve} disabled={disabled || busy || loading} />}
       {publication && <PublicationPreparation key={`${publication.id}:${confirmation.id}:${confirmation.preview.sha256}:${data.pinning.target?.configurationSha256}:${data.publisher.canProve}`} base={base}
         confirmation={confirmation} reservation={publication} data={data} disabled={disabled || busy || loading} reload={load} />}
     </>}

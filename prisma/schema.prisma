@@ -39,6 +39,7 @@ model User {
   mintFailures     PublicationMintFailure[]
   mintCancellations PublicationMintCancellation[]
   mintReanchors    PublicationMintReanchor[]
+  publicationCorrections PublicationCorrection[]
 
   @@unique([email])
   @@map("user")
@@ -247,6 +248,7 @@ enum AuditAction {
   PUBLICATION_MINT_CANCELLATION_RESTORED
   PUBLICATION_MINT_REANCHORED
   PUBLICATION_WITHDRAWN
+  PUBLICATION_CORRECTION_OPENED
 }
 
 model Farmer {
@@ -321,6 +323,9 @@ model Passport {
   publications Publication[]
   confirmedSnapshots PublicSnapshotConfirmation[]
   audit       AuditLog[]
+
+  supersededBy    PublicationCorrection[] @relation("CorrectionSupersededPassport")
+  correctionOf    PublicationCorrection[] @relation("CorrectionReplacementPassport")
 
   @@unique([id, ownerId])
   @@index([ownerId, updatedAt(sort: Desc), id(sort: Desc)])
@@ -438,7 +443,10 @@ model Publication {
   mintPreparation PublicationMintPreparation?
   audit           AuditLog[]
 
+  corrections     PublicationCorrection[]
+
   @@unique([chainId, contractAddress, tokenId])
+  @@unique([id, passportId])
   @@unique([confirmationId, passportId])
   @@index([passportId, status])
 }
@@ -653,6 +661,27 @@ model PublicationMintCancellation {
   @@unique([observationId, attemptId, transactionHash, proofStatus])
   @@unique([id, attemptId, observationId])
   @@index([discoveryId])
+  @@index([actorId])
+}
+
+// Append-only post-mint correction: a published record is never edited. It is
+// linked to a separately approved passport for the same owner/farm/field whose
+// own publication, once issued, supersedes it on the public page.
+model PublicationCorrection {
+  id                      String @id @default(uuid()) @db.Uuid
+  supersededPublicationId String @unique @db.Uuid
+  supersededPassportId    String @db.Uuid
+  supersededPublication   Publication @relation(fields: [supersededPublicationId, supersededPassportId], references: [id, passportId], onDelete: Restrict, map: "PublicationCorrection_superseded_publication_fkey")
+  ownerId                 String
+  supersededPassport      Passport @relation("CorrectionSupersededPassport", fields: [supersededPassportId, ownerId], references: [id, ownerId], onDelete: Restrict, map: "PublicationCorrection_superseded_passport_fkey")
+  correctionPassportId    String @unique @db.Uuid
+  correctionPassport      Passport @relation("CorrectionReplacementPassport", fields: [correctionPassportId, ownerId], references: [id, ownerId], onDelete: Restrict, map: "PublicationCorrection_correction_passport_fkey")
+  actorId                 String
+  actor                   User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  reason                  String @db.VarChar(500)
+  openedAt                DateTime @default(now())
+
+  @@index([supersededPassportId])
   @@index([actorId])
 }
 

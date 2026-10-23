@@ -8,6 +8,7 @@ import { tickMintMonitor } from "./smoke-publication-mint-monitor.mjs";
 import { smokeMintRecovery, smokeLostOriginalRecovery } from "./smoke-publication-mint-recovery.mjs";
 import { smokeFailedRecovery } from "./smoke-publication-failed-recovery.mjs";
 import { smokeIssuedPublicPage } from "./smoke-publication-public-page.mjs";
+import { smokePublicationCorrection } from "./smoke-publication-correction.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -16,7 +17,7 @@ const { beginMintDispatch, recordUnknownMintOutcome } = await jiti.import("../li
 const { discoverMintTransaction } = await jiti.import("../lib/publication/mint-discovery.ts");
 const rejects = (promise, status = 409) => assert.rejects(promise, error => error.status === status);
 
-export async function smokeMintFinalization({ db, publisherId, dispatched, chain, finalizationFixture, probe, failure, uploaded }) {
+export async function smokeMintFinalization({ api, publisher, db, publisherId, dispatched, chain, finalizationFixture, probe, failure, uploaded }) {
   const { winner, loser, command } = dispatched, attemptId = command.attemptId, passportId = winner.passportId;
   const { transactionId, hash } = finalizationFixture;
   const code = chain ? await chain.reader.getCode({ address: winner.target.contractAddress }) : "0x60006000";
@@ -93,8 +94,11 @@ export async function smokeMintFinalization({ db, publisherId, dispatched, chain
   assert.equal(closed.quarantinedAt, null); assert.equal(closed.nonce, BigInt(command.request.nonce));
   assert.equal(published.contractAddress, winner.target.contractAddress); assert.equal(published.transactionHash, hash); assert.equal(published.tokenId, "1");
   assert.equal(JSON.parse((await db.publicationMintObservation.findUniqueOrThrow({ where: { id: closed.finalizedObservationId } })).resultJson).blockHash, receipt.blockHash);
-  // Actual chain only; an offline Kubo run has no captured upload bytes here.
-  if (chain && uploaded) await smokeIssuedPublicPage({ publication: published, passportId, chain, uploaded });
+  // Post-mint correction on the real published record; on the actual chain the
+  // anonymous page must also be VALID and say a correction is in progress.
+  // An offline Kubo run has no captured upload bytes for the page check.
+  await smokePublicationCorrection({ api, db, publisherId, publisher, publication: published, passportId,
+    whileOpen: chain && uploaded ? () => smokeIssuedPublicPage({ publication: published, passportId, chain, uploaded, correctionPending: true }) : null });
   const repeats = await Promise.all([finalize(), finalize()]);
   assert.ok(repeats.every(row => row.status === "SUPERSEDED" || row.publicationStatus === "PUBLISHED"));
   assert.equal((await attempt()).finalizedObservationId, first.observationId, "first finalization proof never changes on replay");

@@ -66,11 +66,22 @@ test("a VALID record offers its share link, QR, print and exact JSON download; o
 test("issuer-record notes annotate VALID without replacing it; mismatching records are alerts", () => {
   for (const [issuer, text, alert] of [["MATCH", t.issuerMatch, false], ["UNAVAILABLE", t.issuerUnavailable, false], ["SUSPENDED", t.issuerSuspended, true],
     ["DISAGREES", t.issuerDisagrees, true], ["NO_RECORD", t.issuerNoRecord, true]]) {
-    const html = renderToStaticMarkup(React.createElement(PublicVerificationView, { result: valid, issuer }));
+    const html = renderToStaticMarkup(React.createElement(PublicVerificationView, { result: valid, issuer: { kind: issuer, supersededBy: null, corrects: null } }));
     assert.ok(html.includes(text) && html.includes(t.issuerTitle) && html.includes(t.validBadge), issuer);
     assert.equal(html.includes('role="alert"'), alert, `${issuer} alert role`);
   }
   assert.ok(!render({ status: "PENDING", reason: "CONFIRMING", tokenId: "7" }).includes(t.issuerTitle));
+});
+
+test("correction notices link the other public token and keep the VALID verdict", () => {
+  const view = issuer => renderToStaticMarkup(React.createElement(PublicVerificationView, { result: valid, issuer: { kind: "MATCH", supersededBy: null, corrects: null, ...issuer } }));
+  const pending = view({ supersededBy: { tokenId: null } });
+  assert.ok(pending.includes(t.correctionPending) && pending.includes(t.validBadge) && pending.includes('role="alert"'));
+  const superseded = view({ supersededBy: { tokenId: "9" } });
+  assert.ok(superseded.includes(t.correctionSuperseded) && superseded.includes('href="/passports/9"') && superseded.includes(t.validBadge));
+  const correcting = view({ corrects: "3" });
+  assert.ok(correcting.includes(t.correctionCorrects) && correcting.includes('href="/passports/3"') && !correcting.includes('role="alert"'));
+  assert.ok(!view({}).includes(t.correctionTitle));
 });
 
 test("every other result has its own state, no treatment facts and a way to check again", () => {

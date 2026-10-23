@@ -42,11 +42,19 @@ export function PublicVerificationView({ result, share = null, issuer = null }: 
       {mismatch && <p className="mt-2 text-sm font-medium text-red-700">{mismatch}</p>}
       <p className="mt-3 text-sm text-ink-muted">{t.subtitle}</p>
       <p className="mt-3 rounded-lg bg-surface-2 p-3 text-sm text-ink-muted">{t.testnet}</p>
-      {result.status === "VALID" && issuer && <div role={issuer === "MATCH" || issuer === "UNAVAILABLE" ? undefined : "alert"}
-        className={`mt-3 rounded-lg border p-3 text-sm ${issuer === "MATCH" || issuer === "UNAVAILABLE" ? "border-border text-ink-muted" : "border-red-600 font-medium text-red-700"}`}>
+      {result.status === "VALID" && issuer && <div role={issuer.kind === "MATCH" || issuer.kind === "UNAVAILABLE" ? undefined : "alert"}
+        className={`mt-3 rounded-lg border p-3 text-sm ${issuer.kind === "MATCH" || issuer.kind === "UNAVAILABLE" ? "border-border text-ink-muted" : "border-red-600 font-medium text-red-700"}`}>
         <p className="font-semibold">{t.issuerTitle}</p>
-        <p className="mt-1">{{ MATCH: t.issuerMatch, SUSPENDED: t.issuerSuspended, DISAGREES: t.issuerDisagrees, NO_RECORD: t.issuerNoRecord, UNAVAILABLE: t.issuerUnavailable }[issuer]}</p>
+        <p className="mt-1">{{ MATCH: t.issuerMatch, SUSPENDED: t.issuerSuspended, DISAGREES: t.issuerDisagrees, NO_RECORD: t.issuerNoRecord, UNAVAILABLE: t.issuerUnavailable }[issuer.kind]}</p>
       </div>}
+      {result.status === "VALID" && issuer?.supersededBy && <div role="alert" className="mt-3 rounded-lg border border-red-600 p-3 text-sm font-medium text-red-700">
+        <p className="font-semibold">{t.correctionTitle}</p>
+        {issuer.supersededBy.tokenId
+          ? <p className="mt-1">{t.correctionSuperseded} <Link href={`/passports/${encodeURIComponent(issuer.supersededBy.tokenId)}`} prefetch={false} className="underline">{t.token} #{issuer.supersededBy.tokenId}</Link></p>
+          : <p className="mt-1">{t.correctionPending}</p>}
+      </div>}
+      {result.status === "VALID" && issuer?.corrects && <p className="mt-3 rounded-lg border border-border p-3 text-sm text-ink-muted">
+        {t.correctionCorrects} <Link href={`/passports/${encodeURIComponent(issuer.corrects)}`} prefetch={false} className="font-medium text-brand-700 underline">{t.token} #{issuer.corrects}</Link></p>}
       {result.status === "VALID" && <dl className="mt-5 grid gap-4 border-t border-border pt-5 text-sm sm:grid-cols-2">
         {([[t.token, result.tokenId], [t.contract, result.contractAddress], [t.owner, result.owner], [t.cid, result.cid],
           [t.payloadHash, result.payloadHash], [t.checkedBlock, `${result.checkedBlockNumber} · ${result.checkedBlockHash}`],

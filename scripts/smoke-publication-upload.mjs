@@ -129,7 +129,7 @@ export async function smokePinUploads({ api, db, fixture, confirm, ownerId, publ
     await smokeMintDiscovery({ db, publisherId, dispatched, chain });
     const resultFixture = await smokeMintObservation({ db, publisherId, dispatched, chain });
     const finalizationFixture = await smokeMintResult({ db, publisherId, dispatched, chain, resultFixture });
-    await smokeMintFinalization({ db, publisherId, dispatched, chain, finalizationFixture, probe: candidates[2], failure, uploaded: realLocalNode ? null : uploaded });
+    await smokeMintFinalization({ api, publisher, db, publisherId, dispatched, chain, finalizationFixture, probe: candidates[2], failure, uploaded: realLocalNode ? null : uploaded });
     await smokeLateMintFailure({ db, publisherId, failure, chain });
     process.stdout.write(`Upload driver passed: target binding, explicit intent, single send, lost acknowledgement, failed-before-write and no resend (${realLocalNode ? "isolated offline Kubo" : "injected transport"}).\n`);
   } finally {

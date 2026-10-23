@@ -319,6 +319,7 @@ try {
   for (const id of passportIds) {
     const row = await db.passport.findUnique({ where: { id }, select: { farmerId: true, fieldId: true } });
     if (!row) continue;
+    await db.publicationCorrection.deleteMany({ where: { OR: [{ supersededPassportId: id }, { correctionPassportId: id }] } });
     await db.auditLog.deleteMany({ where: { passportId: id } });
     // The finalization proof FK is deferred; delete this owned cycle atomically.
     await db.$transaction(async tx => {

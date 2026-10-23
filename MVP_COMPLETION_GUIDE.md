@@ -93,7 +93,7 @@ The steps are ordered so that engineering can proceed while provider and legal d
 
 ### 6. Handle irreversible mistakes and private evidence access
 
-**Status, 2026-10-23:** pre-mint withdrawal of a pinned, never-minted publication followed by recall is implemented (D56). Post-mint correction records and private evidence access remain.
+**Status, 2026-10-23:** pre-mint withdrawal of a pinned, never-minted publication followed by recall is implemented (D56). Post-mint correction is implemented (D57): a published record is linked to a server-created draft copy that goes through normal review and publication, and both public pages show the link. Private evidence access for claims (item 2) remains.
 
 **Owner:** agent designs; user/pilot organization reviews policy. **Owning layers:** publication lifecycle, admin audit, evidence access and public display.
 

@@ -11,7 +11,7 @@ const { uk } = await jiti.import("../lib/i18n/translations/uk.ts");
  * services is VALID on the anonymous public page, from the bytes the uploader
  * actually sent and the actual chain, with no database access by the page.
  */
-export async function smokeIssuedPublicPage({ publication, passportId, chain, uploaded }) {
+export async function smokeIssuedPublicPage({ publication, passportId, chain, uploaded, correctionPending = false }) {
   const sent = uploaded.get(publication.ipfsCid);
   assert.ok(sent, "the uploader sent the published block");
   assert.equal(Buffer.from(sent).toString("utf8"), publication.canonicalJson, "uploaded bytes are exactly the confirmed public JSON");
@@ -27,6 +27,7 @@ export async function smokeIssuedPublicPage({ publication, passportId, chain, up
       publication.ipfsCid, publication.contractAddress, `${server.base}/passports/${publication.tokenId}`]) {
       assert.ok(html.includes(text), `issued public page missing ${text}`);
     }
+    if (correctionPending) assert.ok(html.includes(uk.publicVerifier.correctionPending), "an open correction is visible on the still-VALID page");
     // Private identifiers of the issuing workflow never reach the public page.
     for (const value of [publication.id, passportId, publication.confirmationId, "objectKey", "@example.invalid"]) {
       assert.ok(!html.includes(value), `issued public page leaks ${value}`);
