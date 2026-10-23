@@ -7,7 +7,7 @@ import { ReviewStatusPanel } from "@/components/drafts/ReviewStatusPanel";
 import { fromDraftData, toDraftData } from "@/lib/drafts/client";
 import type { DraftListItem, DraftRecord } from "@/lib/drafts/schema";
 import { draftFingerprint, useWizardStore } from "@/lib/store";
-import { useT } from "@/lib/i18n/context";
+import { useLocale, useT } from "@/lib/i18n/context";
 
 type SaveStatus = "loading" | "saved" | "unsaved" | "saving" | "error" | "conflict" | "invalid";
 
@@ -19,6 +19,7 @@ async function getDraft(id: string): Promise<DraftRecord> {
 
 export function DraftWorkspace() {
   const t = useT();
+  const { locale } = useLocale();
   const state = useWizardStore();
   const replaceDraft = useWizardStore((s) => s.replaceDraft);
   const setDraftSync = useWizardStore((s) => s.setDraftSync);
@@ -240,7 +241,7 @@ export function DraftWorkspace() {
               {t.drafts.choose}
               <select value={selectedId ?? ""} onChange={(event) => void choose(event.target.value)} disabled={busy || dirty || status === "saving" || status === "error" || status === "conflict"} className="mt-1 block w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm disabled:opacity-50">
                 {!selectedId && <option value="">{t.drafts.choose}</option>}
-                {drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.correctsTokenId ? `${t.drafts.correctionOf} #${draft.correctsTokenId} · ` : ""}{draft.farmerName || t.drafts.untitled} · {new Date(draft.updatedAt).toLocaleDateString()}</option>)}
+                {drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.correctsTokenId ? `${t.drafts.correctionOf} #${draft.correctsTokenId} · ` : ""}{draft.farmerName || t.drafts.untitled} · {new Date(draft.updatedAt).toLocaleDateString(locale === "uk" ? "uk-UA" : "en-US")}</option>)}
               </select>
             </label>}
             <button type="button" onClick={() => void create()} disabled={busy || dirty || legacyCache || status === "saving" || status === "error" || status === "conflict"} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">{t.drafts.newDraft}</button>

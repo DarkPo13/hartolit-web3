@@ -291,6 +291,7 @@ export const en: Translations = {
     publicFarmHint: "This exact label may become public. Enter it separately from the legal name.",
     idLabel: "EDRPOU / IPN",
     areaLabel: "Field area (ha)",
+    areaUnit: "ha",
     areaPlaceholder: "56.2",
     gpsLabel: "GPS coordinates",
     gpsHint: "Field centroid in lat, lng format",
@@ -333,6 +334,7 @@ export const en: Translations = {
     tempLabel: "Temp., °C",
     humidityLabel: "Humidity, %",
     windLabel: "Wind, m/s",
+    windUnit: "m/s",
     rainLabel: "Rain, mm",
   },
   chemical: {

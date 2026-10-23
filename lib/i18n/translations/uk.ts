@@ -291,6 +291,7 @@ export const uk: Translations = {
     publicFarmHint: "Саме цю назву можуть опублікувати. Введіть її окремо від юридичної назви.",
     idLabel: "ЄДРПОУ / ІПН",
     areaLabel: "Площа поля (га)",
+    areaUnit: "га",
     areaPlaceholder: "56.2",
     gpsLabel: "GPS координати",
     gpsHint: "Центроїд поля у форматі lat, lng",
@@ -333,6 +334,7 @@ export const uk: Translations = {
     tempLabel: "Темп., °C",
     humidityLabel: "Вологість, %",
     windLabel: "Вітер, м/с",
+    windUnit: "м/с",
     rainLabel: "Опади, мм",
   },
   chemical: {

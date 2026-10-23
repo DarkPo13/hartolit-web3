@@ -156,6 +156,7 @@ function LocaleToggle() {
           key={l}
           type="button"
           onClick={() => setLocale(l)}
+          aria-pressed={locale === l}
           className={cn(
             "rounded-md px-2.5 py-1 transition-colors",
             locale === l
@@ -213,9 +214,10 @@ function Footer() {
           >
             <BookOpen className="h-3.5 w-3.5" /> {t.footer.about}
           </a>
-          <Link href="/verify/1" className="inline-flex items-center gap-1 hover:text-ink">
+          {/* The legacy reader is demo-only; production returns 404 for it (D27). */}
+          {isDemoMode() && <Link href="/verify/1" className="inline-flex items-center gap-1 hover:text-ink">
             <FileSearch className="h-3.5 w-3.5" /> {t.footer.verify}
-          </Link>
+          </Link>}
           <a
             href="https://github.com/DarkPo13/hartolit-web3"
             target="_blank"

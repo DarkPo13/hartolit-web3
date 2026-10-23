@@ -66,7 +66,7 @@ export function Step1Form({ demoMode = true }: { demoMode?: boolean }) {
     () =>
       [
         farmer.farmerName,
-        farmer.fieldArea != null ? `${farmer.fieldArea} ha` : null,
+        farmer.fieldArea != null ? `${farmer.fieldArea} ${t.farmer.areaUnit}` : null,
         farmer.crop
           ? (t.crops[farmer.crop as keyof typeof t.crops] ?? farmer.crop)
           : null,
@@ -95,10 +95,10 @@ export function Step1Form({ demoMode = true }: { demoMode?: boolean }) {
     if (!meteo.meteoData) return "";
     const parts = [
       meteo.meteoData.temperatureCelsius != null ? `${meteo.meteoData.temperatureCelsius}°C` : null,
-      meteo.meteoData.windSpeedMps != null ? `${meteo.meteoData.windSpeedMps} m/s` : null,
+      meteo.meteoData.windSpeedMps != null ? `${meteo.meteoData.windSpeedMps} ${t.meteo.windUnit}` : null,
     ].filter(Boolean);
     return parts.join(" · ");
-  }, [meteo]);
+  }, [meteo, t]);
 
   const chemicalSummary = useMemo(
     () => [chemical.chemical, chemical.supplierName].filter(Boolean).join(" · "),

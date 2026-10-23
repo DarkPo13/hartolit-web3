@@ -825,3 +825,17 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - The smoke assertions first failed because the correction stage deletes its correction before returning; they now run in its `whileOpen` hook.
 - Observed, left as is: the release banners ("Publication is disabled until the controlled publication phase", operator "Passport issuance is not yet available") still show next to an issued fixture record. They describe the absent app publish action and are part of the release gate.
 - Validation: lint, typecheck, build, 50 Node tests, default and actual-chain `publication:smoke`, `drafts:smoke`, `evidence:smoke`, `review:smoke` exited 0; two controls exit 1; browser pass 9 checks; no residue.
+
+## 2026-10-23 - Full fictional workflow in a browser; localized workspace values (D65)
+
+- Continued after cf9adb1 (STATE next step 1). Temporary headless Chrome pass against a production build on loopback port 3000 (the local evidence CORS allows only port 3000) with PostgreSQL, SeaweedFS, ClamAV and a task-owned STARTTLS Mailpit on 1026/8026 configured like CI (the Compose Mailpit has no TLS, and production sends with `requireTLS`, so local production builds cannot deliver mail to it; this is an environment gap, not an app defect). 42 checks passed:
+  - admin without MFA is sent to account security; UI enrolment (QR, code, one-time recovery codes); sign-in with password and TOTP;
+  - invitation through the admin UI, the email in Mailpit, password setup from its link, operator sign-in;
+  - new draft, keyboard crop selection, offline edit reported as unsaved and saved after reconnecting, reload restores server values;
+  - real uploads: weather TXT and chemical PDF scanned clean, EICAR rejected (its 409 completion is the only HTTP failure);
+  - submit, admin claim, keyboard approval, rejected file not offered as a source, preview, explicit confirmation, publication step;
+  - operator sees approval in UK/EN; 390px without overflow; audit trail from DRAFT_CREATED through PUBLIC_SNAPSHOT_CONFIRMED; no unexpected console errors.
+- Found and fixed (D65): US date in the draft list, English units in collapsed summaries, raw crop codes in lists and admin detail, a home language toggle without `aria-pressed`, a footer link to the production-disabled legacy verifier. A suspected wrong toggle highlight was a full-page screenshot artifact of the sticky header (computed styles were correct).
+- Harness defect found and fixed: the first runs deleted evidence rows but not the uploaded objects (including one from a run whose browser read was blocked by CORS after the POST succeeded); seven fixture-only objects created between 20:39 and 20:42 UTC were removed, and the pass now deletes every bucket key it created.
+- Not covered: preparation consent (covered by the earlier admin browser pass), invitation link expiry, a second device, real authenticator apps, screen readers.
+- Validation: lint, typecheck, build, 50 Node tests, `drafts:smoke`, `evidence:smoke`, `review:smoke`, `test:public-boundary` exited 0; browser pass 42/42; no database or bucket residue.

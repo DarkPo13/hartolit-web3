@@ -276,6 +276,7 @@ export interface Translations {
     publicFarmHint: string;
     idLabel: string;
     areaLabel: string;
+    areaUnit: string;
     areaPlaceholder: string;
     gpsLabel: string;
     gpsHint: string;
@@ -316,6 +317,7 @@ export interface Translations {
     tempLabel: string;
     humidityLabel: string;
     windLabel: string;
+    windUnit: string;
     rainLabel: string;
     measuredAtLabel: string;
     measuredAtHint: string;
