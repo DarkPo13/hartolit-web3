@@ -23,7 +23,7 @@ export async function smokeIssuedPublicPage({ publication, passportId, chain, up
     const response = await fetch(`${server.base}/passports/${publication.tokenId}`, { redirect: "manual" });
     const html = await response.text();
     assert.equal(response.status, 200);
-    for (const text of [uk.publicVerifier.validBadge, snapshot.certificateId, snapshot.farm.label, snapshot.chemical.product, publication.payloadHash,
+    for (const text of [uk.publicVerifier.validBadge, uk.publicVerifier.issuerMatch, snapshot.certificateId, snapshot.farm.label, snapshot.chemical.product, publication.payloadHash,
       publication.ipfsCid, publication.contractAddress, `${server.base}/passports/${publication.tokenId}`]) {
       assert.ok(html.includes(text), `issued public page missing ${text}`);
     }

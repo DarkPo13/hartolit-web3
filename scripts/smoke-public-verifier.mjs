@@ -38,7 +38,9 @@ try {
   const first = await mint({ depth: 3 });
 
   const rpcUrl = chain.url;
-  server = await startVerifierServer({ rpcUrl, gatewayUrl, target: chain.target });
+  // No database: the issuer-record note must degrade to UNAVAILABLE without
+  // delaying or changing the independent verdict.
+  server = await startVerifierServer({ rpcUrl, gatewayUrl, target: chain.target, env: { DATABASE_URL: "postgresql://fictional:fictional@127.0.0.1:1/none" } });
   const { base, port } = server;
 
   // Anonymous: no cookies, no session; the page must not leak configuration.
@@ -57,6 +59,7 @@ try {
   assert.match(valid.headers.get("x-robots-tag") ?? "", /noindex/);
   assert.equal(valid.headers.get("referrer-policy"), "no-referrer");
   for (const text of [t.shareTitle, `${base}/passports/1`, "data:image/png;base64,", t.downloadJson]) assert.ok(valid.html.includes(text), `share section missing ${text}`);
+  assert.ok(valid.html.includes(t.issuerUnavailable) && !valid.html.includes('role="alert"'), "unreachable database is a quiet note, not a warning");
   // A forged Host header must not change the share link or QR target.
   const forged = await new Promise((resolve, reject) => {
     const request = http.get({ host: "127.0.0.1", port, path: "/passports/1", headers: { host: "evil.example.invalid" } }, response => {
@@ -79,7 +82,7 @@ try {
   assert.ok(down.html.includes(t.unavailableBadge) && down.html.includes(t.unavailableDescription)); assert.ok(!down.html.includes(t.validBadge));
   gateway.control.mode = "serve";
   assert.ok((await page("1")).html.includes(t.validBadge), "recovers once the gateway serves the committed bytes");
-  process.stdout.write("Public verifier smoke passed: anonymous production page, actual contract on owned Anvil, VALID/PENDING/not-found/MISMATCH/UNAVAILABLE, share link/QR from the configured origin despite a forged Host, no configuration leak, no-store/noindex/no-referrer headers. No public network or database.\n");
+  process.stdout.write("Public verifier smoke passed: anonymous production page, actual contract on owned Anvil, VALID/PENDING/not-found/MISMATCH/UNAVAILABLE, share link/QR from the configured origin despite a forged Host, issuer note UNAVAILABLE without a database, no configuration leak, no-store/noindex/no-referrer headers. No public network or database.\n");
 } finally {
   await server?.stop();
   await chain?.stop();

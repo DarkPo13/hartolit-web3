@@ -11,6 +11,7 @@ const { createRawGatewayReader } = await jiti.import("../lib/publication/ipfs-re
 const { canonicalize, sha256Hex } = await jiti.import("../lib/hash.ts");
 const { rawCidFromSha256 } = await jiti.import("../lib/publication/raw-cid.ts");
 const { publicPassportShare } = await jiti.import("../lib/public-verifier/share.ts");
+const { issuerRecordNotice } = await jiti.import("../lib/public-verifier/issuer-record.ts");
 const { default: QRCode } = await import("qrcode");
 
 const fictional = {
@@ -134,4 +135,22 @@ test("the share link and QR use only the configured application origin", async (
   assert.equal(share.qrDataUrl, await QRCode.toDataURL(share.url, { errorCorrectionLevel: "M", margin: 2, width: 240 }), "QR encodes exactly the share URL");
   for (const [tokenId, origin] of [["0", "https://dapp.example.invalid"], ["7/../x", "https://dapp.example.invalid"], ["7", undefined], ["7", "not a url"],
     ["7", "javascript:alert(1)"], ["7", "https://user:secret@dapp.example.invalid"]]) assert.equal(await publicPassportShare(tokenId, origin), null);
+});
+
+test("the issuer record only annotates a VALID result with a coarse kind", async () => {
+  const verified = { tokenId: "7", contractAddress: `0x${"1".repeat(40)}`, payloadHash: "c".repeat(64), cid: "bafkreifictional" };
+  const row = { status: "PUBLISHED", payloadHash: verified.payloadHash, ipfsCid: verified.cid, chainId: 97, contractAddress: verified.contractAddress, tokenId: "7" };
+  const db = (byToken, byHash = byToken) => ({ publication: { findUnique: async ({ where }) => where.payloadHash ? byHash : byToken } });
+  assert.equal(await issuerRecordNotice(verified, db(row)), "MATCH");
+  assert.equal(await issuerRecordNotice(verified, db({ ...row, status: "CHAIN_SUSPENDED" })), "SUSPENDED");
+  assert.equal(await issuerRecordNotice(verified, db({ ...row, payloadHash: "d".repeat(64) }, null)), "DISAGREES");
+  assert.equal(await issuerRecordNotice(verified, db({ ...row, ipfsCid: "bafkreiother" })), "DISAGREES");
+  assert.equal(await issuerRecordNotice(verified, db(null, { ...row, tokenId: "8" })), "DISAGREES", "the document is recorded as another published token");
+  assert.equal(await issuerRecordNotice(verified, db(null, { ...row, status: "CHAIN_FAILED", tokenId: null })), "SUSPENDED", "the app believes this document was never issued");
+  assert.equal(await issuerRecordNotice(verified, db(null, null)), "NO_RECORD");
+  assert.equal(await issuerRecordNotice(verified, { publication: { findUnique: async () => { throw new Error("fictional-private-db-detail"); } } }), "UNAVAILABLE");
+  assert.equal(await issuerRecordNotice(verified, { publication: { findUnique: () => new Promise(() => {}) } }, 20), "UNAVAILABLE", "a hanging database cannot block the page");
+  const saved = process.env.DATABASE_URL; delete process.env.DATABASE_URL; delete globalThis.hartolitDb;
+  try { assert.equal(await issuerRecordNotice(verified), "UNAVAILABLE", "missing configuration is not a page error"); }
+  finally { if (saved !== undefined) process.env.DATABASE_URL = saved; }
 });

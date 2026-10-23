@@ -63,6 +63,16 @@ test("a VALID record offers its share link, QR, print and exact JSON download; o
   }
 });
 
+test("issuer-record notes annotate VALID without replacing it; mismatching records are alerts", () => {
+  for (const [issuer, text, alert] of [["MATCH", t.issuerMatch, false], ["UNAVAILABLE", t.issuerUnavailable, false], ["SUSPENDED", t.issuerSuspended, true],
+    ["DISAGREES", t.issuerDisagrees, true], ["NO_RECORD", t.issuerNoRecord, true]]) {
+    const html = renderToStaticMarkup(React.createElement(PublicVerificationView, { result: valid, issuer }));
+    assert.ok(html.includes(text) && html.includes(t.issuerTitle) && html.includes(t.validBadge), issuer);
+    assert.equal(html.includes('role="alert"'), alert, `${issuer} alert role`);
+  }
+  assert.ok(!render({ status: "PENDING", reason: "CONFIRMING", tokenId: "7" }).includes(t.issuerTitle));
+});
+
 test("every other result has its own state, no treatment facts and a way to check again", () => {
   const cases = [
     [{ status: "PENDING", reason: "CONFIRMING" }, [t.pendingBadge, t.pendingTitle, t.pendingDescription]],

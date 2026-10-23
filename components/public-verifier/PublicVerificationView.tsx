@@ -5,6 +5,7 @@ import { PublicSnapshotView } from "@/components/public-snapshot/PublicSnapshotV
 import { useLocale, useT } from "@/lib/i18n/context";
 import type { PublicVerification } from "@/lib/public-verifier/verify";
 import type { PublicShare } from "@/lib/public-verifier/share";
+import type { IssuerRecordNotice } from "@/lib/public-verifier/issuer-record";
 import { PublicShareActions } from "./PublicShareActions";
 
 export type PublicVerificationResult = Exclude<PublicVerification, { status: "INVALID_REQUEST" } | { status: "NOT_FOUND" }>;
@@ -15,7 +16,7 @@ const tone = {
 } as const;
 
 /** Public, sign-in-free rendering of an independent verification result. */
-export function PublicVerificationView({ result, share = null }: { result: PublicVerificationResult; share?: PublicShare | null }) {
+export function PublicVerificationView({ result, share = null, issuer = null }: { result: PublicVerificationResult; share?: PublicShare | null; issuer?: IssuerRecordNotice | null }) {
   const { locale, setLocale } = useLocale();
   const t = useT().publicVerifier;
   const copy = {
@@ -41,6 +42,11 @@ export function PublicVerificationView({ result, share = null }: { result: Publi
       {mismatch && <p className="mt-2 text-sm font-medium text-red-700">{mismatch}</p>}
       <p className="mt-3 text-sm text-ink-muted">{t.subtitle}</p>
       <p className="mt-3 rounded-lg bg-surface-2 p-3 text-sm text-ink-muted">{t.testnet}</p>
+      {result.status === "VALID" && issuer && <div role={issuer === "MATCH" || issuer === "UNAVAILABLE" ? undefined : "alert"}
+        className={`mt-3 rounded-lg border p-3 text-sm ${issuer === "MATCH" || issuer === "UNAVAILABLE" ? "border-border text-ink-muted" : "border-red-600 font-medium text-red-700"}`}>
+        <p className="font-semibold">{t.issuerTitle}</p>
+        <p className="mt-1">{{ MATCH: t.issuerMatch, SUSPENDED: t.issuerSuspended, DISAGREES: t.issuerDisagrees, NO_RECORD: t.issuerNoRecord, UNAVAILABLE: t.issuerUnavailable }[issuer]}</p>
+      </div>}
       {result.status === "VALID" && <dl className="mt-5 grid gap-4 border-t border-border pt-5 text-sm sm:grid-cols-2">
         {([[t.token, result.tokenId], [t.contract, result.contractAddress], [t.owner, result.owner], [t.cid, result.cid],
           [t.payloadHash, result.payloadHash], [t.checkedBlock, `${result.checkedBlockNumber} · ${result.checkedBlockHash}`],

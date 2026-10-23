@@ -22,7 +22,7 @@ export async function startRawGateway(blocks) {
   return { url: `http://127.0.0.1:${server.address().port}/`, control, close: () => new Promise(resolve => server.close(resolve)) };
 }
 
-export async function startVerifierServer({ rpcUrl, gatewayUrl, target, port = Number(process.env.PUBLIC_VERIFIER_SMOKE_PORT ?? 3002) }) {
+export async function startVerifierServer({ rpcUrl, gatewayUrl, target, env = {}, port = Number(process.env.PUBLIC_VERIFIER_SMOKE_PORT ?? 3002) }) {
   const base = `http://127.0.0.1:${port}`;
   const probe = net.createServer();
   await new Promise((resolve, reject) => { probe.once("error", reject); probe.listen(port, "127.0.0.1", resolve); });
@@ -30,7 +30,7 @@ export async function startVerifierServer({ rpcUrl, gatewayUrl, target, port = N
   const child = spawn(process.execPath, [path.resolve("node_modules/next/dist/bin/next"), "start", "--hostname", "127.0.0.1", "--port", String(port)], {
     env: { ...process.env, NODE_ENV: "production", BETTER_AUTH_URL: base, HARTOLIT_VERIFY_RPC_URL: rpcUrl, HARTOLIT_VERIFY_GATEWAY_URL: gatewayUrl,
       HARTOLIT_VERIFY_CONTRACT_ADDRESS: target.contractAddress, HARTOLIT_VERIFY_CONTRACT_CODE_HASH: target.contractCodeHash,
-      HARTOLIT_VERIFY_CONFIRMATIONS: String(target.requiredConfirmations) },
+      HARTOLIT_VERIFY_CONFIRMATIONS: String(target.requiredConfirmations), ...env },
     stdio: ["ignore", "pipe", "pipe"], windowsHide: true,
   });
   const stop = async () => { if (child.pid && child.exitCode === null && child.signalCode === null) { const exited = once(child, "exit"); child.kill(); await exited; } };

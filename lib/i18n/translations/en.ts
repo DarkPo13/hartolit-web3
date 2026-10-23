@@ -554,6 +554,12 @@ export const en: Translations = {
     downloadJson: "Download public document (JSON)",
     downloadJsonHint: "The JSON file is the exact published document. Its SHA-256 equals the on-chain hash shown above, so anyone can check it independently.",
     qrAlt: "QR code linking to this verification page",
+    issuerTitle: "Hartolit issuing record",
+    issuerMatch: "Hartolit's issuing record for this token matches the verified document. This is supplementary; the verification above does not depend on it.",
+    issuerSuspended: "Caution: Hartolit's issuing record for this document is not in a published state (for example, under review or suspended). Contact Hartolit before relying on it.",
+    issuerDisagrees: "Caution: Hartolit's issuing record does not match this token. Contact Hartolit before relying on it.",
+    issuerNoRecord: "Caution: Hartolit has no issuing record for this token, although it is valid on chain. Contact Hartolit before relying on it.",
+    issuerUnavailable: "Hartolit's issuing record could not be checked right now. The verification above is independent of it.",
   },
   notFound: {
     title: "Passport not found",
