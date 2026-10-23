@@ -5,6 +5,7 @@ import { createJiti } from "jiti";
 import pg from "pg";
 import { mintSearchFrame } from "./fixtures/mint-search.mjs";
 import { tickMintMonitor } from "./smoke-publication-mint-monitor.mjs";
+import { smokeCancelledRecovery, smokeCancelledRecoveryWithActive, smokeLostCancelledRecovery } from "./smoke-publication-cancelled-recovery.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/"),
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
@@ -116,11 +117,14 @@ export async function smokeMintCancellation({ db, publisherId, candidate, peer, 
     await rejects(getMintFailureRecoveryReview(publisherId, passportId, attemptId));
     assert.equal((await tickMintMonitor(db, passportId, attemptId, base)).status, "CANCELLED");
     assert.equal((await attempt()).failedObservationId, proof.id);
+    const recovery = await smokeCancelledRecovery({ db, publisherId, passportId, attemptId, hash, journal, publicationId: publication.id,
+      confirmationId: candidate.publication.confirmationId, base });
 
     // A different passport gets a fresh higher nonce, not another old command.
     const next = await beginMintDispatch(publisherId, peer.passportId, dispatchInput(peer), peer.target, base);
     ownedAttempts.push(next.attemptId); assert.equal(next.request.nonce, command.request.nonce + 1);
     if (chain) { const sent = await chain.send(next); assert.equal((await base.waitForTransactionReceipt({ hash: sent })).status, "success"); }
+    await smokeCancelledRecoveryWithActive({ db, recovery, active: next.attemptId });
     // Actual rollback removes the cancellation, but cannot reclaim a newer slot.
     const lost = chain ? (assert.equal(await base.request({ method: "evm_revert", params: [snapshot] }), true), base) : offline;
     await tickMintMonitor(db, passportId, attemptId, lost);
@@ -129,6 +133,7 @@ export async function smokeMintCancellation({ db, publisherId, candidate, peer, 
     assert.equal((await db.publicationMintAttempt.findUniqueOrThrow({ where: { id: next.attemptId } })).status, "DISPATCHING");
     assert.equal((await db.publication.findUniqueOrThrow({ where: { id: publication.id } })).status, "CHAIN_FAILED_SUSPENDED");
     assert.equal((await close(reviewed, offline)).currentlyQuarantined, true);
+    await smokeLostCancelledRecovery({ recovery, base: lost });
     let blockedRpc = 0;
     await assert.rejects(beginMintDispatch(publisherId, probe.passportId, dispatchInput(probe), probe.target, { ...base,
       getChainId: async () => { blockedRpc++; throw new Error(); } }), error => error.status === 409 && error.message.includes("quarantined"));
@@ -152,11 +157,12 @@ export async function smokeMintCancellation({ db, publisherId, candidate, peer, 
         finally { await client.query("ROLLBACK"); }
       }
     } finally { await client.end(); }
-    process.stdout.write(`Cancellation closure passed: current MFA consent, exact anchored conflict/nonce/depth, stale authority/review refusal, atomic proof/journal, permanent nonce, higher next command and late quarantine (${chain ? "actual self-send, next mint and rollback" : "injected RPC"} plus PostgreSQL).\n`);
+    process.stdout.write(`Cancellation closure passed: current MFA consent, exact anchored conflict/nonce/depth, stale authority/review refusal, atomic proof/journal, permanent nonce, higher next command and unchanged-proof restoration with lost-proof refusal and late quarantine (${chain ? "actual self-send, next mint and rollback" : "injected RPC"} plus PostgreSQL).\n`);
   } finally {
     // Only disposable fixture records are deleted; no business cleanup path exists.
     await db.$transaction(async tx => {
       const where = { attemptId: { in: ownedAttempts } };
+      await tx.publicationMintRecovery.deleteMany({ where });
       await tx.publicationMintCancellation.deleteMany({ where });
       await tx.publicationMintResult.deleteMany({ where });
       await tx.publicationMintDiscovery.deleteMany({ where });

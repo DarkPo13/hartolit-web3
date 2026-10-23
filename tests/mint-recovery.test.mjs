@@ -22,3 +22,15 @@ test("recovery preserves the original success or failure, inclusion anchor and a
   assert.equal(matchesOriginalMintReceipt(success, { ...success, tokenId: "2" }), false);
   assert.equal(matchesOriginalMintReceipt(success, failed), false);
 });
+
+test("cancellation recovery requires the same self-send proof, nonce and wallet", () => {
+  const cancelled = { ...failed, status: "CANCELLED", proofKind: "CANCELLATION", nonce: "7", publisherWallet: `0x${"9".repeat(40)}`,
+    headBlockNumber: "7", headBlockHash: hash("e") };
+  assert.equal(matchesOriginalMintReceipt(cancelled, { ...cancelled, confirmations: "4", headBlockNumber: "8", headBlockHash: hash("f") }), true);
+  for (const patch of [{ nonce: "8" }, { publisherWallet: `0x${"8".repeat(40)}` }, { status: "REVERTED" }, { status: "CONFIRMING" },
+    { status: "UNKNOWN" }, { status: "REORG" }, { blockHash: hash("f") }, { confirmations: "2" }, { transactionHash: hash("e") }]) {
+    assert.equal(matchesOriginalMintReceipt(cancelled, { ...cancelled, ...patch }), false);
+  }
+  assert.equal(matchesOriginalMintReceipt(failed, cancelled), false);
+  assert.equal(matchesOriginalMintReceipt(cancelled, failed), false);
+});

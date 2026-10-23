@@ -9,6 +9,7 @@ import { publicationPublisherAccess } from "./service";
 import { lockDispatchedMint } from "./mint-observation";
 import { CLOSED_MINT_STATUSES, lockMintWallet, finalizedMintReceipt, failedMintReceipt, closedMintReceipt, MAX_MINT_WALLET_RECEIPTS, verifyMintWalletAnchors } from "./mint-wallet";
 import { inspectMintTransaction, type MintReader } from "./chain-mint";
+import { inspectMintCancellation } from "./mint-cancellation";
 import { boundedMintMonitorReader } from "./mint-reader";
 
 const sha = z.string().regex(/^[0-9a-f]{64}$/);
@@ -18,8 +19,12 @@ const recoverySchema = z.strictObject({ requestId: z.uuid(), expectedIntentSha25
 const failedRecoverySchema = recoverySchema.omit({ expectedFinalizedObservationId: true, acknowledgement: true }).extend({
   expectedFailedObservationId: z.uuid(), acknowledgement: z.literal("RESTORE_FAILED_MINT"),
 });
-type RecoveryKind = "SUCCESS" | "FAILURE";
-type RecoveryInput = Omit<z.infer<typeof recoverySchema>, "expectedFinalizedObservationId" | "acknowledgement"> & { expectedOriginalObservationId: string };
+const cancelledRecoverySchema = recoverySchema.omit({ expectedFinalizedObservationId: true, acknowledgement: true }).extend({
+  expectedCancelledObservationId: z.uuid(), expectedCancellationId: z.uuid(), acknowledgement: z.literal("RESTORE_CANCELLED_MINT"),
+});
+type RecoveryKind = "SUCCESS" | "FAILURE" | "CANCELLATION";
+type RecoveryInput = Omit<z.infer<typeof recoverySchema>, "expectedFinalizedObservationId" | "acknowledgement"> &
+  { expectedOriginalObservationId: string; expectedCancellationId: string | null };
 
 async function requirePublisher(tx: Prisma.TransactionClient, adminId: string, wallet: string) {
   const access = publicationPublisherAccess(adminId);
@@ -38,12 +43,19 @@ async function load(tx: Prisma.TransactionClient, adminId: string, passportId: s
   const original = kind === "SUCCESS" ? context.finalized : context.failed;
   const originalObservation = kind === "SUCCESS" ? context.attempt.finalizedObservation : context.attempt.failedObservation;
   if (!original || !originalObservation) throw new WorkflowError(409, "Recovery kind does not match the closed original mint");
-  if (kind === "FAILURE" && original.status !== "REVERTED") throw new WorkflowError(409, "Cancellation quarantine requires a separate recovery policy");
+  if ((kind === "FAILURE" && original.status !== "REVERTED") || (kind === "CANCELLATION" && original.status !== "CANCELLED")) {
+    throw new WorkflowError(409, "Recovery kind does not match the closed failure proof");
+  }
   await lockMintWallet(tx, context.attempt.chainId, context.attempt.publisherWallet);
   await requirePublisher(tx, adminId, context.attempt.publisherWallet);
-  const transaction = await tx.publicationMintTransaction.findFirst({ where: { id: originalObservation.transactionId!,
+  // A cancellation has no matched mint transaction; its original is the reviewed
+  // closure proof, still bound to the saved dispatch anchor.
+  const cancellation = kind === "CANCELLATION" ? await tx.publicationMintCancellation.findFirst({ where: { attemptId,
+    observationId: originalObservation.id, transactionHash: original.transactionHash, proofStatus: "CANCELLED" } }) : null;
+  const transaction = kind === "CANCELLATION" ? null : await tx.publicationMintTransaction.findFirst({ where: { id: originalObservation.transactionId!,
     attemptId, nonce: context.attempt.nonce, transactionHash: original.transactionHash } });
-  if (!transaction) throw new WorkflowError(409, "Original matched transaction changed");
+  if (kind === "CANCELLATION" ? !cancellation || originalObservation.transactionId || context.attempt.dispatchBlockNumber === null ||
+    !context.attempt.dispatchBlockHash : !transaction) throw new WorkflowError(409, "Original matched transaction changed");
   const rows = await tx.publicationMintAttempt.findMany({ where: { chainId: context.attempt.chainId, publisherWallet: context.attempt.publisherWallet },
     orderBy: { nonce: "asc" }, take: MAX_MINT_WALLET_RECEIPTS + 2, include: { finalizedObservation: true, failedObservation: true } });
   const closed = rows.filter(row => CLOSED_MINT_STATUSES.some(status => status === row.status));
@@ -56,35 +68,41 @@ async function load(tx: Prisma.TransactionClient, adminId: string, passportId: s
     quarantinedAt: row.quarantinedAt?.toISOString() ?? null, finalizedAt: row.finalizedAt?.toISOString() ?? null,
     finalizedObservationId: row.finalizedObservationId, failedAt: row.failedAt?.toISOString() ?? null,
     failedObservationId: row.failedObservationId, proof: row.finalizedObservation?.resultJson ?? row.failedObservation?.resultJson ?? null })));
-  return { ...context, original, originalObservation, anchors, walletBinding, walletStateSha256: await sha256Hex(walletBinding) };
+  return { ...context, original, originalObservation, cancellation, anchors, walletBinding, walletStateSha256: await sha256Hex(walletBinding) };
 }
 
 /** Internal review only. A future route must authenticate the session/origin;
  * neither review nor restore exposes a caller-controlled RPC or signing key.
  */
 export async function getMintRecoveryReview(adminId: string, passportId: string, attemptId: string) {
-  const { originalObservationId, ...review } = await recoveryReview(adminId, passportId, attemptId, "SUCCESS");
+  const { review: { originalObservationId, ...review } } = await recoveryReview(adminId, passportId, attemptId, "SUCCESS");
   return { ...review, finalizedObservationId: originalObservationId };
 }
 
 export async function getMintFailureRecoveryReview(adminId: string, passportId: string, attemptId: string) {
-  const { originalObservationId, ...review } = await recoveryReview(adminId, passportId, attemptId, "FAILURE");
+  const { review: { originalObservationId, ...review } } = await recoveryReview(adminId, passportId, attemptId, "FAILURE");
   return { ...review, failedObservationId: originalObservationId };
+}
+
+export async function getMintCancellationRecoveryReview(adminId: string, passportId: string, attemptId: string) {
+  const { review: { originalObservationId, ...review }, cancellationId } = await recoveryReview(adminId, passportId, attemptId, "CANCELLATION");
+  return { ...review, cancelledObservationId: originalObservationId, cancellationId: cancellationId! };
 }
 
 async function recoveryReview(adminId: string, passportId: string, attemptId: string, kind: RecoveryKind) {
   return getDb().$transaction(async tx => {
     const current = await load(tx, adminId, passportId, attemptId, kind);
     if (!current.attempt.quarantinedAt) throw new WorkflowError(409, "Mint is not quarantined");
-    return { attemptId, intentSha256: current.intent.sha256, walletStateSha256: current.walletStateSha256,
+    return { cancellationId: current.cancellation?.id ?? null, review: { attemptId, intentSha256: current.intent.sha256, walletStateSha256: current.walletStateSha256,
       originalObservationId: current.originalObservation.id, observationVersion: current.attempt.observationVersion,
-      quarantinedAt: current.attempt.quarantinedAt.toISOString(), originalReceipt: current.original, issued: false as const, canResend: false as const };
+      quarantinedAt: current.attempt.quarantinedAt.toISOString(), originalReceipt: current.original, issued: false as const, canResend: false as const } };
   });
 }
 
 function matches(row: PublicationMintRecovery, adminId: string, attemptId: string, input: RecoveryInput, kind: RecoveryKind) {
   return row.kind === kind && row.actorId === adminId && row.attemptId === attemptId && row.intentSha256 === input.expectedIntentSha256 &&
     row.walletStateSha256 === input.expectedWalletStateSha256 && (kind === "SUCCESS" ? row.finalizedObservationId : row.failedObservationId) === input.expectedOriginalObservationId &&
+    row.cancellationId === input.expectedCancellationId &&
     row.reviewedObservationVersion === input.expectedObservationVersion && row.quarantinedAt.toISOString() === input.expectedQuarantinedAt;
 }
 function recorded(row: PublicationMintRecovery, quarantined: boolean) {
@@ -95,7 +113,8 @@ function recorded(row: PublicationMintRecovery, quarantined: boolean) {
 function requireReview(current: Awaited<ReturnType<typeof load>>, input: RecoveryInput) {
   if (current.attempt.quarantinedAt?.toISOString() !== input.expectedQuarantinedAt ||
     current.attempt.observationVersion !== input.expectedObservationVersion || current.walletStateSha256 !== input.expectedWalletStateSha256 ||
-    current.originalObservation.id !== input.expectedOriginalObservationId || current.intent.sha256 !== input.expectedIntentSha256) {
+    current.originalObservation.id !== input.expectedOriginalObservationId || current.intent.sha256 !== input.expectedIntentSha256 ||
+    (current.cancellation?.id ?? null) !== input.expectedCancellationId) {
     throw new WorkflowError(409, "Recovery review changed; inspect the current quarantine again");
   }
 }
@@ -107,7 +126,8 @@ function requireReview(current: Awaited<ReturnType<typeof load>>, input: Recover
 export async function restoreOriginalMint(adminId: string, passportId: string, attemptId: string, input: unknown, trustedReader: MintReader) {
   const parsed = recoverySchema.safeParse(input);
   if (!parsed.success) throw new WorkflowError(422, "Exact original-mint recovery review and acknowledgement are required");
-  return restoreReviewed(adminId, passportId, attemptId, { ...parsed.data, expectedOriginalObservationId: parsed.data.expectedFinalizedObservationId }, trustedReader, "SUCCESS");
+  return restoreReviewed(adminId, passportId, attemptId, { ...parsed.data, expectedOriginalObservationId: parsed.data.expectedFinalizedObservationId,
+    expectedCancellationId: null }, trustedReader, "SUCCESS");
 }
 
 /** Clear only quarantine on an unchanged canonical REVERTED first proof. Never
@@ -116,16 +136,28 @@ export async function restoreOriginalMint(adminId: string, passportId: string, a
 export async function restoreFailedMint(adminId: string, passportId: string, attemptId: string, input: unknown, trustedReader: MintReader) {
   const parsed = failedRecoverySchema.safeParse(input);
   if (!parsed.success) throw new WorkflowError(422, "Exact failed-mint recovery review and acknowledgement are required");
-  return restoreReviewed(adminId, passportId, attemptId, { ...parsed.data, expectedOriginalObservationId: parsed.data.expectedFailedObservationId }, trustedReader, "FAILURE");
+  return restoreReviewed(adminId, passportId, attemptId, { ...parsed.data, expectedOriginalObservationId: parsed.data.expectedFailedObservationId,
+    expectedCancellationId: null }, trustedReader, "FAILURE");
+}
+
+/** Clear only quarantine on the unchanged canonical self-send first proof of a
+ * reviewed cancellation closure. Never reuses its nonce/preparation or resends.
+ */
+export async function restoreCancelledMint(adminId: string, passportId: string, attemptId: string, input: unknown, trustedReader: MintReader) {
+  const parsed = cancelledRecoverySchema.safeParse(input);
+  if (!parsed.success) throw new WorkflowError(422, "Exact cancelled-mint recovery review and acknowledgement are required");
+  return restoreReviewed(adminId, passportId, attemptId, { ...parsed.data, expectedOriginalObservationId: parsed.data.expectedCancelledObservationId },
+    trustedReader, "CANCELLATION");
 }
 
 export function matchesOriginalMintReceipt(original: ReturnType<typeof finalizedMintReceipt> | ReturnType<typeof failedMintReceipt>,
-  result: Awaited<ReturnType<typeof inspectMintTransaction>>) {
-  if (result.status !== "VERIFIED" && result.status !== "REVERTED") return false;
+  result: Awaited<ReturnType<typeof inspectMintTransaction>> | Awaited<ReturnType<typeof inspectMintCancellation>>) {
+  if (result.status !== "VERIFIED" && result.status !== "REVERTED" && result.status !== "CANCELLED") return false;
   if (result.status !== original.status) return false;
   return result.transactionHash === original.transactionHash && result.blockNumber === original.blockNumber && result.blockHash === original.blockHash &&
     result.contractAddress === original.contractAddress && result.intentSha256 === original.intentSha256 && BigInt(result.confirmations) >= BigInt(original.confirmations) &&
-    (original.status !== "VERIFIED" || (result.status === "VERIFIED" && result.tokenId === original.tokenId));
+    (original.status !== "VERIFIED" || (result.status === "VERIFIED" && result.tokenId === original.tokenId)) &&
+    (original.status !== "CANCELLED" || (result.status === "CANCELLED" && result.nonce === original.nonce && result.publisherWallet === original.publisherWallet));
 }
 
 async function restoreReviewed(adminId: string, passportId: string, attemptId: string, data: RecoveryInput, trustedReader: MintReader, kind: RecoveryKind) {
@@ -144,7 +176,16 @@ async function restoreReviewed(adminId: string, passportId: string, attemptId: s
   let result;
   try {
     const head = await verifyMintWalletAnchors(before.anchors, reader);
-    result = await inspectMintTransaction(before.intent, before.original.transactionHash, reader, before.attempt.nonce);
+    const dispatched = async () => {
+      if (kind !== "CANCELLATION") return;
+      const anchor = await reader.getBlock({ blockNumber: before.attempt.dispatchBlockNumber! });
+      if (anchor.number !== before.attempt.dispatchBlockNumber || anchor.hash !== before.attempt.dispatchBlockHash) throw new Error();
+    };
+    await dispatched();
+    result = kind === "CANCELLATION"
+      ? await inspectMintCancellation(before.intent, before.original.transactionHash, before.attempt.nonce, reader)
+      : await inspectMintTransaction(before.intent, before.original.transactionHash, reader, before.attempt.nonce);
+    await dispatched();
     if (!head || (await reader.getBlock({ blockNumber: head.number })).hash !== head.hash || await reader.getChainId() !== 97) throw new Error();
   } catch { throw new WorkflowError(503, "Original wallet receipts could not be freshly verified; quarantine remains"); }
   const original = before.original;
@@ -163,13 +204,13 @@ async function restoreReviewed(adminId: string, passportId: string, attemptId: s
       Date.now() < startedAt || Date.now() - startedAt >= 15_000) throw new WorkflowError(409, "Recovery check expired or its commitment changed");
     const observation = await tx.publicationMintObservation.create({ data: { attemptId, revision: data.expectedObservationVersion + 1,
       reportedHash: original.transactionHash, transactionId: current.originalObservation.transactionId,
-      status: original.status, resultJson: canonicalize({ version: 1, ...result }) } });
+      status: original.status, resultJson: canonicalize({ version: 1, ...(kind === "CANCELLATION" ? { proofKind: "CANCELLATION" } : {}), ...result }) } });
     const recovery = await tx.publicationMintRecovery.create({ data: { attemptId, requestId: data.requestId, actorId: adminId,
       quarantinedAt: current.attempt.quarantinedAt!, reviewedObservationVersion: data.expectedObservationVersion,
       intentSha256: data.expectedIntentSha256, walletStateSha256: data.expectedWalletStateSha256,
       kind, finalizedObservationId: kind === "SUCCESS" ? current.originalObservation.id : null,
-      failedObservationId: kind === "FAILURE" ? current.originalObservation.id : null, verificationStatus: original.status,
-      verifiedObservationId: observation.id, restoredAt: observation.observedAt } });
+      failedObservationId: kind === "SUCCESS" ? null : current.originalObservation.id, cancellationId: current.cancellation?.id ?? null,
+      verificationStatus: original.status, verifiedObservationId: observation.id, restoredAt: observation.observedAt } });
     await tx.publicationMintAttempt.update({ where: { id: attemptId }, data: { quarantinedAt: null, observationVersion: observation.revision } });
     await tx.publication.update({ where: { id: current.publication.id }, data: { status: kind === "SUCCESS" ? "PUBLISHED" : "CHAIN_FAILED" } });
     const previous = await tx.publicationMintResult.findUnique({ where: { attemptId } });
@@ -178,7 +219,8 @@ async function restoreReviewed(adminId: string, passportId: string, attemptId: s
       verifiedObservationId, verificationStatus: verifiedObservationId ? "VERIFIED" as const : null };
     await tx.publicationMintResult.upsert({ where: { attemptId }, create: { attemptId, ...selected }, update: selected });
     await tx.auditLog.create({ data: { passportId, publicationId: current.publication.id, actorId: adminId,
-      version: current.publication.passportVersion, action: kind === "SUCCESS" ? "PUBLICATION_MINT_RESTORED" : "PUBLICATION_MINT_FAILURE_RESTORED",
+      version: current.publication.passportVersion, action: ({ SUCCESS: "PUBLICATION_MINT_RESTORED", FAILURE: "PUBLICATION_MINT_FAILURE_RESTORED",
+        CANCELLATION: "PUBLICATION_MINT_CANCELLATION_RESTORED" } as const)[kind],
       fromStatus: "APPROVED", toStatus: "APPROVED", note: `Original ${kind.toLowerCase()} mint recovery: ${recovery.id}` } });
     return recorded(recovery, false);
   });

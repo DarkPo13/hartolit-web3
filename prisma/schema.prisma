@@ -178,6 +178,7 @@ enum PublicationMintAttemptStatus {
 enum PublicationMintRecoveryKind {
   SUCCESS
   FAILURE
+  CANCELLATION
 }
 
 enum PublicationMintObservationStatus {
@@ -242,6 +243,7 @@ enum AuditAction {
   PUBLICATION_MINT_FAILED
   PUBLICATION_MINT_FAILURE_RESTORED
   PUBLICATION_MINT_CANCELLED
+  PUBLICATION_MINT_CANCELLATION_RESTORED
 }
 
 model Farmer {
@@ -632,8 +634,10 @@ model PublicationMintCancellation {
   intentSha256    String @db.Char(64)
   walletStateSha256 String @db.Char(64)
   closedAt        DateTime @default(now())
+  recoveries      PublicationMintRecovery[]
 
   @@unique([observationId, attemptId, transactionHash, proofStatus])
+  @@unique([id, attemptId, observationId])
   @@index([discoveryId])
   @@index([actorId])
 }
@@ -658,11 +662,15 @@ model PublicationMintRecovery {
   original                  PublicationMintObservation? @relation("MintRecoveryOriginal", fields: [finalizedObservationId, attemptId, verificationStatus], references: [id, attemptId, status], onDelete: Restrict)
   failedOriginal            PublicationMintObservation? @relation("MintFailureRecoveryOriginal", fields: [failedObservationId, attemptId, verificationStatus], references: [id, attemptId, status], onDelete: Restrict, map: "PublicationMintRecovery_failed_original_fkey")
   verification              PublicationMintObservation @relation("MintRecoveryVerification", fields: [verifiedObservationId, attemptId, verificationStatus], references: [id, attemptId, status], onDelete: Restrict)
+  // CANCELLATION restores only the reviewed closure's own first proof.
+  cancellationId            String? @db.Uuid
+  cancellation              PublicationMintCancellation? @relation(fields: [cancellationId, attemptId, failedObservationId], references: [id, attemptId, observationId], onDelete: Restrict, map: "PublicationMintRecovery_cancellation_fkey")
   restoredAt                DateTime @default(now())
 
   @@unique([attemptId, reviewedObservationVersion])
   @@unique([verifiedObservationId, attemptId, verificationStatus])
   @@index([attemptId, restoredAt])
+  @@index([cancellationId])
 }
 
 // Append-only search pages. FOUND adopts an exact call/nonce, never a receipt or issuance.
