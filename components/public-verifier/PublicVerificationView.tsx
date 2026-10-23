@@ -4,6 +4,8 @@ import Link from "next/link";
 import { PublicSnapshotView } from "@/components/public-snapshot/PublicSnapshotView";
 import { useLocale, useT } from "@/lib/i18n/context";
 import type { PublicVerification } from "@/lib/public-verifier/verify";
+import type { PublicShare } from "@/lib/public-verifier/share";
+import { PublicShareActions } from "./PublicShareActions";
 
 export type PublicVerificationResult = Exclude<PublicVerification, { status: "INVALID_REQUEST" } | { status: "NOT_FOUND" }>;
 
@@ -13,7 +15,7 @@ const tone = {
 } as const;
 
 /** Public, sign-in-free rendering of an independent verification result. */
-export function PublicVerificationView({ result }: { result: PublicVerificationResult }) {
+export function PublicVerificationView({ result, share = null }: { result: PublicVerificationResult; share?: PublicShare | null }) {
   const { locale, setLocale } = useLocale();
   const t = useT().publicVerifier;
   const copy = {
@@ -26,7 +28,7 @@ export function PublicVerificationView({ result }: { result: PublicVerificationR
   const href = `/passports/${encodeURIComponent(result.tokenId)}`;
 
   return <main className="mx-auto max-w-4xl space-y-6 px-4 py-8 md:py-12">
-    <nav aria-label={t.navigation} className="flex flex-wrap items-center justify-between gap-3 text-sm">
+    <nav aria-label={t.navigation} className="flex flex-wrap items-center justify-between gap-3 text-sm print:hidden">
       <span className="font-semibold text-ink">{t.home}</span>
       <button type="button" onClick={() => setLocale(locale === "uk" ? "en" : "uk")} className="font-medium text-brand-700 underline"
         aria-label={locale === "uk" ? "Switch to English" : "Перейти на українську"}>{locale === "uk" ? "EN" : "УКР"}</button>
@@ -46,8 +48,9 @@ export function PublicVerificationView({ result }: { result: PublicVerificationR
           <div key={label} className="min-w-0"><dt className="text-ink-muted">{label}</dt><dd className="mt-1 break-all font-medium">{value}</dd></div>)}
       </dl>}
       <p className="mt-5 text-sm text-ink-muted">{t.limits}</p>
-      {result.status !== "VALID" && <Link href={href} prefetch={false} className="mt-5 inline-block text-sm font-medium text-brand-700 underline">{t.checkAgain}</Link>}
+      {result.status !== "VALID" && <Link href={href} prefetch={false} className="mt-5 inline-block text-sm font-medium text-brand-700 underline print:hidden">{t.checkAgain}</Link>}
     </header>
+    {result.status === "VALID" && share && <PublicShareActions tokenId={result.tokenId} url={share.url} qrDataUrl={share.qrDataUrl} canonicalJson={result.canonicalJson} />}
     {result.status === "VALID" && <section aria-label={t.factsTitle}>
       <h2 className="font-serif text-2xl font-semibold text-ink">{t.factsTitle}</h2>
       <PublicSnapshotView preview={{ snapshot: result.snapshot, canonicalJson: result.canonicalJson, sha256: result.payloadHash }} note={t.publishedRecord} />

@@ -10,6 +10,8 @@ const { verifyPublicPassport } = await jiti.import("../lib/public-verifier/verif
 const { createRawGatewayReader } = await jiti.import("../lib/publication/ipfs-reader.ts");
 const { canonicalize, sha256Hex } = await jiti.import("../lib/hash.ts");
 const { rawCidFromSha256 } = await jiti.import("../lib/publication/raw-cid.ts");
+const { publicPassportShare } = await jiti.import("../lib/public-verifier/share.ts");
+const { default: QRCode } = await import("qrcode");
 
 const fictional = {
   schemaName: "hartolit.field-passport.public", schemaVersion: "2.0.0",
@@ -124,4 +126,12 @@ test("the trustless gateway reader is HTTPS-only, credential-free, bounded and r
   for (const response of [raw("x", "text/html"), raw("x", "application/vnd.ipld.raw", 404), raw(new Uint8Array(64 * 1024 + 1))]) {
     await assert.rejects(createRawGatewayReader("https://gateway.example.invalid/", async () => response)(cid));
   }
+});
+
+test("the share link and QR use only the configured application origin", async () => {
+  const share = await publicPassportShare("7", "https://dapp.example.invalid/ignored/path?x=1");
+  assert.equal(share.url, "https://dapp.example.invalid/passports/7");
+  assert.equal(share.qrDataUrl, await QRCode.toDataURL(share.url, { errorCorrectionLevel: "M", margin: 2, width: 240 }), "QR encodes exactly the share URL");
+  for (const [tokenId, origin] of [["0", "https://dapp.example.invalid"], ["7/../x", "https://dapp.example.invalid"], ["7", undefined], ["7", "not a url"],
+    ["7", "javascript:alert(1)"], ["7", "https://user:secret@dapp.example.invalid"]]) assert.equal(await publicPassportShare(tokenId, origin), null);
 });

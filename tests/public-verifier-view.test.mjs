@@ -26,7 +26,7 @@ const snapshot = {
 const valid = { status: "VALID", tokenId: "7", chainId: 97, contractAddress: `0x${"1".repeat(40)}`, owner: `0x${"2".repeat(40)}`,
   payloadHash: "c".repeat(64), cid: "bafkreifictionalcid", checkedBlockNumber: "88", checkedBlockHash: `0x${"d".repeat(64)}`, confirmations: "3",
   snapshot, canonicalJson: JSON.stringify(snapshot) };
-const render = result => renderToStaticMarkup(React.createElement(PublicVerificationView, { result }));
+const render = (result, share) => renderToStaticMarkup(React.createElement(PublicVerificationView, { result, share }));
 
 test("a VALID public page shows every public scalar, the chain facts and what the match does not prove", () => {
   const html = render(valid), readable = html.split("<details")[0];
@@ -42,6 +42,19 @@ test("a VALID public page shows every public scalar, the chain facts and what th
   for (const text of [t.validBadge, t.validTitle, t.limits, t.testnet, t.publishedRecord]) assert.ok(html.includes(text), text);
   for (const text of [uk.review.confirmedViews.unpublished, uk.review.publicPreview.temporary, uk.review.publicPreview.confirmedRecord, t.checkAgain]) {
     assert.ok(!html.includes(text), `VALID must not show: ${text}`);
+  }
+});
+
+test("a VALID record offers its share link, QR, print and exact JSON download; other states never do", () => {
+  const share = { url: "https://dapp.example.invalid/passports/7", qrDataUrl: "data:image/png;base64,ZmljdGlvbmFs" };
+  const html = render(valid, share);
+  for (const text of [t.shareTitle, t.qrAlt, share.url, share.qrDataUrl, t.copyLink, t.downloadQr, t.print, t.downloadJson, t.downloadJsonHint]) {
+    assert.ok(html.includes(text), `share section missing ${text}`);
+  }
+  assert.ok(html.includes('download="hartolit-passport-7-qr.png"'));
+  assert.ok(!render(valid).includes(t.shareTitle), "no share section without a trusted share URL");
+  for (const status of ["PENDING", "UNAVAILABLE", "MISMATCH", "UNSUPPORTED"]) {
+    assert.ok(!render({ status, reason: "CHAIN", tokenId: "7" }, share).includes(t.shareTitle), `${status} must not be shared`);
   }
 });
 
