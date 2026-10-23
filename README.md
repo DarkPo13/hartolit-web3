@@ -750,6 +750,10 @@ New permissions used to stop permanently at 64 closed proofs. `checkpointMintWal
 
 Additive migration `20261023180000_publication_mint_wallet_checkpoint` adds the append-only table. A checkpoint is stale when its covered closed set, an open attempt inside its range or a covered re-anchor changes; stale or non-canonical checkpoints make permission checks fail with 503 until a new one is created. Quarantine is still read across the whole wallet. The re-inclusion fixture exercises creation, compact checks, covered quarantine, a reorg that invalidates the checkpoint, staleness after re-anchoring and a fresh restart, on actual Anvil as well.
 
+## Independent public verification core
+
+`verifyPublicPassport(tokenId, target, reader, readBlock)` checks a published passport from chain state and IPFS bytes alone; the database is never consulted. State is read `confirmations - 1` blocks below head, so a VALID result implies that depth. It requires the configured contract runtime, the token's owner, URI and committed hash, the reverse hash index, a raw-profile CID, gateway bytes whose SHA-256 equals the on-chain hash, and canonical strict `2.0.0` JSON. Results are VALID, PENDING, NOT_FOUND, UNAVAILABLE, MISMATCH or UNSUPPORTED with a coarse reason. `createRawGatewayReader` fetches the raw block over HTTPS with no credential. It is not yet exposed by a page or route. `npm run test:verifier` and the actual-Anvil `chain:smoke` cover it.
+
 ## Product feedback and responsible treatment reminder
 
 Signed-in users can open `/feedback` from the home-page footer. The private confirmed certificate preview opens an accessible responsibility dialog with a reminder to record doses and weather and care for Ukraine's soils; its **Leave feedback** button opens the same form. The dialog can be dismissed and reopened without submitting feedback. It does not claim that a certificate has been issued or that a treatment is environmentally safe.

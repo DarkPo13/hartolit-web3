@@ -83,6 +83,28 @@ export function createPinReader(config: { apiUrl?: string; token?: string; gatew
   } catch { throw new IpfsReadError(); }
 }
 
+export type RawBlockReader = (cid: string) => Promise<Uint8Array>;
+
+/** Trustless raw-block gateway read for public verification: no credential is
+ * sent and the caller must hash the bytes itself. Same HTTPS/redirect/size rules.
+ */
+export function createRawGatewayReader(gatewayUrl: string | undefined, request: typeof fetch = fetch): RawBlockReader {
+  const gateway = endpoint(gatewayUrl);
+  if (gateway.pathname !== "/") throw new IpfsReadError();
+  return async (cid) => {
+    try {
+      if (!/^bafkrei[a-z2-7]{52}$/.test(cid)) throw new IpfsReadError();
+      const response = await request(new URL(`/ipfs/${cid}?format=raw`, gateway), { method: "GET", cache: "no-store", redirect: "error",
+        signal: AbortSignal.timeout(10_000), headers: { accept: "application/vnd.ipld.raw" } });
+      if (response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() !== "application/vnd.ipld.raw") {
+        await response.body?.cancel().catch(() => {});
+        throw new IpfsReadError();
+      }
+      return await readBoundedIpfsBody(response, MAX_PUBLIC_BLOCK_BYTES);
+    } catch { throw new IpfsReadError(); }
+  };
+}
+
 export const readPinnedRawBlock: PinReader = async (cid) => createPinReader({
   apiUrl: process.env.HARTOLIT_IPFS_PINNING_API_URL,
   token: process.env.HARTOLIT_IPFS_PINNING_TOKEN,

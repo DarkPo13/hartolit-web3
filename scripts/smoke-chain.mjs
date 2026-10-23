@@ -15,6 +15,7 @@ const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAl
   "server-only": path.resolve("node_modules/next/dist/compiled/server-only/empty.js").replaceAll("\\", "/") } });
 const { createMintIntent, mintTransactionRequest, inspectMintReadiness, inspectMintTransaction } = await jiti.import("../lib/publication/chain-mint.ts");
 const { inspectMintCancellation } = await jiti.import("../lib/publication/mint-cancellation.ts");
+const { verifyPublicPassport } = await jiti.import("../lib/public-verifier/verify.ts");
 const { canonicalize } = await jiti.import("../lib/hash.ts");
 const { rawCidFromSha256 } = await jiti.import("../lib/publication/raw-cid.ts");
 const artifact = JSON.parse(await readFile(new URL("../contracts/out/HartolitFieldPassport.sol/HartolitFieldPassport.json", import.meta.url), "utf8"));
@@ -55,11 +56,17 @@ try {
   assert.equal(await reader.getCode({ address }), runtime, "compiled runtime equals actual deployed code");
   const target = { chainId: 97, contractAddress: address, contractCodeHash: keccak256(runtime), publisherWallet: account.address,
     recipientWallet: account.address, requiredConfirmations: 3 };
+  const documents = new Map();
   const make = async (patch = {}) => {
     const canonicalJson = canonicalize(fictionalChainSnapshot(randomUUID()));
     const payloadHash = createHash("sha256").update(canonicalJson).digest("hex");
+    documents.set(rawCidFromSha256(payloadHash), new TextEncoder().encode(canonicalJson));
     return createMintIntent({ ...target, ...patch }, { canonicalJson, payloadHash, ipfsCid: rawCidFromSha256(payloadHash) });
   };
+  // The public verifier reads only chain state and the raw block; no app state.
+  const verifierTarget = { chainId: 97, contractAddress: address.toLowerCase(), contractCodeHash: keccak256(runtime), requiredConfirmations: 3 };
+  const publicCheck = (tokenId, readBlock = async cid => { if (!documents.has(cid)) throw new Error("fictional missing block"); return documents.get(cid); }) =>
+    verifyPublicPassport(tokenId, verifierTarget, reader, readBlock);
   const mine = blocks => reader.request({ method: "anvil_mine", params: [`0x${blocks.toString(16)}`] });
   const send = async value => {
     const request = await mintTransactionRequest(value);
@@ -77,9 +84,17 @@ try {
   await reader.request({ method: "evm_setAutomine", params: [false] });
   const hash = await send(value);
   assert.equal((await inspectMintTransaction(value, hash, reader)).status, "PENDING");
+  assert.equal((await publicCheck("1")).status, "NOT_FOUND");
   await mine(1);
   assert.equal((await inspectMintTransaction(value, hash, reader)).status, "CONFIRMING");
+  assert.equal((await publicCheck("1")).status, "PENDING");
   await mine(2);
+  const publicValid = await publicCheck("1");
+  assert.equal(publicValid.status, "VALID"); assert.equal(publicValid.cid, value.ipfsCid); assert.equal(publicValid.payloadHash, value.payloadHash);
+  assert.equal(publicValid.owner, account.address.toLowerCase()); assert.equal(publicValid.snapshot.certificateId, value.certificateId);
+  assert.equal((await publicCheck("1", async () => documents.values().next().value.slice(1))).reason, "BYTES");
+  assert.equal((await publicCheck("1", async () => { throw new Error("fictional gateway outage"); })).reason, "IPFS");
+  assert.equal((await verifyPublicPassport("1", { ...verifierTarget, contractCodeHash: `0x${"0".repeat(64)}` }, reader, async () => new Uint8Array())).reason, "CONTRACT");
   const verified = await inspectMintTransaction(value, hash, reader);
   assert.equal(verified.status, "VERIFIED"); assert.equal(verified.tokenId, "1"); assert.equal(verified.confirmations, "3");
   assert.equal(verified.issued, false); assert.equal(verified.canResend, false);
@@ -94,6 +109,7 @@ try {
   const oldTx = await reader.getTransaction({ hash }), oldReceipt = await reader.getTransactionReceipt({ hash });
   assert.equal(await reader.request({ method: "evm_revert", params: [snapshot] }), true);
   const vanished = await inspectMintTransaction(value, hash, reader);
+  assert.equal((await publicCheck("1")).status, "NOT_FOUND", "a rolled-back mint is not publicly valid");
   assert.ok(["UNKNOWN", "PENDING"].includes(vanished.status)); assert.equal(vanished.canResend, false);
   await reader.request({ method: "anvil_dropTransaction", params: [hash] });
   await mine(4);
@@ -138,7 +154,7 @@ try {
   await reader.request({ method: "anvil_dropTransaction", params: [cancelHash] });
   await mine(4);
   assert.equal((await inspectCancel({ ...reader, getTransaction: async () => cancelTx, getTransactionReceipt: async () => cancelReceipt })).status, "REORG");
-  process.stdout.write("Local chain smoke passed: actual deployment/code, exact mint, pending/depth, duplicate/revert/pause, wrong recipient, lost chain branch/stale receipt and exact self-send cancellation/depth/rollback. No public network, slot release or issued app certificate.\n");
+  process.stdout.write("Local chain smoke passed: actual deployment/code, exact mint, pending/depth, public verifier NOT_FOUND/PENDING/VALID/MISMATCH/rollback, duplicate/revert/pause, wrong recipient, lost chain branch/stale receipt and exact self-send cancellation/depth/rollback. No public network, slot release or issued app certificate.\n");
 } finally {
   clearTimeout(readyTimer);
   if (node.pid && node.exitCode === null && node.signalCode === null) { const exited = once(node, "exit"); node.kill(); await exited; }

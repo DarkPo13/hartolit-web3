@@ -83,6 +83,7 @@ jobs:
       - run: npm run test:button
       - run: npm run test:wallet
       - run: npm run test:ipfs
+      - run: npm run test:verifier
       - run: npm run test:upload
       - run: npm run test:chain
       - run: npm run test:capture
