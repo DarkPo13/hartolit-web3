@@ -904,3 +904,8 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 
 - Wrote two decision documents into the completion guide (not implemented). The incident proposal covers the five D50 classes plus changed dispatch anchors, with "the chain is the truth", two-person review, a waiting period before any negative close, no nonce reuse and an explained public effect; it flags a changed token ID as the highest-risk class because the old ID may then point to another record. The scheduling design lists jobs, frequencies, alert conditions and missed-run heartbeats.
 - Checked against the code: `evidence:prune` uses `--execute`; the contract's `DuplicatePayload` error prevents a second token for the same payload.
+
+## 2026-10-24 - First push since 2026-10-21; CI found an environment-dependent test
+
+- With the user's permission, pushed 48 commits (`9299c98..50b8c57`). CI run 40124169741: the contract job passed; the web job failed at `npm run test:verifier`, its first CI run (the suite was added after the last pushed commit). Job logs need repository-admin login (403), so the cause was reproduced locally instead: with the CI job environment the share test failed, because `publicPassportShare(tokenId, undefined)` falls back to `BETTER_AUTH_URL`, which CI sets and local test runs do not. The third occurrence this session of an `undefined` argument hitting a default parameter.
+- Fix (test only): clear `BETTER_AUTH_URL` for the unconfigured cases and add a positive check that the configured origin is used without an argument. All nine Node suites now pass locally and with the CI job environment.

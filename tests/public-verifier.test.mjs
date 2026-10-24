@@ -133,8 +133,15 @@ test("the share link and QR use only the configured application origin", async (
   const share = await publicPassportShare("7", "https://dapp.example.invalid/ignored/path?x=1");
   assert.equal(share.url, "https://dapp.example.invalid/passports/7");
   assert.equal(share.qrDataUrl, await QRCode.toDataURL(share.url, { errorCorrectionLevel: "M", margin: 2, width: 240 }), "QR encodes exactly the share URL");
-  for (const [tokenId, origin] of [["0", "https://dapp.example.invalid"], ["7/../x", "https://dapp.example.invalid"], ["7", undefined], ["7", "not a url"],
-    ["7", "javascript:alert(1)"], ["7", "https://user:secret@dapp.example.invalid"]]) assert.equal(await publicPassportShare(tokenId, origin), null);
+  // `undefined` falls back to BETTER_AUTH_URL (CI sets it), so clear it for the "unconfigured" case.
+  const saved = process.env.BETTER_AUTH_URL; delete process.env.BETTER_AUTH_URL;
+  try {
+    for (const [tokenId, origin] of [["0", "https://dapp.example.invalid"], ["7/../x", "https://dapp.example.invalid"], ["7", undefined], ["7", "not a url"],
+      ["7", "javascript:alert(1)"], ["7", "https://user:secret@dapp.example.invalid"]]) assert.equal(await publicPassportShare(tokenId, origin), null);
+  } finally { if (saved !== undefined) process.env.BETTER_AUTH_URL = saved; }
+  process.env.BETTER_AUTH_URL = "https://configured.example.invalid";
+  try { assert.equal((await publicPassportShare("7")).url, "https://configured.example.invalid/passports/7", "without an argument the configured origin is used"); }
+  finally { if (saved !== undefined) process.env.BETTER_AUTH_URL = saved; else delete process.env.BETTER_AUTH_URL; }
 });
 
 test("the issuer record only annotates a VALID result with a coarse kind", async () => {
