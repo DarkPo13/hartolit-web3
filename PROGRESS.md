@@ -893,3 +893,9 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - Continued after f24a514 (STATE next step 2; step 1 needs the user). Two environment frictions from this session became configuration: the `mail-tls` Compose profile (STARTTLS Mailpit on 1026/8026, like CI) with `npm run mail:tls-ca` and `MAILPIT_API_URL` in `auth:smoke`; and `HARTOLIT_POSTGRES_PORT` for the Compose host port (default 55432), also used by `db:setup`.
 - Kept the default Mailpit plain so `next dev` and the jiti-based smokes keep working without a CA.
 - Validation: lint exited 0; `docker compose config` publishes 55632 with the variable and 55432 without; PostgreSQL started through the variable; `mail:tls-ca` wrote the gitignored file; `auth:smoke` against a production app exited 0 with the CA and 1 without it (the invitation never arrives).
+
+## 2026-10-24 - Committed browser acceptance script
+
+- The user asked for step 1 (push) and step 3 (optional local work). The push was refused by the session's permission classifier; it was not retried another way. It remains for the user.
+- Turned the temporary full-workflow pass (D65) into `scripts/browser-acceptance.mjs` with `playwright-core` 1.64.1 (exact pin, no dependencies, no bundled browser; uses installed Chrome) as a dev dependency. Removed debugging stages and machine paths; screenshots go to a temporary folder. The production audit stays at 0 vulnerabilities.
+- Validation: lint exited 0; `browser:acceptance` exited 0 with 42 checks; a type-valid control (US date format restored) exits 1 at exactly the date check after a rebuild (an earlier control that failed to compile proved nothing); no residue.

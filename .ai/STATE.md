@@ -90,6 +90,8 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Validation
 
+**Browser acceptance script, 2026-10-24:** `npm run browser:acceptance` exited 0 (42 checks); a type-valid control exits 1 at the date check; lint exited 0; no residue. Push refused by the session permission classifier; not pushed.
+
 **Local environment, 2026-10-24:** `mail-tls` profile plus `mail:tls-ca`: `auth:smoke` against a production app exited 0 with the CA and 1 without; `HARTOLIT_POSTGRES_PORT` verified with `docker compose config` and a real start. lint exited 0.
 
 **Full local gate run on `1953576`, 2026-10-24, Windows, Node 24.18.0, Anvil 1.8.6:** all 34 validators exited 0, including `npm audit --omit=dev --audit-level=high` (0 vulnerabilities), the backup drill and default/actual-chain/offline-Kubo publication smokes. PostgreSQL ran on an alternate host port (Windows reserved 55432) and production mail used a task-owned STARTTLS Mailpit, as in CI (PROGRESS). No residue. Not pushed, so no CI result.
@@ -154,7 +156,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 ## Next steps
 
 1. **Agent, next local slices, in order:** the local implementation for the pilot path is complete and green (gate run above). The next step needs the user: the guide's "External connection handoff" list (provider/region, publisher MFA account and public Testnet wallet, token recipient, contract deployment, two RPCs, IPFS account with Kubo-compatible RPC, hosting, PostgreSQL, storage, scanner, SMTP, scheduler, counsel review). A push is also needed to get a CI result for the local commits ahead of `origin/master` (`git rev-list --count origin/master..HEAD`; 45 at this checkpoint). Test each against owned Anvil and offline Kubo; commit each separately.
-2. **Agent, optional local work that needs no user input:** a written proposal for the changed-outcome/lost-proof incident policy; scheduler/alert design without activation; a committed browser-acceptance script once Playwright is a pinned dev dependency.
+2. **Agent, optional local work that needs no user input:** a written proposal for the changed-outcome/lost-proof incident policy; scheduler/alert design without activation.
 3. **Later user participation:** choose providers/regions and actual MFA publisher/public wallet; installed-extension acceptance, hosted infrastructure, actual IPFS compatibility/retention, Testnet deployment and hosted/device acceptance, counsel/pilot review. No seed/private key sharing. These choices do not block the next local slice.
 
 ## Continuation brief — 2026-10-23
