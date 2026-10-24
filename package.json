@@ -28,6 +28,7 @@
     "evidence:configure": "node scripts/configure-local-evidence.mjs",
     "db:up": "docker compose --env-file .env.db.local up -d postgres",
     "dev:services:up": "docker compose --env-file .env.db.local up -d postgres mailpit",
+    "mail:tls-ca": "node scripts/local-mailpit-ca.mjs",
     "db:down": "docker compose --env-file .env.db.local down",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

@@ -28,6 +28,7 @@ yarn-error.log*
 .env*.local
 .env.production
 .env.db.local
+.mailpit-tls-ca.pem
 
 # Vercel
 .vercel

@@ -445,6 +445,19 @@ For the local prototype only, set `NEXT_PUBLIC_DEMO_MODE=true` in `.env.local` a
 
 With demo mode off, the signed-in home page shows durable structured drafts. Private evidence upload and submission for admin review are available locally. Issuance and public publication remain disabled.
 
+**Production mail locally.** A production build sends SMTP only over TLS, which the default Mailpit does not offer, so invitations and resets from `npm run build && npm start` never arrive there. Use the STARTTLS profile, as CI does:
+
+```bash
+docker compose --env-file .env.db.local --profile mail-tls up -d mailpit-tls
+npm run mail:tls-ca   # writes the gitignored .mailpit-tls-ca.pem
+SMTP_HOST=localhost SMTP_PORT=1026 NODE_EXTRA_CA_CERTS=.mailpit-tls-ca.pem npm start
+MAILPIT_API_URL=http://127.0.0.1:8026 npm run auth:smoke
+```
+
+The inbox is at `http://127.0.0.1:8026`. Browser uploads need the app on port 3000, the origin the local evidence CORS allows.
+
+**PostgreSQL port.** Windows can reserve a dynamic port range that includes 55432 (`netsh interface ipv4 show excludedportrange protocol=tcp`). Set `HARTOLIT_POSTGRES_PORT` in `.env.db.local` (Compose reads it), use the same port in `DATABASE_URL` in `.env.local`, and recreate the container; `npm run db:setup` uses it for a new `DATABASE_URL`.
+
 ---
 
 ## Testing Without a Wallet

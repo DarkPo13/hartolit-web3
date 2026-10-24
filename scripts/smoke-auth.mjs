@@ -5,7 +5,7 @@ import { randomBytes, createHmac } from "node:crypto";
 import { createJiti } from "jiti";
 
 const base = "http://localhost:3000";
-const mailpit = "http://127.0.0.1:8025";
+const mailpit = process.env.MAILPIT_API_URL ?? "http://127.0.0.1:8025";
 const jiti = createJiti(import.meta.url);
 const [{ auth }, { getDb }] = await Promise.all([
   jiti.import("../auth.cli.ts"),

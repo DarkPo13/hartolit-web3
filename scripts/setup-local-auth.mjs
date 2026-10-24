@@ -16,7 +16,8 @@ if (!dbPassword) throw new Error(".env.db.local is missing POSTGRES_PASSWORD");
 const existing = existsSync(appEnvPath) ? readFileSync(appEnvPath, "utf8") : "";
 const additions = [];
 if (!/^DATABASE_URL=/m.test(existing)) {
-  additions.push(`DATABASE_URL=postgresql://hartolit:${encodeURIComponent(dbPassword)}@127.0.0.1:55432/hartolit?schema=public`);
+  const port = dbEnv.match(/^HARTOLIT_POSTGRES_PORT=(\d+)$/m)?.[1] ?? "55432";
+  additions.push(`DATABASE_URL=postgresql://hartolit:${encodeURIComponent(dbPassword)}@127.0.0.1:${port}/hartolit?schema=public`);
 }
 if (!/^BETTER_AUTH_SECRET=/m.test(existing)) {
   additions.push(`BETTER_AUTH_SECRET=${randomBytes(48).toString("base64url")}`);

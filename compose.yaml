@@ -17,7 +17,8 @@ services:
     container_name: hartolit-web3-postgres
     env_file: .env.db.local
     ports:
-      - "127.0.0.1:55432:5432"
+      # Override when Windows reserves the port: HARTOLIT_POSTGRES_PORT in .env.db.local.
+      - "127.0.0.1:${HARTOLIT_POSTGRES_PORT:-55432}:5432"
     volumes:
       - hartolit_pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -31,6 +32,19 @@ services:
     ports:
       - "127.0.0.1:1025:1025"
       - "127.0.0.1:8025:8025"
+  # Optional: STARTTLS like CI, for production builds (they require TLS for SMTP).
+  # Export its CA with `npm run mail:tls-ca`; see README "Production mail locally".
+  mailpit-tls:
+    profiles: ["mail-tls"]
+    image: axllent/mailpit:v1.31.1
+    container_name: hartolit-web3-mailpit-tls
+    environment:
+      MP_SMTP_TLS_CERT: sans:localhost
+      MP_SMTP_TLS_KEY: sans:localhost
+      MP_SMTP_REQUIRE_STARTTLS: "true"
+    ports:
+      - "127.0.0.1:1026:1025"
+      - "127.0.0.1:8026:8025"
   seaweedfs:
     image: chrislusf/seaweedfs:4.47
     container_name: hartolit-web3-seaweedfs
