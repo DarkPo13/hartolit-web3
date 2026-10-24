@@ -2,12 +2,12 @@
 
 - **Last updated:** 2026-10-24
 - **Branch:** `master`
-- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the mint wallet UI (D68 part 2) on top of `ef9ff95` (D68 routes) and `2a37d9b` (D67). `master` is ahead of the locally recorded `origin/master` (42 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
+- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the monitoring command (D69) on top of `cd95103` (D68 wallet UI) and `ef9ff95` (D68 routes). `master` is ahead of the locally recorded `origin/master` (43 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
 - **Checkpoint:** application commit `21be79e` and handoff commit `f94edf9` are pushed to `origin/master`. **2026-10-21 correction:** the GitHub authentication blocker is resolved; Credential Manager had multiple accounts and a command-local account selector enabled the authorized HTTPS push without changing global settings. No user credential action remains pending.
 - **Recorded green application CI:** `f94edf9`, [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254), completed **success** for both web and contract jobs. It covers the wallet UI build, attempts/readback, both migrations and configured tests. Later local application increments are not covered by that run; inspect exact pushed-commit CI after an authorized push.
 - **2026-10-21 handoff correction:** earlier dated goal/validation paragraphs were archival and contained superseded uncommitted/pending claims. They are consolidated into the dated history in `PROGRESS.md`; this file is the current frontier.
 
-Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D68.
+Keep this file under about 250 lines. Source/config and exact pushed-commit CI override handwritten status. Never claim a check passed without its exit status. Historical implementation choices and negative controls live in PROGRESS and D21–D69.
 
 ## Current goal
 
@@ -90,6 +90,8 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Validation
 
+**Monitoring command D69, 2026-10-24:** lint, default and actual-chain `publication:smoke` exited 0; one control exits 1. Wallet-proof browser pass rerun after the shared wallet config: 10/10.
+
 **Mint wallet UI D68 part 2, 2026-10-24:** lint, typecheck, build, default and actual-chain `publication:smoke` exited 0; browser pass 13/13 (injected wallet forwarding to owned Anvil); no residue.
 
 **Mint routes D68 part 1, 2026-10-24:** lint, typecheck, build, `test:chain` (23), default and actual-chain `publication:smoke` exited 0; two controls exit 1. PostgreSQL on the alternate host port (PROGRESS D67).
@@ -147,7 +149,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Next steps
 
-1. **Agent, next local slices, in order:** the last gap in the guide's "External connection handoff": a monitoring runner command for a trusted scheduler (`runMintMonitorBatch` with `configuredMintReaderFor`), with a dry status output and alertable exit codes; then re-run the full gate set and update the handoff. Test each against owned Anvil and offline Kubo; commit each separately.
+1. **Agent, next local slices, in order:** re-run the full gate set on the current commit (all three handoff gaps are closed locally, D67-D69), then present the guide's "External connection handoff" list to the user as the request for accounts and choices (provider/region, publisher account and wallet, token recipient, hosted services). Test each against owned Anvil and offline Kubo; commit each separately.
 2. **Agent, optional local work that needs no user input:** a STARTTLS Mailpit Compose profile; a written proposal for the changed-outcome/lost-proof incident policy; scheduler/alert design without activation; a committed browser-acceptance script once Playwright is a pinned dev dependency.
 3. **Later user participation:** choose providers/regions and actual MFA publisher/public wallet; installed-extension acceptance, hosted infrastructure, actual IPFS compatibility/retention, Testnet deployment and hosted/device acceptance, counsel/pilot review. No seed/private key sharing. These choices do not block the next local slice.
 
@@ -160,4 +162,4 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Open questions
 
-PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D68 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.
+PROGRESS owns Q1–Q6: Q1 retention engineering default chosen, legal/pilot review pending; Q2 providers/regions open; Q3 designated role chosen, actual actor/wallet open; Q4 original plan tracking open; Q5 latest-version policy open; Q6 Node test runner settled. D21–D69 exist in DECISIONS. Older closures/CI failures and corrections remain in PROGRESS.

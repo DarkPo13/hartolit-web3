@@ -882,3 +882,8 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - Shared the D30 publisher wagmi configuration so ownership proof and mint use one in-memory injected session. The account and network are verified before the permission request because the permission is single-use; the returned request is compared with the saved intent before the wallet is asked.
 - The first browser run picked an older record pinned for the shared smoke wallet: the panel offered the mint and the server refused it (409, publisher changed). The overview now reports `walletChanged` and offers nothing; the smoke asserts it.
 - Validation: lint, typecheck, build, default and actual-chain `publication:smoke` exited 0; browser pass 13/13 on the new `mint` fixture; no residue.
+
+## 2026-10-24 - Scheduler monitoring command (D69)
+
+- Closed the third handoff gap. The command reuses the D42 batch and the D68 reader; the only new logic is the summary and exit codes. An early draft printed an error line and then the summary, so a reader taking the last line lost the error; it now prints exactly one JSON line.
+- Validation: lint, default and actual-chain `publication:smoke` exited 0; the attention-exit control exits 1. Earlier in this slice the wallet-proof browser pass was re-run after extracting the shared wallet configuration (10/10).

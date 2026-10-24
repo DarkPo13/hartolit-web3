@@ -41,6 +41,7 @@
     "publication:smoke:offline": "node scripts/smoke-publication-offline.mjs",
     "evidence:prune": "node scripts/prune-evidence.mjs",
     "retention:drafts": "node scripts/retention-drafts.mjs",
+    "publication:monitor": "node scripts/publication-monitor.mjs",
     "retention:smoke": "node scripts/smoke-retention.mjs",
     "backup:drill": "node scripts/backup-restore-drill.mjs",
     "auth:create-admin": "auth create-admin --config auth.cli.ts",

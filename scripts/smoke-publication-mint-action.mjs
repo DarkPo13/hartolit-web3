@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { localMintChain } from "./local-mint-chain.mjs";
 import { preparePinRecord, startFakeKubo } from "./smoke-publication-upload-action.mjs";
@@ -37,7 +38,19 @@ export async function smokePublicationMintAction({ api, db, fixture, confirm, ow
     const post = (path, body, user = publisher) => api(`${mint}/${path}`, { user, method: "POST", body });
     for (const [actor, status] of [[null, 401], [operator, 403]]) assert.equal((await api(mint, { user: actor })).status, status);
 
+    // The scheduler command (D69): JSON counts only; exit 2 without chain configuration.
+    const monitor = (args, env = {}) => {
+      const result = spawnSync(process.execPath, ["scripts/publication-monitor.mjs", ...args], { env: { ...process.env, ...env }, encoding: "utf8", windowsHide: true });
+      const output = JSON.parse(result.stdout.trim().split("\n").at(-1));
+      const attention = output.quarantined > 0 || output.pinUnknown > 0 || output.overdue > 0 || (output.batch?.statuses?.BLOCKED ?? 0) > 0 || (output.batch?.statuses?.UNAVAILABLE ?? 0) > 0;
+      return { status: result.status, output, attention };
+    };
+    const summary = monitor([]);
+    assert.equal(summary.output.mode, "summary"); assert.equal(typeof summary.output.attempts, "object"); assert.equal(summary.status, summary.attention ? 1 : 0);
+    assert.ok(!JSON.stringify(summary.output).includes(record.publicationId), "the monitor prints no identifiers");
     if (!chain) {
+      const unconfigured = monitor(["--run"]);
+      assert.equal(unconfigured.status, 2); assert.match(unconfigured.output.error, /not configured/);
       const state = await overview();
       assert.equal(state.configured, false); assert.equal(state.candidate, null); assert.equal(state.publication.status, "PINNED");
       assert.equal((await post("dispatch", { preparationId: randomUUID(), requestId: randomUUID(), expectedIntentSha256: "0".repeat(64), acknowledgement: "SEND_EXACT_MINT" })).status, 503);
@@ -97,6 +110,11 @@ export async function smokePublicationMintAction({ api, db, fixture, confirm, ow
     assert.equal(final.attempt.status, "FINALIZED"); assert.deepEqual(final.attempt.transactionHashes, [hash]);
     const issued = (await (await api(record.root, { user: publisher })).json()).reservations.find(row => row.id === record.publicationId).issued;
     assert.equal(issued.tokenId, published.tokenId, "the admin view shows the issued token");
+    const mintEnv = { HARTOLIT_MINT_RPC_URL: chain.url, HARTOLIT_MINT_CONTRACT_ADDRESS: chain.target.contractAddress, HARTOLIT_MINT_CONTRACT_CODE_HASH: chain.target.contractCodeHash,
+      HARTOLIT_MINT_RECIPIENT_WALLET: chain.target.recipientWallet, HARTOLIT_MINT_CONFIRMATIONS: String(chain.target.requiredConfirmations), HARTOLIT_PUBLISHER_WALLET: wallet };
+    const ran = monitor(["--run", "--limit", "5"], mintEnv);
+    assert.equal(ran.output.mode, "run"); assert.equal(typeof ran.output.batch.checked, "number"); assert.equal(ran.status, ran.attention ? 1 : 0);
+    assert.equal((await db.publication.findUniqueOrThrow({ where: { id: record.publicationId } })).status, "PUBLISHED", "monitoring never undoes a finalized record");
     process.stdout.write("Mint action passed: reviewed intent, designated-publisher preparation and single fixed-nonce permission, exact wallet request, hash report and depth-checked finalization on actual Anvil.\n");
   } finally {
     await chain?.stop();
