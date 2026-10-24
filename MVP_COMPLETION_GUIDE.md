@@ -170,10 +170,10 @@ The user has asked the agent to finish local implementation and testing before r
 **Read this first.** Local acceptance (checklist item 5) found that external accounts alone would not let a pilot issue a passport. Three local gaps come first; each can be built and tested against owned Anvil and the offline Kubo fixture without any account:
 
 1. **Upload action — implemented locally (D67).** After consent the designated MFA publisher sends the prepared snapshot from the app; readback resolves lost acknowledgements and late pins. Tested with a fictional loopback node and the real offline Kubo; a hosted Kubo-compatible RPC remains for acceptance.
-2. **Mint send — server routes implemented locally (D68); wallet UI next.** Configured server chain reader and target, review, preparation, single fixed-nonce permission, hash report and a depth-checked check route are tested on actual Anvil. The admin panel cannot yet drive the wallet send.
+2. **Mint send — implemented locally (D68).** Configured server chain reader and target, review, preparation, single fixed-nonce permission, the publisher's wallet sending the exact request, hash report and a depth-checked check, from the admin panel. Tested on actual Anvil and in a browser with an injected test wallet; an installed extension and real Testnet remain for acceptance.
 3. **Monitoring runner.** Bounded monitoring ticks (D42) have no command that a trusted scheduler could call, and no alerting.
 
-Ask for the accounts below only when the remaining two pass locally. Then each external item has a concrete hosted test.
+Ask for the accounts below only when the remaining monitoring runner passes locally. Then each external item has a concrete hosted test.
 
 | Need | Capability required | Configuration names (values never in Git) | Hosted acceptance to run |
 |---|---|---|---|

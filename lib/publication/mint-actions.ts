@@ -13,19 +13,21 @@ export async function mintOverview(passportId: string) {
   const publication = await getDb().publication.findFirst({
     where: { passportId, status: { in: ["PINNED", "CHAIN_PENDING", "CHAIN_SUSPENDED", "CHAIN_FAILED", "CHAIN_FAILED_SUSPENDED", "PUBLISHED"] } },
     orderBy: { createdAt: "desc" },
-    select: { id: true, status: true, canonicalJson: true, payloadHash: true, ipfsCid: true, confirmationId: true, passportVersion: true,
+    select: { id: true, status: true, publisherWallet: true, canonicalJson: true, payloadHash: true, ipfsCid: true, confirmationId: true, passportVersion: true,
       mintPreparation: { select: { id: true, requestId: true, intentJson: true, intentSha256: true, createdAt: true,
         attempt: { select: { id: true, status: true, nonce: true, deadlineAt: true, unknownAt: true, finalizedAt: true, quarantinedAt: true,
           transactions: { select: { transactionHash: true }, orderBy: { createdAt: "asc" } },
           observations: { select: { reportedHash: true, status: true }, orderBy: { revision: "desc" }, take: 1 } } } } } },
   });
-  if (!publication) return { configured, publication: null, candidate: null, preparation: null, attempt: null };
+  if (!publication) return { configured, walletChanged: false, publication: null, candidate: null, preparation: null, attempt: null };
+  // A reservation proved for another wallet can never be minted by the configured one.
+  const walletChanged = configured && publication.publisherWallet !== configuredMintTarget().publisherWallet;
   const describe = async (intentInput: unknown) => {
     const intent = await validateMintIntent(intentInput);
     return { intent, request: await mintTransactionRequest(intent) };
   };
   let candidate = null;
-  if (configured && publication.status === "PINNED" && !publication.mintPreparation && publication.ipfsCid) {
+  if (configured && !walletChanged && publication.status === "PINNED" && !publication.mintPreparation && publication.ipfsCid) {
     try {
       const intent = await createMintIntent(configuredMintTarget(), { canonicalJson: publication.canonicalJson, payloadHash: publication.payloadHash, ipfsCid: publication.ipfsCid });
       candidate = await describe(intent);
@@ -34,7 +36,7 @@ export async function mintOverview(passportId: string) {
   const saved = publication.mintPreparation;
   const attempt = saved?.attempt;
   return {
-    configured,
+    configured, walletChanged,
     publication: { id: publication.id, status: publication.status, confirmationId: publication.confirmationId,
       passportVersion: publication.passportVersion, payloadHash: publication.payloadHash },
     candidate,

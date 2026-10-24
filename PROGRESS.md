@@ -876,3 +876,9 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - The smoke uses a fresh wallet on its own Anvil because earlier stages leave closed-attempt history for the shared test wallet on other (stopped) chains; anchor verification would refuse a new permission, which is the intended D51 behavior.
 - Test fixes: the contract deployment consumes nonce 0, so the assertion compares with the chain's transaction count; an early loop moved `monitorNextAt` in the database when a check was `SKIPPED`, which would have hidden a real UX problem. It was removed and the test now requires the first check after the depth to finalize (it does). Discovery would find the send even without a report, so the smoke now asserts the reported hash is on record.
 - Validation: lint, typecheck, build, `test:chain` (23), default and actual-chain `publication:smoke` exited 0; two controls exit 1.
+
+## 2026-10-24 - Mint wallet UI (D68, part 2)
+
+- Shared the D30 publisher wagmi configuration so ownership proof and mint use one in-memory injected session. The account and network are verified before the permission request because the permission is single-use; the returned request is compared with the saved intent before the wallet is asked.
+- The first browser run picked an older record pinned for the shared smoke wallet: the panel offered the mint and the server refused it (409, publisher changed). The overview now reports `walletChanged` and offers nothing; the smoke asserts it.
+- Validation: lint, typecheck, build, default and actual-chain `publication:smoke` exited 0; browser pass 13/13 on the new `mint` fixture; no residue.

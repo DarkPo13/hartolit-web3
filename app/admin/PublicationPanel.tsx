@@ -15,6 +15,7 @@ function WalletLoading() {
 }
 
 const PublisherWallet = dynamic(() => import("./PublisherWallet").then(m => m.PublisherWallet), { ssr: false, loading: WalletLoading });
+const PublicationMint = dynamic(() => import("./PublicationMint").then(m => m.PublicationMint), { ssr: false, loading: WalletLoading });
 
 export function PublicationPanel({ passportId, confirmation, disabled }: {
   passportId: string; confirmation: PublicConfirmation; disabled: boolean;
@@ -104,6 +105,8 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
       {data.reservations.some(r => r.status === "PUBLISHED") && <PublicationCorrection base={base} canWrite={data.publisher.canProve} disabled={disabled || busy || loading} />}
       {publication && !issued && !suspended && <PublicationPreparation key={`${publication.id}:${confirmation.id}:${confirmation.preview.sha256}:${data.pinning.target?.configurationSha256}:${data.publisher.canProve}`} base={base}
         confirmation={confirmation} reservation={publication} data={data} disabled={disabled || busy || loading} reload={load} />}
+      {!issued && !suspended && data.reservations.some(r => r.status === "PINNED" || r.status === "CHAIN_PENDING") &&
+        <PublicationMint passportId={passportId} canWrite={data.publisher.canProve} disabled={disabled || busy || loading} onChanged={load} />}
     </>}
   </section>;
 }

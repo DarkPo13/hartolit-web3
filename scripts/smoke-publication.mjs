@@ -319,7 +319,7 @@ try {
   await smokePublicationUploadAction({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, operator, signingAccount,
     restart: async target => { await stopServer(); await startServer(publisherId, wallet, target); }, base });
   await smokePublicationMintAction({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, operator,
-    restart: async (target, extra = {}) => { await stopServer(); await startServer(publisherId, extra.wallet ?? wallet, target, extra.env); } });
+    restart: async (target, extra = {}) => { await stopServer(); await startServer(publisherId, extra.wallet ?? wallet, target, extra.env); }, base });
   process.stdout.write("Publication smoke passed: exact bytes, private EOA proof, bound upload target, explicit intent, single send, lost acknowledgement/readback, concurrency, recall, constraints and audit. No public side effects.\n");
 } finally {
   await stopServer();

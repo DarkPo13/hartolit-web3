@@ -3,13 +3,14 @@ import { randomUUID } from "node:crypto";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { localMintChain } from "./local-mint-chain.mjs";
 import { preparePinRecord, startFakeKubo } from "./smoke-publication-upload-action.mjs";
+import { browserCheckpoint, stopAfterBrowserStage } from "./publication-browser-checkpoint.mjs";
 
 /** D68: mint routes. Without mint configuration nothing is offered or authorized.
  * With an owned Anvil (PUBLICATION_LOCAL_CHAIN=1) a fresh publisher wallet prepares,
  * receives one fixed-nonce permission, sends the exact request as the browser wallet
  * would, reports the hash, and a monitoring check finalizes after the configured depth.
  */
-export async function smokePublicationMintAction({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, operator, restart }) {
+export async function smokePublicationMintAction({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, operator, restart, base }) {
   const token = `fictional-${randomUUID()}`;
   const kubo = await startFakeKubo(token);
   // A fresh wallet: earlier stages left history for the shared test wallet on other chains.
@@ -25,6 +26,13 @@ export async function smokePublicationMintAction({ api, db, fixture, confirm, ow
     const record = await preparePinRecord({ api, fixture, confirm, ownerId, publisherId, publisher, account });
     assert.equal((await api(`${record.root}/pin-attempts/upload`, { user: publisher, method: "POST", body: record.body })).status, 200);
     const mint = `${record.root}/mint`;
+    // Browser fixture: the helper acts as the fresh test wallet (signs and sends on the owned Anvil only).
+    if (chain && await browserCheckpoint("mint", { base, actors: { "/publisher": publisher }, label: record.id, handlers: {
+      "/wallet": async () => ({ address: wallet }),
+      "/send": async tx => ({ hash: await chain.send({ request: { from: wallet, chainId: 97, to: tx.to, data: tx.data, nonce: Number(BigInt(tx.nonce)), value: "0" } }) }),
+      "/rpc": async ({ method, params }) => ({ result: await chain.reader.request({ method, params }) }),
+      "/mine": async () => { await chain.reader.request({ method: "anvil_mine", params: [`0x${chain.target.requiredConfirmations.toString(16)}`] }); return { ok: true }; },
+    } })) stopAfterBrowserStage("mint");
     const overview = async (user = publisher) => { const response = await api(mint, { user }); assert.equal(response.status, 200); return (await response.json()).mint; };
     const post = (path, body, user = publisher) => api(`${mint}/${path}`, { user, method: "POST", body });
     for (const [actor, status] of [[null, 401], [operator, 403]]) assert.equal((await api(mint, { user: actor })).status, status);
@@ -43,6 +51,11 @@ export async function smokePublicationMintAction({ api, db, fixture, confirm, ow
     assert.equal(state.candidate.intent.contractAddress, chain.target.contractAddress);
     assert.equal(state.candidate.request.from, wallet); assert.equal(state.candidate.request.value, "0");
     assert.equal((await overview(other)).candidate.intent.sha256, state.candidate.intent.sha256, "other admins can review the same intent");
+    // An earlier record proved for another wallet is explained, never offered.
+    const stale = await db.publication.findFirst({ where: { status: "PINNED", publisherWallet: { not: wallet }, passport: { ownerId } }, select: { passportId: true } });
+    assert.ok(stale, "an earlier stage left a record pinned for the shared test wallet");
+    const staleState = (await (await api(`/api/admin/passports/${stale.passportId}/publication/mint`, { user: publisher })).json()).mint;
+    assert.equal(staleState.walletChanged, true); assert.equal(staleState.candidate, null, "no mint is offered for another wallet's reservation");
     const preparation = { publicationId: record.publicationId, requestId: randomUUID(), confirmationId: record.confirmationId, passportVersion: 4,
       expectedSha256: record.payloadHash, expectedIntentSha256: state.candidate.intent.sha256, acknowledgement: "PREPARE_EXACT_MINT" };
     assert.equal((await post("preparation", preparation, other)).status, 403, "only the designated publisher prepares");

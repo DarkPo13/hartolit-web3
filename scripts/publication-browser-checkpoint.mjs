@@ -1,19 +1,28 @@
 import { createServer } from "node:http";
 
 // Optional manual browser checkpoints, guarded by the caller's local DB fixture.
-// PUBLICATION_BROWSER_FIXTURE selects one stage: "1" (preparation), "withdrawal"
-// or "issued". Test account cookies stay in this process and Set-Cookie, never
-// in logs/files. `actors` maps a helper path such as "/publisher" to a session.
+// PUBLICATION_BROWSER_FIXTURE selects one stage: "1" (preparation), "upload",
+// "mint", "withdrawal" or "issued". Test account cookies stay in this process and Set-Cookie, never
+// in logs/files. `actors` maps a helper path such as "/publisher" to a session;
+// `handlers` maps a POST path to a test-only JSON action (for example a fixture wallet).
 export function browserStage(stage) {
   return process.env.PUBLICATION_BROWSER_FIXTURE === stage;
 }
 
-export async function browserCheckpoint(stage, { base, actors, label, links = {} }) {
+export async function browserCheckpoint(stage, { base, actors, label, links = {}, handlers = {} }) {
   if (!browserStage(stage)) return false;
   let finish;
   const done = new Promise(resolve => { finish = resolve; });
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     if (req.url === "/finish") { res.end("finished"); finish(); return; }
+    if (req.method === "POST" && handlers[req.url]) {
+      try {
+        const chunks = []; for await (const chunk of req) chunks.push(chunk);
+        const result = await handlers[req.url](JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
+        res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(result));
+      } catch (error) { res.writeHead(500, { "content-type": "application/json" }); res.end(JSON.stringify({ error: String(error?.message ?? error) })); }
+      return;
+    }
     if (links[req.url]) { res.writeHead(302, { Location: links[req.url], "Cache-Control": "no-store" }); res.end(); return; }
     const actor = actors[req.url];
     if (!actor) { res.writeHead(404); res.end(); return; }

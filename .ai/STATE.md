@@ -2,7 +2,7 @@
 
 - **Last updated:** 2026-10-24
 - **Branch:** `master`
-- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the mint server routes (D68 part 1) on top of `2a37d9b` (D67 upload action) and `a76eefb` (D66). `master` is ahead of the locally recorded `origin/master` (41 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
+- **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request. This checkpoint commits the mint wallet UI (D68 part 2) on top of `ef9ff95` (D68 routes) and `2a37d9b` (D67). `master` is ahead of the locally recorded `origin/master` (42 commits before this one); no fetch, push or new CI lookup was performed. Old CI does not cover these local commits.
 - **Checkpoint:** application commit `21be79e` and handoff commit `f94edf9` are pushed to `origin/master`. **2026-10-21 correction:** the GitHub authentication blocker is resolved; Credential Manager had multiple accounts and a command-local account selector enabled the authorized HTTPS push without changing global settings. No user credential action remains pending.
 - **Recorded green application CI:** `f94edf9`, [run 39645784254](https://github.com/DarkPo13/hartolit-web3/actions/runs/39645784254), completed **success** for both web and contract jobs. It covers the wallet UI build, attempts/readback, both migrations and configured tests. Later local application increments are not covered by that run; inspect exact pushed-commit CI after an authorized push.
 - **2026-10-21 handoff correction:** earlier dated goal/validation paragraphs were archival and contained superseded uncommitted/pending claims. They are consolidated into the dated history in `PROGRESS.md`; this file is the current frontier.
@@ -61,7 +61,7 @@ Keep this file under about 250 lines. Source/config and exact pushed-commit CI o
 
 ## Still absent / intentionally disabled
 
-No hosted uploader, dispatch UI/HTTP action/broadcaster, recurring scheduler/alerts, mempool discovery, hosted continuous reorg/replacement acceptance, original-preparation retry, genuine lost/remined-receipt resolution, recovery UI/checkpoint consolidation, or app-driven mint: mint runs only through internal services (the IPFS upload has an app action since D67), and the anonymous public page (D53–D55) verifies records issued that way. Private pin consent has UI/API, but mint permission/history have internal injected dependencies only. Fresh D40 finalization initially writes PUBLISHED; separately reviewed D43 restoration may restore that existing result; matched hashes, historical receipts and a private selected result alone grant no publication: `PINNED`, `CHAIN_PENDING`, UNKNOWN and historical VERIFIED remain unissued with no resend. Legacy demo readers/issuance stay closed in production (D1/D2/D27).
+No hosted uploader, dispatch UI/HTTP action/broadcaster, recurring scheduler/alerts, mempool discovery, hosted continuous reorg/replacement acceptance, original-preparation retry, genuine lost/remined-receipt resolution, recovery UI/checkpoint consolidation, an installed-extension or real-Testnet mint (the app drives upload since D67 and mint since D68, tested locally only), and the anonymous public page (D53–D55) verifies records issued that way. Private pin consent has UI/API, but mint permission/history have internal injected dependencies only. Fresh D40 finalization initially writes PUBLISHED; separately reviewed D43 restoration may restore that existing result; matched hashes, historical receipts and a private selected result alone grant no publication: `PINNED`, `CHAIN_PENDING`, UNKNOWN and historical VERIFIED remain unissued with no resend. Legacy demo readers/issuance stay closed in production (D1/D2/D27).
 
 Real provider/profile compatibility, remote identity/account attestation, pin retention/monitoring and an installed browser extension/device have not been accepted. The target fingerprint binds server configuration, not independently proven provider identity. The legacy Pinata JSON helper is unsuitable for this raw profile.
 
@@ -89,6 +89,8 @@ Real provider/profile compatibility, remote identity/account attestation, pin re
 No open row above is closed by this checkpoint. Public field scope is approved, but integrity does not prove agronomic correctness, legal recognition or entitlement to compensation. Readers/farmers need no wallet or account for the public QR verifier (D21/D29, D53).
 
 ## Validation
+
+**Mint wallet UI D68 part 2, 2026-10-24:** lint, typecheck, build, default and actual-chain `publication:smoke` exited 0; browser pass 13/13 (injected wallet forwarding to owned Anvil); no residue.
 
 **Mint routes D68 part 1, 2026-10-24:** lint, typecheck, build, `test:chain` (23), default and actual-chain `publication:smoke` exited 0; two controls exit 1. PostgreSQL on the alternate host port (PROGRESS D67).
 
@@ -145,7 +147,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Next steps
 
-1. **Agent, next local slices, in order:** the remaining gaps in the guide's "External connection handoff": (a) the admin wallet UI for the D68 mint routes (review, prepare, permission, wallet send of the exact request, report, check) with a browser pass using an injected provider that forwards to Anvil; (b) the monitoring runner command for a scheduler, reusing `configuredMintReaderFor`. Test each against owned Anvil and offline Kubo; commit each separately.
+1. **Agent, next local slices, in order:** the last gap in the guide's "External connection handoff": a monitoring runner command for a trusted scheduler (`runMintMonitorBatch` with `configuredMintReaderFor`), with a dry status output and alertable exit codes; then re-run the full gate set and update the handoff. Test each against owned Anvil and offline Kubo; commit each separately.
 2. **Agent, optional local work that needs no user input:** a STARTTLS Mailpit Compose profile; a written proposal for the changed-outcome/lost-proof incident policy; scheduler/alert design without activation; a committed browser-acceptance script once Playwright is a pinned dev dependency.
 3. **Later user participation:** choose providers/regions and actual MFA publisher/public wallet; installed-extension acceptance, hosted infrastructure, actual IPFS compatibility/retention, Testnet deployment and hosted/device acceptance, counsel/pilot review. No seed/private key sharing. These choices do not block the next local slice.
 

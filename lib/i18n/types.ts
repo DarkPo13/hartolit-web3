@@ -12,6 +12,9 @@ export interface Translations {
     accessDenied: string; saveUncertain: string; approvalChanged: string;
     issuedTitle: string; issuedHint: string; contract: string; transaction: string; openPublic: string; suspended: string;
   };
+  publicationMint: {
+    title: string; hint: string; loading: string; loadError: string; notConfigured: string; readOnly: string; contract: string; recipient: string; cid: string; depth: string; intentHash: string; reviewConsent: string; prepare: string; prepared: string; sendTitle: string; sendNotice: string; connect: string; connectedWallet: string; wrongWallet: string; wrongNetwork: string; switchNetwork: string; disconnect: string; sendConsent: string; send: string; waitingWallet: string; permissionUsed: string; walletError: string; changed: string; accessDenied: string; uncertain: string; attempt: string; nonce: string; transactions: string; checkResult: string; pending: string; checkedRecently: string; blocked: string; unavailable: string; statusDispatching: string; statusUnknown: string; statusFinalized: string; statusFailed: string; walletChanged: string;
+  };
   publicationPreparation: {
     title: string; hint: string; notConfigured: string; target: string; binding: string;
     profile: string; targetHash: string; payloadHash: string; changed: string; accessDenied: string;

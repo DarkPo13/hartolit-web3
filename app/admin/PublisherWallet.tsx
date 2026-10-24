@@ -2,23 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createConfig, http, WagmiProvider, useConfig, useConnect, useConnection, useConnectors, useDisconnect, useSignMessage, useSwitchChain } from "wagmi";
+import { WagmiProvider, useConfig, useConnect, useConnection, useConnectors, useDisconnect, useSignMessage, useSwitchChain } from "wagmi";
 import { getConnection } from "wagmi/actions";
-import { injected } from "wagmi/connectors";
-import { bscTestnet } from "wagmi/chains";
 import { Button } from "@/components/ui/Button";
 import { useLocale, useT } from "@/lib/i18n/context";
 import { walletChallengeResponseSchema, type WalletChallenge } from "@/lib/publication/schema";
 import type { PublicationReservation } from "@/lib/publication/types";
+import { publisherConfig, rejectedByWallet as rejected } from "./publisher-wallet-config";
 
 type Props = { base: string; reservation: PublicationReservation; walletAddress: string; certificateId: string; disabled: boolean; onVerified: (uncertain?: boolean) => Promise<void> };
-
-// One in-memory browser-wallet session for this lazily loaded admin module.
-// Do not recreate injected provider listeners when navigating between passports.
-const publisherConfig = createConfig({ chains: [bscTestnet], connectors: [injected()],
-  multiInjectedProviderDiscovery: false, storage: null, ssr: false,
-  transports: { [bscTestnet.id]: http(process.env.NEXT_PUBLIC_BSC_TESTNET_RPC) },
-});
 
 export function PublisherWallet(props: Props) {
   // This real ownership flow is independent of the Mainnet-capable legacy demo.
@@ -26,15 +18,6 @@ export function PublisherWallet(props: Props) {
   const [queryClient] = useState(() => new QueryClient());
   useEffect(() => () => { queryClient.clear(); }, [queryClient]);
   return <WagmiProvider config={publisherConfig} reconnectOnMount={false}><QueryClientProvider client={queryClient}><WalletControls {...props} /></QueryClientProvider></WagmiProvider>;
-}
-
-function rejected(error: unknown): boolean {
-  let current = error;
-  for (let depth = 0; depth < 6 && current && typeof current === "object"; depth++) {
-    if ("code" in current && current.code === 4001) return true;
-    current = "cause" in current ? current.cause : null;
-  }
-  return false;
 }
 
 function WalletControls({ base, reservation, walletAddress, certificateId, disabled, onVerified }: Props) {
