@@ -90,6 +90,8 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Validation
 
+**Full local gate run on `1953576`, 2026-10-24, Windows, Node 24.18.0, Anvil 1.8.6:** all 34 validators exited 0, including `npm audit --omit=dev --audit-level=high` (0 vulnerabilities), the backup drill and default/actual-chain/offline-Kubo publication smokes. PostgreSQL ran on an alternate host port (Windows reserved 55432) and production mail used a task-owned STARTTLS Mailpit, as in CI (PROGRESS). No residue. Not pushed, so no CI result.
+
 **Monitoring command D69, 2026-10-24:** lint, default and actual-chain `publication:smoke` exited 0; one control exits 1. Wallet-proof browser pass rerun after the shared wallet config: 10/10.
 
 **Mint wallet UI D68 part 2, 2026-10-24:** lint, typecheck, build, default and actual-chain `publication:smoke` exited 0; browser pass 13/13 (injected wallet forwarding to owned Anvil); no residue.
@@ -149,7 +151,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Next steps
 
-1. **Agent, next local slices, in order:** re-run the full gate set on the current commit (all three handoff gaps are closed locally, D67-D69), then present the guide's "External connection handoff" list to the user as the request for accounts and choices (provider/region, publisher account and wallet, token recipient, hosted services). Test each against owned Anvil and offline Kubo; commit each separately.
+1. **Agent, next local slices, in order:** the local implementation for the pilot path is complete and green (gate run above). The next step needs the user: the guide's "External connection handoff" list (provider/region, publisher MFA account and public Testnet wallet, token recipient, contract deployment, two RPCs, IPFS account with Kubo-compatible RPC, hosting, PostgreSQL, storage, scanner, SMTP, scheduler, counsel review). A push is also needed to get a CI result for the local commits ahead of `origin/master` (`git rev-list --count origin/master..HEAD`; 45 at this checkpoint). Test each against owned Anvil and offline Kubo; commit each separately.
 2. **Agent, optional local work that needs no user input:** a STARTTLS Mailpit Compose profile; a written proposal for the changed-outcome/lost-proof incident policy; scheduler/alert design without activation; a committed browser-acceptance script once Playwright is a pinned dev dependency.
 3. **Later user participation:** choose providers/regions and actual MFA publisher/public wallet; installed-extension acceptance, hosted infrastructure, actual IPFS compatibility/retention, Testnet deployment and hosted/device acceptance, counsel/pilot review. No seed/private key sharing. These choices do not block the next local slice.
 
