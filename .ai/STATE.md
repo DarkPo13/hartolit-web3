@@ -156,7 +156,7 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 ## Next steps
 
 1. **Agent, next local slices, in order:** the local implementation for the pilot path is complete and green (gate run above). The next step needs the user: the guide's "External connection handoff" list (provider/region, publisher MFA account and public Testnet wallet, token recipient, contract deployment, two RPCs, IPFS account with Kubo-compatible RPC, hosting, PostgreSQL, storage, scanner, SMTP, scheduler, counsel review). A push is also needed to get a CI result for the local commits ahead of `origin/master` (`git rev-list --count origin/master..HEAD`; 45 at this checkpoint). Test each against owned Anvil and offline Kubo; commit each separately.
-2. **Agent, optional local work that needs no user input:** a written proposal for the changed-outcome/lost-proof incident policy; scheduler/alert design without activation.
+2. **User decisions also pending locally:** the guide's "Proposal awaiting decision: mint incidents the app cannot resolve today" (accept, change or reject per class) and its "Scheduler and alerting design" (mechanism and on-call contact with the hosting choice). The agent builds the approved incident resolutions afterwards.
 3. **Later user participation:** choose providers/regions and actual MFA publisher/public wallet; installed-extension acceptance, hosted infrastructure, actual IPFS compatibility/retention, Testnet deployment and hosted/device acceptance, counsel/pilot review. No seed/private key sharing. These choices do not block the next local slice.
 
 ## Continuation brief — 2026-10-23

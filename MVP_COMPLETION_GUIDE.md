@@ -191,6 +191,48 @@ All three local gaps pass locally (D67-D69). The accounts below are now the next
 
 Not needed: WalletConnect (removed, D66). Not needed now: Pinata (`PINATA_JWT`, `PINATA_GATEWAY`) and Diia keys belong to legacy demo or deferred features; Mainnet is a separate decision (step 10).
 
+### Proposal awaiting decision: mint incidents the app cannot resolve today
+
+**Status:** proposal, not implemented. D50 lists five incident classes that stay quarantined with no in-app resolution. On BSC Testnet with normal finality they should be rare, but each one blocks the publisher wallet until resolved. The user (and, before real data, the pilot organization) decides; nothing below is built until then.
+
+**Principles proposed for every class**
+
+1. **The chain is the truth** (AGENTS override A). The database adapts to what the contract state shows at the configured depth. It never adapts the other way.
+2. **Two people, written reason.** The designated MFA publisher proposes a resolution and a second MFA admin approves it. Each step is a strict acknowledgement, journaled and audited like D43-D50.
+3. **Wait before closing anything negative.** A "gone" result is accepted only after a waiting period: proposed at least 24 hours *and* at least ten times the configured depth, with repeated fresh checks that all agree.
+4. **Never reuse a nonce or a preparation.** Nonce claims stay permanent. Any new send uses a new preparation and a higher nonce, through the normal D36/D37 flow.
+5. **Public effect is explained.** If a token identifier that people may have printed changes or disappears, the issuer-record note (D55) says so, and the operator is told to reissue printed certificates.
+
+| Class | What it means | Proposed resolution | Public effect |
+|---|---|---|---|
+| Lost proof | A finalized mint is no longer in the canonical chain and its transaction cannot be found | After the waiting period, close as **lost**: the publication becomes terminal-unissued, the quarantine clears after every other wallet anchor verifies, and the same confirmed snapshot may be published again with fresh consent (its CID stays pinned) | The old token does not exist; the public page already shows *not found*. Printed QR codes for it must be replaced |
+| Success became revert | A re-included transaction now reverted | Treat as lost: close as failed with the new REVERTED proof, then the same re-publication path | As above |
+| Revert became success | A transaction closed as failed is now a successful mint of the exact intent | **Adopt the success** after fresh full verification at depth (exact calldata, event, payload hash, token mapping, contract code). The contract's `DuplicatePayload` rule prevents a second token for the same facts | The certificate now exists; the page shows it as valid |
+| Different token ID | The same transaction was included again but received another token ID | Adopt the new token ID after verification; record both IDs in the journal | **Highest risk:** the old ID may now belong to another record. Mark the old ID in the issuer note and tell the operator to reissue every printed certificate |
+| Different transaction at the same nonce | Something other than the app used the publisher wallet's nonce | **No in-app resolution.** Treat as a possible wallet compromise: stop using the wallet, revoke its `MINTER_ROLE`, configure a new publisher wallet, then re-publish affected records | Depends on what that transaction did; investigate on the explorer |
+| Changed dispatch anchor while pending | A reorg removed the block the dispatch preflight relied on | After review, re-run bounded discovery from an earlier verified anchor (D41); never resend | None until something is found |
+
+**What would be built after approval:** one review/consent pair per class (like D43), reusing the shared recovery journal; for lost proof, a terminal state plus re-publication; for a changed token ID, an issuer-note kind. An incident without a matching class stays quarantined.
+
+### Scheduler and alerting design (not activated)
+
+**Status:** design only. Nothing in this repository schedules itself. The hosting choice (step 7) decides the mechanism (platform cron, a small worker, or a CI schedule with access to the database).
+
+| Job | Command | Proposed frequency | Alert when |
+|---|---|---|---|
+| Mint monitoring | `npm run publication:monitor -- --run` | every 2-5 minutes | exit 1 (quarantine, overdue or unknown result, `BLOCKED`/`UNAVAILABLE` tick) or exit 2 (configuration missing) |
+| Draft retention notices | `npm run retention:drafts -- --notify` | daily | exit 1 (an email failed) |
+| Draft retention deletion | `npm run retention:drafts -- --execute` | daily, after notices | exit 1 (a deletion was skipped) |
+| Evidence pruning | `npm run evidence:prune -- --execute` | daily | non-zero exit |
+| Deletion/hold journal export (D61) | to be built with hosted backups | at least as often as the backup recovery point | export missing or older than the backup |
+| Backups and restore drill | provider point-in-time recovery; the D61 drill against a staging copy | backups continuous; drill monthly | provider backup failure; drill not run in 35 days |
+
+**Every job:** runs with the same server configuration as the app, prints counts only (no private data), and has a **missed-run alert** (a heartbeat that fires if the job has not reported within twice its interval). A silent scheduler must not look like a healthy one.
+
+**Other alerts:** ClamAV unreachable or signatures older than 2 days; SMTP failures; publisher wallet balance below what ten mints need; RPC or gateway errors on the public page; credentials and certificates expiring within 30 days; any `CHAIN_SUSPENDED` publication.
+
+**Who receives alerts:** an on-call contact named before real data (step 10). Each alert links to a short runbook: what the exit code means, which admin panel or command shows details, and when to escalate to the incident policy above.
+
 ### Later, with the user: external acceptance
 
 Choose accounts/regions and providers; designate the actual MFA publisher/public wallet; accept the installed extension; validate actual IPFS upload/readback/retention and Testnet RPC/contract behavior; configure hosting/private storage/scanner/SMTP/monitoring; run hosted backup/restore and end-to-end acceptance. Obtain pilot/legal review before real data. No seed/private key is requested. Diia/KEP remains after the core app and infrastructure release. None of these choices blocks the next local slice.

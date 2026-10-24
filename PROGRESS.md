@@ -899,3 +899,8 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - The user asked for step 1 (push) and step 3 (optional local work). The push was refused by the session's permission classifier; it was not retried another way. It remains for the user.
 - Turned the temporary full-workflow pass (D65) into `scripts/browser-acceptance.mjs` with `playwright-core` 1.64.1 (exact pin, no dependencies, no bundled browser; uses installed Chrome) as a dev dependency. Removed debugging stages and machine paths; screenshots go to a temporary folder. The production audit stays at 0 vulnerabilities.
 - Validation: lint exited 0; `browser:acceptance` exited 0 with 42 checks; a type-valid control (US date format restored) exits 1 at exactly the date check after a rebuild (an earlier control that failed to compile proved nothing); no residue.
+
+## 2026-10-24 - Proposals: unresolvable mint incidents and scheduling
+
+- Wrote two decision documents into the completion guide (not implemented). The incident proposal covers the five D50 classes plus changed dispatch anchors, with "the chain is the truth", two-person review, a waiting period before any negative close, no nonce reuse and an explained public effect; it flags a changed token ID as the highest-risk class because the old ID may then point to another record. The scheduling design lists jobs, frequencies, alert conditions and missed-run heartbeats.
+- Checked against the code: `evidence:prune` uses `--execute`; the contract's `DuplicatePayload` error prevents a second token for the same payload.
