@@ -15,8 +15,9 @@ export function PublicationPreparation({ base, confirmation, reservation, data, 
   const [checked, setChecked] = useState(false);
   const [withdrawReason, setWithdrawReason] = useState("");
   const [withdrawChecked, setWithdrawChecked] = useState(false);
+  const [uploadChecked, setUploadChecked] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<"changed" | "accessDenied" | "uncertain" | null>(null);
+  const [error, setError] = useState<"changed" | "accessDenied" | "uncertain" | "uploadUncertain" | null>(null);
   const running = useRef(false), alive = useRef(true), requestId = useRef<string | null>(null);
   const target = data.pinning.target;
   const history = data.pinning.attempts.filter(row => row.publicationId === reservation.id);
@@ -31,7 +32,7 @@ export function PublicationPreparation({ base, confirmation, reservation, data, 
     alive.current = true;
     return () => { alive.current = false; };
   }, []);
-  useEffect(() => { setChecked(false); requestId.current = null; setError(null); }, [active?.id, active?.status]);
+  useEffect(() => { setChecked(false); setUploadChecked(false); requestId.current = null; setError(null); }, [active?.id, active?.status]);
 
   async function mutate(cancel = false) {
     if (disabled || running.current || !canPrepare || (cancel ? active?.status !== "PREPARED" : !checked || !!active || !target)) return;
@@ -81,6 +82,25 @@ export function PublicationPreparation({ base, confirmation, reservation, data, 
     } finally { running.current = false; if (alive.current) setBusy(false); }
   }
 
+  // D67: send the prepared snapshot once, or re-read an attempt whose result is not known yet.
+  async function send(readback = false) {
+    if (disabled || running.current || !active || !target || (readback ? !awaiting : !canPrepare || active.status !== "PREPARED" || !uploadChecked)) return;
+    running.current = true; setBusy(true); setError(null); setUploadChecked(false);
+    try {
+      const response = await fetch(`${base}/pin-attempts/${readback ? "readback" : "upload"}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(readback ? { publicationId: reservation.id, attemptId: active.id } : {
+          publicationId: reservation.id, attemptId: active.id, expectedTargetSha256: target.configurationSha256, acknowledgement: "UPLOAD_PREPARED_SNAPSHOT" }),
+      });
+      const result = await reload();
+      const status = result?.pinning.attempts.find(row => row.id === active.id)?.status;
+      if (alive.current && status !== "VERIFIED") {
+        setError(["401", "403"].includes(String(response.status)) ? "accessDenied" : response.status === 409 && status === "PREPARED" ? "changed" : "uploadUncertain");
+      }
+    } catch { if (alive.current) { await reload(); setError("uploadUncertain"); } }
+    finally { running.current = false; if (alive.current) setBusy(false); }
+  }
+
   const awaiting = active?.status === "DISPATCHING" || active?.status === "UNKNOWN";
   return <section aria-labelledby={heading} className="space-y-3 rounded-xl border border-border bg-surface p-4 text-sm">
     <h5 id={heading} className="font-semibold">{t.title}</h5>
@@ -96,8 +116,15 @@ export function PublicationPreparation({ base, confirmation, reservation, data, 
       </details></div>}
     {!matches && <p role="alert" className="text-danger">{t.changed}</p>}
     {active?.status === "PREPARED" && <><p role="status" className="font-medium">{t.prepared}</p>
-      <p>{t.noDispatch}</p>{canPrepare && <Button type="button" variant="outline" size="sm" onClick={() => void mutate(true)} disabled={disabled || busy}>{t.cancel}</Button>}</>}
+      <p>{data.pinning.dispatchEnabled ? t.noDispatchReady : t.noDispatch}</p>{canPrepare && <Button type="button" variant="outline" size="sm" onClick={() => void mutate(true)} disabled={disabled || busy}>{t.cancel}</Button>}
+      {canPrepare && data.pinning.dispatchEnabled && matches && <div className="space-y-3 rounded-lg border border-border p-3">
+        <p className="font-medium">{t.uploadTitle}</p><p>{t.uploadNotice}</p>
+        <label className="flex items-start gap-2"><input type="checkbox" className="mt-1 accent-brand-600" checked={uploadChecked}
+          disabled={disabled || busy} onChange={event => setUploadChecked(event.target.checked)} /><span>{t.uploadConsent}</span></label>
+        <Button type="button" onClick={() => void send()} disabled={!uploadChecked || disabled || busy}>{t.upload}</Button>
+      </div>}</>}
     {awaiting && <p role="status">{t.unknown}</p>}
+    {awaiting && data.pinning.dispatchEnabled && <Button type="button" variant="outline" size="sm" onClick={() => void send(true)} disabled={disabled || busy}>{t.checkAgain}</Button>}
     {active?.status === "VERIFIED" && <p role="status">{t.pinned}</p>}
     {active?.status === "VERIFIED" && reservation.status === "PINNED" && data.publisher.canProve && <details className="rounded-lg border border-border p-3">
       <summary className="cursor-pointer font-medium text-brand-700">{t.withdrawTitle}</summary>

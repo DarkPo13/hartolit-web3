@@ -861,3 +861,11 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - Continued after fad5d10 (STATE next step 1a). RainbowKit 2.2.11 still peers on wagmi ^2.9, so wagmi 3 meant removing it; it only served the legacy demo and shipped its stylesheet to every user. wagmi 3 renames the account hook/action and deprecates the `*Async` aliases in favour of `mutateAsync`; the publisher component keeps its local names by aliasing, so its D30 checks are untouched.
 - The account-change case confirmed the D30 behavior on wagmi 3: after a switch away and back, the prepared message is discarded and must be prepared again.
 - Validation: see STATE (full gate run on the new tree) and D66 (browser pass, audit 0).
+
+## 2026-10-24 - Upload action after consent (D67)
+
+- Continued after a76eefb (STATE next step 1, gap 1). `createLocalKuboProvider` recomputed its own target with a fixed fixture scope, so a configured target would never match the stored fingerprint; the protocol code moved to `kubo-raw.ts` and both the fixture and the configured provider use it unchanged (the refactor kept the exact read semantics; an early draft that treated RPC 500 as "not pinned" was reverted because offline scenarios depend on the current behavior).
+- Chose the target's own Kubo RPC for readback instead of the D32 Pinning Service API reader: the target kind is Kubo RPC, the fixture already reads that way, and the recorded proof is the hash-checked gateway bytes either way.
+- A test bug repeated an earlier mistake: passing `undefined` as the anonymous user hit the publisher default parameter, so the "401" call actually uploaded. Anonymous calls now pass `null`.
+- Environment: after a reboot Windows reserved 55334-55433, which includes the Compose PostgreSQL host port 55432. Without admin rights the run used a scratch Compose override on host port 55632 with `DATABASE_URL` overridden in the shell only; `.env.local` and `compose.yaml` were not changed. Restarting `winnat` (admin) or a configurable host port would fix it.
+- Validation: lint, typecheck, build, `test:upload`, default, actual-chain and offline-Kubo `publication:smoke` exited 0; three controls exit 1; browser pass 10/10; no database or Kubo residue.

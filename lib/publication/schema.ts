@@ -20,6 +20,9 @@ export const publicationPreparationSchema = z.strictObject({
   acknowledgement: z.literal("PUBLISH_CONFIRMED_SNAPSHOT"),
 });
 export const publicationCancellationSchema = z.strictObject({ publicationId: z.uuid(), attemptId: z.uuid() });
+export const publicationUploadSchema = z.strictObject({ publicationId: z.uuid(), attemptId: z.uuid(),
+  expectedTargetSha256: z.string().regex(/^[0-9a-f]{64}$/), acknowledgement: z.literal("UPLOAD_PREPARED_SNAPSHOT") });
+export const publicationReadbackSchema = z.strictObject({ publicationId: z.uuid(), attemptId: z.uuid() });
 export const publicationCorrectionSchema = z.strictObject({ publicationId: z.uuid(),
   expectedSha256: z.string().regex(/^[0-9a-f]{64}$/), reason: z.string().trim().min(3).max(500), acknowledgement: z.literal("OPEN_PUBLICATION_CORRECTION") });
 export const publicationWithdrawalSchema = z.strictObject({ publicationId: z.uuid(), expectedSha256: z.string().regex(/^[0-9a-f]{64}$/),

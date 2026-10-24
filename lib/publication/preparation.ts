@@ -3,6 +3,7 @@ import "server-only";
 import { getDb } from "@/lib/db";
 import { WorkflowError } from "@/lib/review/service";
 import { createPublicationTarget, RAW_PIN_PROFILE } from "./target";
+import { pinUploadConfigured } from "./provider";
 
 /** Description only. No upload factory, RPC, gateway read or dispatch is invoked here. */
 export async function preparationTarget() {
@@ -34,7 +35,7 @@ export async function publicationPreparationOverview(passportId: string) {
     },
   });
   return {
-    target, dispatchEnabled: false as const,
+    target, dispatchEnabled: await pinUploadConfigured(),
     attempts: rows.map(({ publication, ...row }) => ({ ...row, ...publication,
       createdAt: row.createdAt.toISOString(), dispatchedAt: row.dispatchedAt?.toISOString() ?? null,
       closedAt: row.closedAt?.toISOString() ?? null, verifiedAt: row.verifiedAt?.toISOString() ?? null,

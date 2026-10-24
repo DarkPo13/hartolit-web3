@@ -13,8 +13,8 @@ export type PublicationPinProvider = Readonly<{
   read: PinReader;
 }>;
 
-/** Trusted internal driver. No HTTP/Action/worker or configured production uploader calls it.
- * Injected providers must come from server construction, never request JSON.
+/** Trusted driver. The upload route (D67) calls it with `configuredPinProvider`; smokes inject
+ * fixtures. Providers must come from server construction, never request JSON.
  * A committed dispatch command is consumed once, including when its response is lost.
  */
 export async function executePinUpload(adminId: string, passportId: string, publicationId: string, attemptId: string, provider: PublicationPinProvider) {

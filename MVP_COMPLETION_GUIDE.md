@@ -169,11 +169,11 @@ The user has asked the agent to finish local implementation and testing before r
 
 **Read this first.** Local acceptance (checklist item 5) found that external accounts alone would not let a pilot issue a passport. Three local gaps come first; each can be built and tested against owned Anvil and the offline Kubo fixture without any account:
 
-1. **Upload action.** After saved consent, the designated MFA publisher cannot yet start the pin upload from the app; `executePinUpload` runs only inside smokes.
+1. **Upload action — implemented locally (D67).** After consent the designated MFA publisher sends the prepared snapshot from the app; readback resolves lost acknowledgements and late pins. Tested with a fictional loopback node and the real offline Kubo; a hosted Kubo-compatible RPC remains for acceptance.
 2. **Mint send.** The prepared exact transaction cannot yet be signed in the publisher's browser wallet and handed to the server. The server-side chain reader for observation/finalization is injected in tests and has no configuration name.
 3. **Monitoring runner.** Bounded monitoring ticks (D42) have no command that a trusted scheduler could call, and no alerting.
 
-Ask for the accounts below only when those three pass locally. Then each external item has a concrete hosted test.
+Ask for the accounts below only when the remaining two pass locally. Then each external item has a concrete hosted test.
 
 | Need | Capability required | Configuration names (values never in Git) | Hosted acceptance to run |
 |---|---|---|---|
@@ -185,7 +185,7 @@ Ask for the accounts below only when those three pass locally. Then each externa
 | Designated publisher | One real MFA admin account and one public BSC Testnet EOA address in an installed browser extension. **No seed phrase or private key is shared.** | `HARTOLIT_PUBLISHER_USER_ID`, `HARTOLIT_PUBLISHER_WALLET` | Wallet ownership proof in the real extension; the mint send from gap 2 |
 | Contract on BSC Testnet | Deploy `HartolitFieldPassport` from a separate deployment shell; grant `MINTER_ROLE` to the publisher wallet; verify on the explorer | Deployment shell only: `ADMIN_PRIVATE_KEY`, `BSCSCAN_API_KEY` (never on the web host, D3). App: `NEXT_PUBLIC_CHAIN_ID=97`, `HARTOLIT_VERIFY_CONTRACT_ADDRESS`, `HARTOLIT_VERIFY_CONTRACT_CODE_HASH` | `contracts:test`, the ABI check, then one fictional mint end to end |
 | Chain reads | Two independent BSC Testnet HTTPS RPC providers: one for the publication services, one for the public verifier | `HARTOLIT_VERIFY_RPC_URL`, `HARTOLIT_VERIFY_CONFIRMATIONS`; the publication reader name is defined by gap 2 | `verifier:smoke`-equivalent checks against the hosted page; outage shows UNAVAILABLE, then recovers |
-| IPFS pinning and gateways | A pinning account that accepts Kubo-compatible raw block puts (CIDv1, sha2-256, at most 64 KiB) and offers the standard Pinning Service API for readback; a raw-block gateway; an **independent** trustless gateway for the verifier | `HARTOLIT_PUBLICATION_TARGET_KEY`, `HARTOLIT_PUBLICATION_TARGET_SCOPE`, `HARTOLIT_PUBLICATION_API_ORIGIN`, `HARTOLIT_PUBLICATION_GATEWAY_ORIGIN`, `HARTOLIT_IPFS_PINNING_API_URL`, `HARTOLIT_IPFS_PINNING_TOKEN`, `HARTOLIT_IPFS_GATEWAY_URL`, `HARTOLIT_VERIFY_GATEWAY_URL` | One fictional pin: lost-acknowledgement readback, retention after 30 days, the verifier fetching through the second gateway |
+| IPFS pinning and gateways | A pinning account with a Kubo-compatible RPC (`block/put` raw CIDv1 sha2-256 up to 64 KiB, `pin/ls`) behind a bearer token, and a raw-block gateway; an **independent** trustless gateway for the verifier | `HARTOLIT_PUBLICATION_TARGET_KEY`, `HARTOLIT_PUBLICATION_TARGET_SCOPE`, `HARTOLIT_PUBLICATION_API_ORIGIN`, `HARTOLIT_PUBLICATION_GATEWAY_ORIGIN`, `HARTOLIT_PUBLICATION_API_TOKEN` (D67), `HARTOLIT_VERIFY_GATEWAY_URL` | One fictional pin: lost-acknowledgement readback, retention after 30 days, the verifier fetching through the second gateway |
 | Scheduler and monitoring | A trusted scheduled job (every few minutes) for the runner from gap 3 and for `retention:drafts`/`evidence:prune`; error monitoring and alerts for failed jobs, backup, scanner, SMTP and expiring credentials | Defined with gap 3 | Missed run alerts; a forced failure reaches the on-call contact |
 | People and review | Counsel/pilot review of D25, D58, D59, D60 defaults; pilot organization contact; incident contacts | none | Written sign-off before real data (Q1, S6) |
 

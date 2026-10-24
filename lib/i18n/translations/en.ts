@@ -51,6 +51,13 @@ export const en: Translations = {
     withdrawReason: "Private reason (staff only)",
     withdrawConsent: "I understand this permanently stops publication of this exact document and does not remove it from IPFS.",
     withdraw: "Withdraw publication",
+    noDispatchReady: "Nothing has been sent yet.",
+    uploadTitle: "Send to IPFS",
+    uploadNotice: "This sends exactly these public facts to the configured IPFS storage. Once sent, the bytes may become public permanently, and sending again is blocked. This step does not issue a certificate on chain.",
+    uploadConsent: "I understand that sending is final, and I am sending exactly this approved record.",
+    upload: "Send to IPFS",
+    uploadUncertain: "The upload result is not confirmed yet. Nothing is sent again; check the result later.",
+    checkAgain: "Check result",
   },
   feedback: {
     responsibility: "Responsible farming",
