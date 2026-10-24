@@ -39,7 +39,7 @@ export function ResetPasswordForm({ token, invalid }: { token?: string; invalid:
   return (
     <main className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-10">
       <Card className="w-full max-w-md">
-        <CardHeader><CardTitle>{t.account.resetTitle}</CardTitle></CardHeader>
+        <CardHeader><CardTitle as="h1">{t.account.resetTitle}</CardTitle></CardHeader>
         <CardContent>
           {success ? <p role="status" className="text-sm text-ink">{t.account.resetSuccess}</p> : !token || invalid ? (
             <p role="alert" className="text-sm text-danger">{t.account.resetInvalid}</p>

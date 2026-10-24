@@ -686,6 +686,8 @@ export const uk: Translations = {
     title: "Паспорт не знайдено",
     desc: "Токен з таким ID не існує у контракті Hartolit Field Passport.",
     home: "На головну →",
+    pageTitle: "Сторінку не знайдено",
+    pageDesc: "Такої адреси не існує. Перевірте посилання або перейдіть на головну.",
   },
   crops: {
     wheat: "Пшениця",

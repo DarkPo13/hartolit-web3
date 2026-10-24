@@ -282,6 +282,7 @@ try {
   await op.getByRole("region", { name: en.review.myPassports }).getByText(en.review.approved).first().waitFor({ timeout: 10_000 });
   note(true, "operator view switches to English");
   note(await op.getByRole("button", { name: "EN" }).getAttribute("aria-pressed") === "true" && await op.getByRole("button", { name: "UK" }).getAttribute("aria-pressed") === "false", "language toggle exposes the active language");
+  note(await op.evaluate(() => document.documentElement.lang) === "en", "the page language follows the toggle (screen readers)");
   note((await op.getByRole("region", { name: en.review.myPassports }).innerText()).includes(en.crops.sunflower), "operator list shows the English crop");
   note(await overflow(op) <= 0, "operator EN: no overflow at 390px");
   await op.screenshot({ path: path.join(out, "operator-approved-en.png"), fullPage: true });

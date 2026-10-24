@@ -28,11 +28,12 @@ export const CardHeader = React.forwardRef<
 ));
 CardHeader.displayName = "CardHeader";
 
+// Standalone pages pass as="h1" so the page has a top-level heading.
 export const CardTitle = React.forwardRef<
   HTMLHeadingElement,
-  React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  <h3
+  React.HTMLAttributes<HTMLHeadingElement> & { as?: "h1" | "h2" | "h3" }
+>(({ className, as: Heading = "h3", ...props }, ref) => (
+  <Heading
     ref={ref}
     className={cn("text-lg font-semibold leading-tight tracking-tight text-ink", className)}
     {...props}
@@ -116,7 +117,7 @@ export function BlockCard({
           <div
             className={cn(
               "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg transition-colors",
-              done || open ? "bg-brand-600 shadow-soft" : "bg-surface-2 border border-border",
+              done || open ? "bg-brand-700 shadow-soft" : "bg-surface-2 border border-border",
             )}
           >
             {done && !open ? (
@@ -174,7 +175,7 @@ export function BlockCard({
   return (
     <Card className={cn("overflow-hidden", className)} {...props}>
       <div className="flex items-center gap-4 border-b border-border bg-surface-2/40 px-6 py-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600 font-mono text-sm font-bold text-white shadow-soft">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-700 font-mono text-sm font-bold text-white shadow-soft">
           {number}
         </div>
         <div className="flex-1 min-w-0">

@@ -522,6 +522,8 @@ export interface Translations {
     title: string;
     desc: string;
     home: string;
+    pageTitle: string;
+    pageDesc: string;
   };
   crops: {
     wheat: string;

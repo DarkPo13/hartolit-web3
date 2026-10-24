@@ -456,7 +456,7 @@ MAILPIT_API_URL=http://127.0.0.1:8026 npm run auth:smoke
 
 The inbox is at `http://127.0.0.1:8026`. Browser uploads need the app on port 3000, the origin the local evidence CORS allows.
 
-With that profile, SeaweedFS, ClamAV and a production build, `npm run browser:acceptance` drives the whole fictional operator/admin workflow in headless Chrome (42 checks, local only). Set `BROWSER_EXECUTABLE` to use another Chromium-based browser.
+With that profile, SeaweedFS, ClamAV and a production build, `npm run browser:acceptance` drives the whole fictional operator/admin workflow in headless Chrome (43 checks, local only; it also passes in Edge with `BROWSER_CHANNEL=msedge`). Set `BROWSER_EXECUTABLE` to use another Chromium-based browser.
 
 **PostgreSQL port.** Windows can reserve a dynamic port range that includes 55432 (`netsh interface ipv4 show excludedportrange protocol=tcp`). Set `HARTOLIT_POSTGRES_PORT` in `.env.db.local` (Compose reads it), use the same port in `DATABASE_URL` in `.env.local`, and recreate the container; `npm run db:setup` uses it for a new `DATABASE_URL`.
 

@@ -38,7 +38,7 @@ export function TwoFactorForm() {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-10">
       <Card className="w-full max-w-md">
-        <CardHeader><CardTitle>{t.account.twoFactorTitle}</CardTitle><CardDescription>{t.account.twoFactorDescription}</CardDescription></CardHeader>
+        <CardHeader><CardTitle as="h1">{t.account.twoFactorTitle}</CardTitle><CardDescription>{t.account.twoFactorDescription}</CardDescription></CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
             <Input label={t.account.code} value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoFocus disabled={pending} />

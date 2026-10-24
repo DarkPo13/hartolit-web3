@@ -244,7 +244,7 @@ export function DraftWorkspace() {
                 {drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.correctsTokenId ? `${t.drafts.correctionOf} #${draft.correctsTokenId} · ` : ""}{draft.farmerName || t.drafts.untitled} · {new Date(draft.updatedAt).toLocaleDateString(locale === "uk" ? "uk-UA" : "en-US")}</option>)}
               </select>
             </label>}
-            <button type="button" onClick={() => void create()} disabled={busy || dirty || legacyCache || status === "saving" || status === "error" || status === "conflict"} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">{t.drafts.newDraft}</button>
+            <button type="button" onClick={() => void create()} disabled={busy || dirty || legacyCache || status === "saving" || status === "error" || status === "conflict"} className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50">{t.drafts.newDraft}</button>
           </div>
         )}
         {!loadError && !drafts.length && !legacyCache && status !== "loading" && <p className="mt-4 text-sm text-ink-muted">{t.drafts.empty}</p>}
@@ -262,7 +262,7 @@ export function DraftWorkspace() {
         {selectedId && reviewNote && <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-ink" role="status">{t.review.previousNote}: {reviewNote}</p>}
         {selectedId && !loadError && <div className="mt-4 border-t border-border pt-4">
           <p className="text-sm text-ink-muted">{t.review.submitHint}</p>
-          <button type="button" onClick={() => void submit()} disabled={busy || dirty || status !== "saved"} className="mt-3 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">{busy ? t.review.submitting : t.review.submit}</button>
+          <button type="button" onClick={() => void submit()} disabled={busy || dirty || status !== "saved"} className="mt-3 rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50">{busy ? t.review.submitting : t.review.submit}</button>
           {submitIssues.length > 0 && <div role="alert" className="mt-3 text-sm text-danger"><p>{t.review.missingIntro}</p><ul className="mt-1 list-disc pl-5">{submitIssues.map((issue) => <li key={issue}>{t.review.required[issue as keyof typeof t.review.required] ?? issue}</li>)}</ul></div>}
           {submitError && <p role="alert" className="mt-3 text-sm text-danger">{t.review.actionError}</p>}
         </div>}

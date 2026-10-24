@@ -90,6 +90,8 @@ No open row above is closed by this checkpoint. Public field scope is approved, 
 
 ## Validation
 
+**Full testing pass before external connections, 2026-10-25:** all CI validators plus backup drill, offline-Kubo smoke, monitor and `browser:acceptance` in Chrome and Edge exited 0 (four first failed only because the task started SeaweedFS without its credentials file and Kubo under the wrong profile; rerun green). An exploratory HTTP probe (132 checks: anonymous/other-operator/MFA-pending access to every API route, Origin checks, invite-only sign-up, reset enumeration and foreign redirects, password/TOTP rate limits, sign-out revocation, malformed input, legacy routes, headers) found no defect; CSP and HSTS are absent (hosting decision). An axe-core WCAG 2.2 AA pass over anonymous, operator and admin pages (UK/EN, 1280/390) found contrast, page-language, missing-h1 and 404-landmark defects, fixed in this checkpoint: 0 violations afterwards, visible focus on every keyboard stop. `browser:acceptance` exited 0 with 43 checks; removing the language fix exits 1 at the new check.
+
 **Browser acceptance script, 2026-10-24:** `npm run browser:acceptance` exited 0 (42 checks); a type-valid control exits 1 at the date check; lint exited 0; no residue. Push refused by the session permission classifier; not pushed.
 
 **Local environment, 2026-10-24:** `mail-tls` profile plus `mail:tls-ca`: `auth:smoke` against a production app exited 0 with the CA and 1 without; `HARTOLIT_POSTGRES_PORT` verified with `docker compose config` and a real start. lint exited 0.

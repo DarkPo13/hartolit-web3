@@ -42,8 +42,8 @@ export function StepsNav() {
                 <span
                   className={cn(
                     "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full font-mono text-sm font-bold transition-colors",
-                    isActive && "bg-brand-600 text-white shadow-soft",
-                    isDone && "bg-brand-600 text-white",
+                    isActive && "bg-brand-700 text-white shadow-soft",
+                    isDone && "bg-brand-700 text-white",
                     isFuture && "bg-surface-2 text-ink-subtle border border-border",
                   )}
                 >

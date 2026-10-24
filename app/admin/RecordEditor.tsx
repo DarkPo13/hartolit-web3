@@ -69,7 +69,7 @@ export function RecordEditor({ kind, id, onClose, onChanged, onOpenPassport }: {
       {record.duplicateCount > 0 && <p role="status" className="mt-3 rounded-lg border border-amber-300 p-3 text-sm">{m.duplicate} {record.duplicateCount}</p>}
       {!editable && <p className="mt-3 text-sm text-ink-muted">{record.archivedAt ? m.archivedLocked : m.locked}</p>}
       <form onSubmit={save} className="mt-4 space-y-3"><fieldset disabled={!editable || busy} className="grid gap-3 sm:grid-cols-2">{fields.map(([key, label, max, type]) => <label key={key} className="block text-sm">{label}<input type={type} value={data[key] ?? ""} maxLength={type === "number" ? undefined : max} min={type === "number" ? 0 : undefined} max={type === "number" ? 99999999.9999 : undefined} step={type === "number" ? "0.0001" : undefined} onChange={(event) => setData((old) => ({ ...old, [key]: type === "number" ? (event.target.value === "" ? null : Number(event.target.value)) : event.target.value }))} className="mt-1 block w-full rounded-lg border border-border bg-surface px-3 py-2" /></label>)}</fieldset>
-        {editable && <button type="submit" disabled={busy} className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white disabled:opacity-50">{m.save}</button>}
+        {editable && <button type="submit" disabled={busy} className="rounded-lg bg-brand-700 px-4 py-2 text-sm text-white disabled:opacity-50">{m.save}</button>}
       </form>
       {canArchive && <button type="button" onClick={archive} disabled={busy} className="mt-3 rounded-lg border border-border px-4 py-2 text-sm disabled:opacity-50">{record.archivedAt ? m.restore : m.archive}</button>}
       <h4 className="mt-5 text-sm font-semibold">{m.linkedPassports}</h4>

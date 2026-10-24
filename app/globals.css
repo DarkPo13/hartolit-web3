@@ -28,7 +28,7 @@
   --color-border: #e7e5e4;
   --color-ink: #0a0a09;
   --color-ink-muted: #57534e;
-  --color-ink-subtle: #a8a29e;
+  --color-ink-subtle: #736c67; /* 4.7:1 on surface-2, 5.2:1 on white (WCAG AA text) */
 
   /* Status */
   --color-success: #16a34a;

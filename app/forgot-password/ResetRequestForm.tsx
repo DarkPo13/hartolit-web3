@@ -37,7 +37,7 @@ export function ResetRequestForm({ available }: { available: boolean }) {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-10">
       <Card className="w-full max-w-md">
-        <CardHeader><CardTitle>{t.account.resetRequestTitle}</CardTitle><CardDescription>{t.account.resetRequestDescription}</CardDescription></CardHeader>
+        <CardHeader><CardTitle as="h1">{t.account.resetRequestTitle}</CardTitle><CardDescription>{t.account.resetRequestDescription}</CardDescription></CardHeader>
         <CardContent>
           {!available ? <p role="status" className="text-sm text-ink-muted">{t.account.resetUnavailable}</p> : sent ? (
             <p role="status" className="text-sm text-ink">{t.account.resetRequestSuccess}</p>

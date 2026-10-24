@@ -72,7 +72,7 @@ export function SecurityForm({ enabled, isAdmin }: { enabled: boolean; isAdmin: 
     <main className="mx-auto max-w-lg px-4 py-10">
       <Card>
         <CardHeader>
-          <CardTitle>{t.account.securityTitle}</CardTitle>
+          <CardTitle as="h1">{t.account.securityTitle}</CardTitle>
           <CardDescription>{t.account.securityDescription}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">

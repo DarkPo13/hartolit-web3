@@ -120,7 +120,7 @@ export function EvidencePanel({ draftId }: { draftId: string }) {
       <label className="min-w-48 flex-1 text-sm text-ink">{t.chooseFile}
         <input ref={input} type="file" accept=".pdf,.png,.jpg,.jpeg,.json,.csv,.txt,.xml" onChange={(event) => setSelected(event.target.files?.[0] ?? null)} disabled={busy} className="mt-1 block w-full text-sm file:mr-3 file:rounded-lg file:border file:border-border file:bg-surface file:px-3 file:py-2" />
       </label>
-      <button type="button" onClick={() => void upload()} disabled={!selected || busy} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">{busy ? t.uploading : t.upload}</button>
+      <button type="button" onClick={() => void upload()} disabled={!selected || busy} className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white hover:bg-brand-800 disabled:opacity-50">{busy ? t.uploading : t.upload}</button>
     </div>
     <p className="mt-2 text-xs text-ink-muted">{t.fileLimit}</p>
     {error && <div role="alert" className="mt-3 text-sm text-danger">{error} <button type="button" onClick={() => void load()} className="font-medium underline">{t.retry}</button></div>}

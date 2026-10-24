@@ -56,12 +56,12 @@ export function LoginForm() {
           </div>
           <div className="flex gap-1 text-xs">
             {(["uk", "en"] as Locale[]).map((item) => (
-              <button key={item} type="button" onClick={() => setLocale(item)} aria-pressed={locale === item} className={locale === item ? "rounded bg-brand-600 px-2 py-1 text-white" : "rounded px-2 py-1 text-ink-muted"}>{item.toUpperCase()}</button>
+              <button key={item} type="button" onClick={() => setLocale(item)} aria-pressed={locale === item} className={locale === item ? "rounded bg-brand-700 px-2 py-1 text-white" : "rounded px-2 py-1 text-ink-muted"}>{item.toUpperCase()}</button>
             ))}
           </div>
         </div>
         <CardHeader>
-          <CardTitle>{t.account.loginTitle}</CardTitle>
+          <CardTitle as="h1">{t.account.loginTitle}</CardTitle>
           <CardDescription>{t.account.loginDescription}</CardDescription>
         </CardHeader>
         <CardContent>

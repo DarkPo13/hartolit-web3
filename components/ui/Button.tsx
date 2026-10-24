@@ -12,7 +12,7 @@ const buttonStyles = cva(
     variants: {
       variant: {
         primary:
-          "bg-brand-600 text-white shadow-soft hover:bg-brand-700 active:bg-brand-800 hover:shadow-lifted",
+          "bg-brand-700 text-white shadow-soft hover:bg-brand-800 active:bg-brand-900 hover:shadow-lifted",
         secondary:
           "bg-surface text-ink border border-border hover:bg-surface-2 hover:border-ink-subtle",
         outline:

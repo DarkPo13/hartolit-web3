@@ -160,7 +160,7 @@ function LocaleToggle() {
           className={cn(
             "rounded-md px-2.5 py-1 transition-colors",
             locale === l
-              ? "bg-brand-600 text-white shadow-soft"
+              ? "bg-brand-700 text-white shadow-soft"
               : "text-ink-muted hover:text-ink",
           )}
         >

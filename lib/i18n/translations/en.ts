@@ -686,6 +686,8 @@ export const en: Translations = {
     title: "Passport not found",
     desc: "A token with this ID does not exist in the Hartolit Field Passport contract.",
     home: "Home →",
+    pageTitle: "Page not found",
+    pageDesc: "This address does not exist. Check the link or go to the home page.",
   },
   crops: {
     wheat: "Wheat",
