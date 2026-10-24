@@ -17,6 +17,7 @@ import { smokePinPreparation, smokePinDispatch, smokePinRecallRace } from "./smo
 import { smokePinUploads } from "./smoke-publication-upload.mjs";
 import { smokePublicationPreparation } from "./smoke-publication-preparation.mjs";
 import { smokePublicationUploadAction } from "./smoke-publication-upload-action.mjs";
+import { smokePublicationMintAction } from "./smoke-publication-mint-action.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 const database = new URL(process.env.DATABASE_URL);
@@ -68,7 +69,7 @@ async function stopServer() {
   const exited = once(server, "exit"); server.kill(); await exited;
 }
 
-async function startServer(publisherId = "", configuredWallet = "", target = {}) {
+async function startServer(publisherId = "", configuredWallet = "", target = {}, extraEnv = {}) {
   // Use the same literal loopback for listener and requests. localhost can resolve
   // to an unrelated IPv6 app even while our child owns the IPv4 port on Windows.
   const probe = net.createServer();
@@ -79,7 +80,7 @@ async function startServer(publisherId = "", configuredWallet = "", target = {})
       HARTOLIT_PUBLISHER_USER_ID: publisherId, HARTOLIT_PUBLISHER_WALLET: configuredWallet,
       HARTOLIT_PUBLICATION_TARGET_KEY: target.key ?? "", HARTOLIT_PUBLICATION_TARGET_SCOPE: target.scope ?? "",
       HARTOLIT_PUBLICATION_API_ORIGIN: target.apiUrl ?? "", HARTOLIT_PUBLICATION_GATEWAY_ORIGIN: target.gatewayUrl ?? "",
-      HARTOLIT_PUBLICATION_API_TOKEN: target.token ?? "" },
+      HARTOLIT_PUBLICATION_API_TOKEN: target.token ?? "", ...extraEnv },
     stdio: ["ignore", "pipe", "pipe"], windowsHide: true,
   });
   let ready = false;
@@ -317,6 +318,8 @@ try {
     restart: async target => { await stopServer(); await startServer(publisherId, wallet, target); }, base });
   await smokePublicationUploadAction({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, operator, signingAccount,
     restart: async target => { await stopServer(); await startServer(publisherId, wallet, target); }, base });
+  await smokePublicationMintAction({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, operator,
+    restart: async (target, extra = {}) => { await stopServer(); await startServer(publisherId, extra.wallet ?? wallet, target, extra.env); } });
   process.stdout.write("Publication smoke passed: exact bytes, private EOA proof, bound upload target, explicit intent, single send, lost acknowledgement/readback, concurrency, recall, constraints and audit. No public side effects.\n");
 } finally {
   await stopServer();

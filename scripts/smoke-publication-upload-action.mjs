@@ -12,7 +12,7 @@ const { rawCidFromSha256 } = await jiti.import("../lib/publication/raw-cid.ts");
 // Fictional Kubo-compatible node on loopback: RPC requires the configured bearer
 // token; the gateway is anonymous. `mode` simulates a lost acknowledgement or a
 // pin that is confirmed only later.
-async function startFakeKubo(token) {
+export async function startFakeKubo(token) {
   const blocks = new Map(), pinned = new Set(), requests = [];
   const state = { mode: "normal" };
   const server = createServer(async (req, res) => {
@@ -46,6 +46,30 @@ async function startFakeKubo(token) {
     close: () => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); } };
 }
 
+/** A fixture record consented and ready to send to the configured target (shared with the mint smoke). */
+export async function preparePinRecord({ api, fixture, confirm, ownerId, publisherId, publisher, account }) {
+  const row = await fixture(ownerId, publisherId), id = row.passport.id;
+  const confirmation = await confirm(publisher, row);
+  const root = `/api/admin/passports/${id}/publication`;
+  const reserved = await api(root, { user: publisher, method: "POST", body: { confirmationId: confirmation.id, passportVersion: 4,
+    expectedSha256: confirmation.preview.sha256, walletAddress: account.address.toLowerCase() } });
+  assert.equal(reserved.status, 201);
+  const publicationId = (await reserved.json()).reservation.id;
+  const challenge = (await (await api(`${root}/wallet-challenge`, { user: publisher, method: "POST", body: { publicationId } })).json()).challenge;
+  assert.equal((await api(`${root}/wallet-proof`, { user: publisher, method: "POST", body: { publicationId, challengeId: challenge.id,
+    signature: await account.signMessage({ message: challenge.message }) } })).status, 200);
+  const overview = await (await api(root, { user: publisher })).json();
+  assert.equal(overview.pinning.dispatchEnabled, true, "a configured target with its credential enables upload");
+  const targetSha256 = overview.pinning.target.configurationSha256;
+  const consent = await api(`${root}/pin-attempts`, { user: publisher, method: "POST", body: { publicationId, requestId: randomUUID(),
+    confirmationId: confirmation.id, passportVersion: 4, expectedSha256: confirmation.preview.sha256, expectedTargetSha256: targetSha256,
+    acknowledgement: "PUBLISH_CONFIRMED_SNAPSHOT" } });
+  assert.equal(consent.status, 201);
+  const attemptId = (await consent.json()).attempt.id;
+  const body = { publicationId, attemptId, expectedTargetSha256: targetSha256, acknowledgement: "UPLOAD_PREPARED_SNAPSHOT" };
+  return { id, root, publicationId, attemptId, body, confirmationId: confirmation.id, canonicalJson: confirmation.preview.canonicalJson, payloadHash: confirmation.preview.sha256 };
+}
+
 /** D67: the designated publisher sends a prepared snapshot through the HTTP route to
  * the server-configured target; lost acknowledgements and late pins resolve by readback.
  */
@@ -54,28 +78,7 @@ export async function smokePublicationUploadAction({ api, db, fixture, confirm, 
   const kubo = await startFakeKubo(token);
   try {
     await restart({ key: "fictional-upload", scope: "fictional-local-node", apiUrl: kubo.url, gatewayUrl: kubo.url, token });
-    const prepared = async () => {
-      const row = await fixture(ownerId, publisherId), id = row.passport.id;
-      const confirmation = await confirm(publisher, row);
-      const root = `/api/admin/passports/${id}/publication`;
-      const reserved = await api(root, { user: publisher, method: "POST", body: { confirmationId: confirmation.id, passportVersion: 4,
-        expectedSha256: confirmation.preview.sha256, walletAddress: signingAccount.address.toLowerCase() } });
-      assert.equal(reserved.status, 201);
-      const publicationId = (await reserved.json()).reservation.id;
-      const challenge = (await (await api(`${root}/wallet-challenge`, { user: publisher, method: "POST", body: { publicationId } })).json()).challenge;
-      assert.equal((await api(`${root}/wallet-proof`, { user: publisher, method: "POST", body: { publicationId, challengeId: challenge.id,
-        signature: await signingAccount.signMessage({ message: challenge.message }) } })).status, 200);
-      const overview = await (await api(root, { user: publisher })).json();
-      assert.equal(overview.pinning.dispatchEnabled, true, "a configured target with its credential enables upload");
-      const targetSha256 = overview.pinning.target.configurationSha256;
-      const consent = await api(`${root}/pin-attempts`, { user: publisher, method: "POST", body: { publicationId, requestId: randomUUID(),
-        confirmationId: confirmation.id, passportVersion: 4, expectedSha256: confirmation.preview.sha256, expectedTargetSha256: targetSha256,
-        acknowledgement: "PUBLISH_CONFIRMED_SNAPSHOT" } });
-      assert.equal(consent.status, 201);
-      const attemptId = (await consent.json()).attempt.id;
-      const body = { publicationId, attemptId, expectedTargetSha256: targetSha256, acknowledgement: "UPLOAD_PREPARED_SNAPSHOT" };
-      return { id, root, publicationId, attemptId, body, canonicalJson: confirmation.preview.canonicalJson, payloadHash: confirmation.preview.sha256 };
-    };
+    const prepared = () => preparePinRecord({ api, fixture, confirm, ownerId, publisherId, publisher, account: signingAccount });
     const upload = (record, patch = {}, user = publisher, origin) => api(`${record.root}/pin-attempts/upload`, { user, method: "POST", origin, body: { ...record.body, ...patch } });
     const readback = (record, user = publisher) => api(`${record.root}/pin-attempts/readback`, { user, method: "POST", body: { publicationId: record.publicationId, attemptId: record.attemptId } });
     const stored = async record => ({ attempt: await db.publicationPinAttempt.findUniqueOrThrow({ where: { id: record.attemptId } }),

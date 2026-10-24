@@ -869,3 +869,10 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - A test bug repeated an earlier mistake: passing `undefined` as the anonymous user hit the publisher default parameter, so the "401" call actually uploaded. Anonymous calls now pass `null`.
 - Environment: after a reboot Windows reserved 55334-55433, which includes the Compose PostgreSQL host port 55432. Without admin rights the run used a scratch Compose override on host port 55632 with `DATABASE_URL` overridden in the shell only; `.env.local` and `compose.yaml` were not changed. Restarting `winnat` (admin) or a configurable host port would fix it.
 - Validation: lint, typecheck, build, `test:upload`, default, actual-chain and offline-Kubo `publication:smoke` exited 0; three controls exit 1; browser pass 10/10; no database or Kubo residue.
+
+## 2026-10-24 - Mint server routes with configured chain reader (D68, part 1)
+
+- Continued after 2a37d9b (STATE next step 1, gap 2). Split in two: routes and configuration first, wallet UI second.
+- The smoke uses a fresh wallet on its own Anvil because earlier stages leave closed-attempt history for the shared test wallet on other (stopped) chains; anchor verification would refuse a new permission, which is the intended D51 behavior.
+- Test fixes: the contract deployment consumes nonce 0, so the assertion compares with the chain's transaction count; an early loop moved `monitorNextAt` in the database when a check was `SKIPPED`, which would have hidden a real UX problem. It was removed and the test now requires the first check after the depth to finalize (it does). Discovery would find the send even without a report, so the smoke now asserts the reported hash is on record.
+- Validation: lint, typecheck, build, `test:chain` (23), default and actual-chain `publication:smoke` exited 0; two controls exit 1.
