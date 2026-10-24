@@ -5,7 +5,7 @@ const config: NextConfig = {
   poweredByHeader: false,
   turbopack: {},
   experimental: {
-    optimizePackageImports: ["lucide-react", "@rainbow-me/rainbowkit"],
+    optimizePackageImports: ["lucide-react"],
   },
   async headers() {
     return [

@@ -10,7 +10,8 @@ const container = "hartolit-web3-kubo-local";
  */
 export function assertOfflineKubo() {
   const inspect = JSON.parse(execFileSync("docker", ["inspect", container], { encoding: "utf8", windowsHide: true }))[0];
-  assert.ok(inspect.State.Running && inspect.Config.Cmd.includes("--offline"));
+  assert.ok(inspect.State.Running && inspect.Config.Cmd.includes("--offline"),
+    "Start the offline fixture first: docker compose --env-file .env.db.local --profile publication-local up -d kubo-local");
   const networks = Object.values(inspect.NetworkSettings.Networks);
   assert.equal(networks.length, 1);
   assert.equal(execFileSync("docker", ["network", "inspect", networks[0].NetworkID, "--format", "{{.Internal}}"],
