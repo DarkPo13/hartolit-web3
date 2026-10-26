@@ -110,6 +110,13 @@ export function DraftWorkspace() {
         body: JSON.stringify({ version: versionOverride ?? sync.version, data }),
       });
       if (response.status === 409) { setStatus("conflict"); return; }
+      // Busy server: nothing was saved; wait as asked and let the autosave effect retry.
+      if (response.status === 503) {
+        const seconds = Math.min(10, Math.max(1, Number(response.headers.get("Retry-After")) || 2));
+        await new Promise((resolve) => window.setTimeout(resolve, seconds * 1000 + Math.random() * 1000));
+        setStatus("unsaved");
+        return;
+      }
       if (!response.ok) throw new Error(`Draft save failed: ${response.status}`);
       const record = (await response.json()).draft as DraftRecord;
       setDraftSync({ id: record.id, version: record.version, syncedFingerprint: sentFingerprint });

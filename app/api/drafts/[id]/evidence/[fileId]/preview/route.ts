@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { draftActor, draftResponse } from "@/lib/drafts/http";
+import { draftActor, draftResponse, unexpectedFailure } from "@/lib/drafts/http";
 import { EvidenceError, previewEvidence } from "@/lib/evidence/service";
 
 type Context = { params: Promise<{ id: string; fileId: string }> };
@@ -16,6 +16,6 @@ export async function GET(request: NextRequest, context: Context) {
   }
   catch (error) {
     if (error instanceof EvidenceError) return draftResponse({ error: error.message }, error.status);
-    throw error;
+    return unexpectedFailure(error);
   }
 }

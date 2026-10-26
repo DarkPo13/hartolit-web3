@@ -31,6 +31,16 @@ function sameOrigin(origin: string, expected: string) {
 
 export function draftFailure(error: unknown): NextResponse {
   if (error instanceof DraftError) return draftResponse({ error: error.message }, error.status);
+  return unexpectedFailure(error);
+}
+
+// Prisma could not get a pooled connection or start a transaction in time (P2024/P2028):
+// the request did nothing, so the client may retry. Anything else stays a 500.
+export function unexpectedFailure(error: unknown): NextResponse {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === "P2024" || code === "P2028") {
+    return NextResponse.json({ error: "The service is busy. Try again shortly." }, { status: 503, headers: { "Cache-Control": "private, no-store", "Retry-After": "2" } });
+  }
   throw error;
 }
 

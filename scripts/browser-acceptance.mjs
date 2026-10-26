@@ -226,6 +226,21 @@ try {
   note(await op.getByLabel(uk.chemical.volumeLabel).inputValue() === "25", "after reload the last field is restored from the server");
   await section("01");
   note(await op.getByLabel(uk.farmer.nameLabel).inputValue() === marker, "after reload the first field is restored");
+  // A busy server (503) saves nothing; autosave must wait and retry without a click.
+  let busyAnswers = 0;
+  await op.route("**/api/drafts/*", route => route.request().method() === "PATCH" && busyAnswers === 0
+    ? (busyAnswers++, route.fulfill({ status: 503, headers: { "Retry-After": "1", "Content-Type": "application/json" }, body: "{}" }))
+    : route.continue());
+  const patch = status => response => response.request().method() === "PATCH" && response.status() === status && /\/api\/drafts\/[^/]+$/.test(new URL(response.url()).pathname);
+  const busyAnswer = op.waitForResponse(patch(503), { timeout: 20_000 });
+  await op.getByLabel(uk.farmer.areaLabel).fill("12.75");
+  await busyAnswer;
+  await op.waitForResponse(patch(200), { timeout: 20_000 });
+  await saved.waitFor({ timeout: 20_000 });
+  await op.unroute("**/api/drafts/*");
+  note(busyAnswers === 1 && await op.getByRole("button", { name: uk.drafts.retry }).count() === 0, "a busy-server answer is retried automatically and then saved");
+  await op.getByLabel(uk.farmer.areaLabel).fill("12.5");
+  await op.waitForResponse(patch(200), { timeout: 20_000 });
 
   // 5. Evidence through the real storage and ClamAV.
   const evidence = op.getByRole("region", { name: uk.evidence.title });
@@ -298,9 +313,9 @@ try {
   const audit = await db.auditLog.findMany({ where: { passport: { farmer: { legalName: marker } } }, select: { action: true } });
   note(["PASSPORT_SUBMITTED", "REVIEW_ASSIGNED", "REVIEW_APPROVED"].every(action => audit.some(row => row.action === action)), "audit trail recorded");
   // The rejected malware upload is the only expected HTTP failure; going offline is the only expected console noise.
-  const expected = failures.filter(line => !/^operator 409 POST \/api\/drafts\/[^/]+\/evidence\/[^/]+\/complete$/.test(line));
-  note(expected.length === 0 && failures.length === 1, `only the rejected malware upload failed over HTTP (${failures.length})`);
-  const unexpected = errors.filter(line => !/ERR_INTERNET_DISCONNECTED|status of 409/.test(line));
+  const expected = failures.filter(line => !/^operator 409 POST \/api\/drafts\/[^/]+\/evidence\/[^/]+\/complete$|^operator 503 PATCH \/api\/drafts\/[^/]+$/.test(line));
+  note(expected.length === 0 && failures.length === 2, `only the rejected malware upload and the simulated busy answer failed over HTTP (${failures.length})`);
+  const unexpected = errors.filter(line => !/ERR_INTERNET_DISCONNECTED|status of 409|status of 503/.test(line));
   note(unexpected.length === 0, `no unexpected console/page errors (${unexpected.join(" | ").slice(0, 300)})`);
 } catch (error) {
   note(false, `aborted: ${error.message.split("\n")[0]}`);

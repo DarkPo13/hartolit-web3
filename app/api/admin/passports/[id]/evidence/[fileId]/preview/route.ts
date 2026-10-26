@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { draftResponse } from "@/lib/drafts/http";
+import { draftResponse, unexpectedFailure } from "@/lib/drafts/http";
 import { EvidenceError } from "@/lib/evidence/service";
 import { previewAdminEvidence } from "@/lib/evidence/access";
 import { reviewActor } from "@/lib/review/http";
@@ -15,5 +15,5 @@ export async function GET(request: NextRequest, context: Context) {
     return draftResponse({ error: "Invalid evidence ID" }, 400);
   }
   try { const { url } = await previewAdminEvidence(actor.id, id, fileId, grantId); return NextResponse.redirect(url, { headers: { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } }); }
-  catch (error) { if (error instanceof EvidenceError) return draftResponse({ error: error.message }, error.status); throw error; }
+  catch (error) { if (error instanceof EvidenceError) return draftResponse({ error: error.message }, error.status); return unexpectedFailure(error); }
 }

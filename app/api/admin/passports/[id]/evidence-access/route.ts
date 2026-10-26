@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { draftResponse } from "@/lib/drafts/http";
+import { draftResponse, unexpectedFailure } from "@/lib/drafts/http";
 import { EvidenceError } from "@/lib/evidence/service";
 import { evidenceGrantRevokeSchema, evidenceGrantSchema, grantEvidenceAccess, listEvidenceAccess, revokeEvidenceAccess } from "@/lib/evidence/access";
 import { reviewActor, reviewBody } from "@/lib/review/http";
@@ -8,7 +8,7 @@ import { reviewActor, reviewBody } from "@/lib/review/http";
 type Context = { params: Promise<{ id: string }> };
 const failure = (error: unknown) => {
   if (error instanceof EvidenceError) return draftResponse({ error: error.message }, error.status);
-  throw error;
+  return unexpectedFailure(error);
 };
 async function passportId(context: Context) {
   const { id } = await context.params;

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { draftActor, draftResponse, readLimitedJson } from "@/lib/drafts/http";
+import { draftActor, draftResponse, readLimitedJson, unexpectedFailure } from "@/lib/drafts/http";
 import { EvidenceError, listEvidence, reserveEvidence } from "@/lib/evidence/service";
 import { reserveSchema, validFileDeclaration } from "@/lib/evidence/validation";
 
@@ -31,5 +31,5 @@ export async function POST(request: NextRequest, context: Context) {
 
 function failure(error: unknown) {
   if (error instanceof EvidenceError) return draftResponse({ error: error.message }, error.status);
-  throw error;
+  return unexpectedFailure(error);
 }

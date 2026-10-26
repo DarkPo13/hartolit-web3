@@ -2,7 +2,7 @@ import "server-only";
 
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { draftActor, draftResponse, readLimitedJson } from "@/lib/drafts/http";
+import { draftActor, draftResponse, readLimitedJson, unexpectedFailure } from "@/lib/drafts/http";
 import { WorkflowError } from "./service";
 
 export async function reviewActor(request: NextRequest, write: boolean, admin = false) {
@@ -23,5 +23,5 @@ export async function reviewBody<T extends z.ZodType>(request: NextRequest, sche
 
 export function reviewFailure(error: unknown): NextResponse {
   if (error instanceof WorkflowError) return draftResponse({ error: error.message, ...(error.issues ? { issues: error.issues } : {}) }, error.status);
-  throw error;
+  return unexpectedFailure(error);
 }
