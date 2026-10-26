@@ -434,6 +434,17 @@ npm run contracts:deploy:testnet
 
 Copy the deployed address into `NEXT_PUBLIC_CONTRACT_ADDRESS`.
 
+**Preferred: deploy from the browser wallet, without a private key in the shell.** `npm run contracts:build`, then `npm run contracts:deploy:wallet` and open `http://127.0.0.1:3311` in the browser that has the Testnet publisher account (MetaMask or another injected wallet). The wallet signs one deployment; the connected account becomes the contract admin and the only minter. The script checks the receipt, deployed code and `MINTER_ROLE` on BSC Testnet (`BSC_TESTNET_RPC` or BNB Chain's public endpoint) and prints the public values for `.env.local`: `HARTOLIT_PUBLISHER_WALLET`, `HARTOLIT_MINT_CONTRACT_ADDRESS`/`_CODE_HASH` and `HARTOLIT_VERIFY_CONTRACT_ADDRESS`/`_CODE_HASH`. Never enter a seed phrase or private key anywhere in this project.
+
+**First Testnet run from this machine (fictional data, no hosting).**
+
+1. Create a new wallet account used only for Testnet, fund it with test BNB from a faucet, deploy as above.
+2. Start a local public IPFS node: `docker compose --env-file .env.db.local --profile ipfs-node up -d kubo-node`. It joins the public IPFS network, so everything uploaded through it is public and permanent in practice: fictional records only. Its RPC (`http://127.0.0.1:5001`) and gateway (`http://127.0.0.1:8080`) stay on loopback, which the uploader accepts without a token (D67); content stays reachable by others only while the node runs.
+3. In `.env.local`: the values printed by the deploy script; `HARTOLIT_PUBLISHER_USER_ID` (the MFA admin who publishes); `HARTOLIT_MINT_RPC_URL` and `HARTOLIT_VERIFY_RPC_URL` (a BSC Testnet RPC, HTTPS); `HARTOLIT_MINT_RECIPIENT_WALLET` (who receives tokens; the publisher wallet is fine for a test); `HARTOLIT_MINT_CONFIRMATIONS` and `HARTOLIT_VERIFY_CONFIRMATIONS` (for example 6); `HARTOLIT_PUBLICATION_TARGET_KEY`/`_SCOPE` (descriptive names), `HARTOLIT_PUBLICATION_API_ORIGIN=http://127.0.0.1:5001`, `HARTOLIT_PUBLICATION_GATEWAY_ORIGIN=http://127.0.0.1:8080` and `HARTOLIT_VERIFY_GATEWAY_URL=http://127.0.0.1:8080`.
+4. Build and start the app, then walk one fictional record: submission, approval, confirmation, wallet proof, upload, mint from the wallet, check, and the public page with its QR code.
+
+A pilot replaces the local node with an IPFS node on the hosting server (or a provider whose RPC is Kubo-compatible, tested first) and a public HTTPS gateway.
+
 ### 4. Run the dApp
 
 ```bash

@@ -54,6 +54,7 @@
     "auth:smoke": "node scripts/smoke-auth.mjs",
     "contracts:build": "forge build --root contracts",
     "contracts:test": "forge test --root contracts -vvv",
+    "contracts:deploy:wallet": "node scripts/deploy-with-wallet.mjs",
     "contracts:deploy:testnet": "forge script contracts/script/Deploy.s.sol:Deploy --root contracts --rpc-url bsc_testnet --broadcast --verify"
   },
   "dependencies": {

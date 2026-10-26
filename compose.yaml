@@ -12,6 +12,21 @@ services:
     tmpfs:
       - /data/ipfs:uid=1000,gid=1000,mode=0700
     networks: [local-ipfs]
+  # Optional public IPFS node for a BSC Testnet run from this machine. It joins the public
+  # network: everything added to it is public. RPC (full control) and gateway listen on
+  # loopback only; the swarm port lets other nodes fetch what it provides.
+  kubo-node:
+    profiles: ["ipfs-node"]
+    image: ipfs/kubo:v0.43.1
+    container_name: hartolit-web3-kubo-node
+    command: ["daemon", "--migrate=true"]
+    ports:
+      - "127.0.0.1:5001:5001"
+      - "127.0.0.1:8080:8080"
+      - "4001:4001/tcp"
+      - "4001:4001/udp"
+    volumes:
+      - hartolit_ipfs_data:/data/ipfs
   postgres:
     image: postgres:17.6-alpine
     container_name: hartolit-web3-postgres
@@ -68,6 +83,7 @@ services:
 volumes:
   hartolit_pg_data:
   hartolit_evidence_data:
+  hartolit_ipfs_data:
   hartolit_clamav_data:
 
 networks:
