@@ -105,7 +105,7 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
       {data.reservations.some(r => r.status === "PUBLISHED") && <PublicationCorrection base={base} canWrite={data.publisher.canProve} disabled={disabled || busy || loading} />}
       {publication && !issued && !suspended && <PublicationPreparation key={`${publication.id}:${confirmation.id}:${confirmation.preview.sha256}:${data.pinning.target?.configurationSha256}:${data.publisher.canProve}`} base={base}
         confirmation={confirmation} reservation={publication} data={data} disabled={disabled || busy || loading} reload={load} />}
-      {!issued && !suspended && data.reservations.some(r => r.status === "PINNED" || r.status === "CHAIN_PENDING" || r.status === "CHAIN_FAILED") &&
+      {!issued && data.reservations.some(r => ["PINNED", "CHAIN_PENDING", "CHAIN_FAILED", "CHAIN_SUSPENDED", "CHAIN_FAILED_SUSPENDED"].includes(r.status)) &&
         <PublicationMint passportId={passportId} canWrite={data.publisher.canProve} disabled={disabled || busy || loading} onChanged={load} />}
     </>}
   </section>;

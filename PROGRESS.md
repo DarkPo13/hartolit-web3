@@ -970,3 +970,10 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - Controls: a policy with a different response nonce still passed, which showed Next applies the response policy's nonce (not only the request header); removing the policy makes `verifier:smoke` exit 1 at the new check.
 - A rerun of `browser:acceptance` hit 429 at sign-in: repeated local runs from 127.0.0.1 exhausted the five-per-15-minutes limit because the script deletes only rate-limit keys it created. Clearing local rows fixed it; not a product defect.
 - Regression under the policy: public-boundary, drafts, evidence, review, feedback and default publication smokes exited 0; browser passes listed in D71 passed. `auth:smoke` was run without the TLS mail settings by mistake (exit 1 at the invitation email; rerun separately).
+
+## 2026-10-26 - Incident actions in the admin panel (D72)
+
+- Built UI/HTTP for the decided D43-D45, D49 and D50 resolutions (see D72); services unchanged, no migration.
+- The first actual-chain run passed every assertion but left a fixture passport and the users: the new restored cancellation adds a recovery row that references the closure row, and the smoke cleanup deleted closures first (Prisma surfaced the foreign-key failure as a TypeError). Cleanup now deletes recovery rows first; the leftovers were removed with the same order.
+- The refusal browser pass then reported two 403s: the panel requested incident reviews for older records bound to another wallet. Incident and cancellation blocks now appear only for the configured wallet.
+- Validation: lint, typecheck, build, default and actual-chain `publication:smoke` exited 0 with no residue; browser passes: mint 13, restore 8, revert 16, refusal 24, issued 32.

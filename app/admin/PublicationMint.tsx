@@ -16,7 +16,7 @@ type MintState = {
   publication: { id: string; status: string; confirmationId: string; passportVersion: number; payloadHash: string } | null;
   candidate: Described | null;
   preparation: (Described & { id: string; intentSha256: string }) | null;
-  attempt: { id: string; status: string; nonce: string; transactionHashes: string[]; quarantined: boolean; failureStatus: string | null;
+  attempt: { id: string; status: string; nonce: string; transactionHashes: string[]; quarantined: boolean; failureStatus: string | null; lastObservation: string | null;
     latestDiscovery: { id: string; status: string; transactionHash: string | null } | null } | null;
 };
 type Review = { discoveryId: string; intentSha256: string; walletStateSha256: string; observationVersion: number; discoveryVersion: number; transactionHash: string; nonce: string };
@@ -134,6 +134,8 @@ function MintControls({ passportId, canWrite, disabled, onChanged }: Props) {
 
   // D46/D48: a same-nonce self-send makes the original mint impossible; after it is
   // confirmed at depth, the reviewed closure releases only this wallet slot.
+  // Only the configured publisher wallet can act on an attempt (another wallet's attempts are read-only).
+  const actionable = canWrite && !!state && !state.walletChanged;
   const open = !!state?.attempt && ["DISPATCHING", "UNKNOWN"].includes(state.attempt.status);
   const conflict = open && state?.attempt?.latestDiscovery?.status === "CONFLICT" ? state.attempt.latestDiscovery : null;
   // Offered only when the wallet reported no transaction (refused or failed); a sent mint is checked, not cancelled.
@@ -145,7 +147,7 @@ function MintControls({ passportId, canWrite, disabled, onChanged }: Props) {
     return value;
   }, [base]);
   const attemptId = state?.attempt?.id, conflictId = conflict?.id;
-  useEffect(() => { if (canWrite && attemptId && conflictId) void loadReview(attemptId, conflictId); }, [canWrite, attemptId, conflictId, loadReview]);
+  useEffect(() => { if (actionable && attemptId && conflictId) void loadReview(attemptId, conflictId); }, [actionable, attemptId, conflictId, loadReview]);
 
   const sendCancellation = () => run(async () => {
     const attempt = state?.attempt;
@@ -218,7 +220,10 @@ function MintControls({ passportId, canWrite, disabled, onChanged }: Props) {
       {["DISPATCHING", "UNKNOWN"].includes(state.attempt.status) && <Button type="button" variant="outline" size="sm" onClick={() => void check()} disabled={busy || disabled}>{t.checkResult}</Button>}
       {state.attempt.failureStatus === "CANCELLED" && <p role="status" className="font-medium">{t.cancelledDone}</p>}
     </div>}
-    {canWrite && cancellable && <div className="space-y-3 rounded-lg border border-border p-3">
+    {actionable && state?.attempt && (state.attempt.quarantined || (open && state.attempt.lastObservation === "REVERTED")) &&
+      <MintIncident key={`${state.attempt.id}:${state.attempt.status}:${state.attempt.quarantined}`} base={base} attemptId={state.attempt.id}
+        disabled={disabled} onResolved={async () => { await load(); await onChanged(); }} />}
+    {actionable && cancellable && <div className="space-y-3 rounded-lg border border-border p-3">
       <p className="font-medium">{t.cancelTitle}</p>
       <p className="text-ink-muted">{t.cancelHint}</p>
       {!isConnected ? <Button type="button" variant="outline" onClick={() => void walletAction("connect")} disabled={busy || disabled}>{t.connect}</Button> : <>
@@ -233,7 +238,7 @@ function MintControls({ passportId, canWrite, disabled, onChanged }: Props) {
       </>}
       {cancelHash && <div role="status"><p>{t.cancelSent}</p><code className="mt-1 block break-all text-xs">{cancelHash}</code></div>}
     </div>}
-    {canWrite && conflict && <div className="space-y-3 rounded-lg border border-border p-3">
+    {actionable && conflict && <div className="space-y-3 rounded-lg border border-border p-3">
       <p className="font-medium">{t.cancelTitle}</p>
       <p role="status">{t.cancelFound}</p>
       {review && <dl className="space-y-1">
@@ -246,4 +251,91 @@ function MintControls({ passportId, canWrite, disabled, onChanged }: Props) {
     </div>}
     {error && <p role="alert" className="text-danger">{t[error]}</p>}
   </section>;
+}
+
+type Receipt = { transactionHash: string; blockNumber: string; blockHash: string; status: string };
+type Incident =
+  | { kind: "REVERTED"; review: { transactionId: string; intentSha256: string; walletStateSha256: string; observationVersion: number; nonce: string; transactionHash: string } }
+  | { kind: "QUARANTINE"; closed: "SUCCESS" | "FAILURE" | "CANCELLATION";
+      restore: { intentSha256: string; walletStateSha256: string; observationVersion: number; quarantinedAt: string; originalReceipt: Receipt;
+        finalizedObservationId?: string; failedObservationId?: string; cancelledObservationId?: string; cancellationId?: string };
+      reanchor: { intentSha256: string; walletStateSha256: string; observationVersion: number; quarantinedAt: string; firstObservationId: string; anchorObservationId: string } | null };
+
+/** Reviewed incident actions (D43-D45, D49, D50): each has its own acknowledgement and a fresh
+ * server-side check; none sends, resends or uses a new nonce.
+ */
+function MintIncident({ base, attemptId, disabled, onResolved }: { base: string; attemptId: string; disabled: boolean; onResolved: () => Promise<void> }) {
+  const t = useT().publicationMint;
+  const [incident, setIncident] = useState<Incident | null>(null);
+  const [checked, setChecked] = useState<"close" | "restore" | "reanchor" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<"incidentNotReady" | "incidentDone" | "accessDenied" | "uncertain" | null>(null);
+  const requests = useRef<Record<string, string>>({});
+  const load = useCallback(async () => {
+    const response = await fetch(`${base}/incident?attemptId=${encodeURIComponent(attemptId)}`, { cache: "no-store" }).catch(() => null);
+    setIncident(response?.ok ? (await response.json()).incident : null);
+  }, [base, attemptId]);
+  useEffect(() => { void load(); }, [load]);
+
+  async function act(action: "CLOSE_REVERTED" | "RESTORE" | "REANCHOR") {
+    if (!incident || busy || disabled) return;
+    setBusy(true); setMessage(null);
+    requests.current[action] ??= crypto.randomUUID();
+    const requestId = requests.current[action];
+    let input: Record<string, unknown>;
+    if (action === "CLOSE_REVERTED" && incident.kind === "REVERTED") {
+      const r = incident.review;
+      input = { requestId, transactionId: r.transactionId, expectedIntentSha256: r.intentSha256, expectedWalletStateSha256: r.walletStateSha256,
+        expectedObservationVersion: r.observationVersion, acknowledgement: "CLOSE_REVERTED_MINT" };
+    } else if (action === "RESTORE" && incident.kind === "QUARANTINE") {
+      const r = incident.restore;
+      const common = { requestId, expectedIntentSha256: r.intentSha256, expectedWalletStateSha256: r.walletStateSha256,
+        expectedObservationVersion: r.observationVersion, expectedQuarantinedAt: r.quarantinedAt };
+      input = incident.closed === "SUCCESS" ? { ...common, expectedFinalizedObservationId: r.finalizedObservationId, acknowledgement: "RESTORE_ORIGINAL_MINT" }
+        : incident.closed === "FAILURE" ? { ...common, expectedFailedObservationId: r.failedObservationId, acknowledgement: "RESTORE_FAILED_MINT" }
+          : { ...common, expectedCancelledObservationId: r.cancelledObservationId, expectedCancellationId: r.cancellationId, acknowledgement: "RESTORE_CANCELLED_MINT" };
+    } else if (action === "REANCHOR" && incident.kind === "QUARANTINE" && incident.reanchor) {
+      const r = incident.reanchor;
+      input = { requestId, expectedIntentSha256: r.intentSha256, expectedWalletStateSha256: r.walletStateSha256, expectedObservationVersion: r.observationVersion,
+        expectedQuarantinedAt: r.quarantinedAt, expectedFirstObservationId: r.firstObservationId, expectedAnchorObservationId: r.anchorObservationId,
+        acknowledgement: "ADOPT_REINCLUDED_MINT_ANCHOR" };
+    } else { setBusy(false); return; }
+    const response = await fetch(`${base}/incident`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ attemptId, action, ...input }) }).catch(() => null);
+    setChecked(null);
+    if (response?.ok) { setMessage("incidentDone"); await onResolved(); }
+    else {
+      // A refused action needs a fresh review and a new request.
+      delete requests.current[action];
+      await load();
+      setMessage(!response ? "uncertain" : [401, 403].includes(response.status) ? "accessDenied" : "incidentNotReady");
+    }
+    setBusy(false);
+  }
+
+  const consent = (key: "close" | "restore" | "reanchor", text: string) => <label className="flex items-start gap-2"><input type="checkbox" className="mt-1 accent-brand-600"
+    checked={checked === key} disabled={busy || disabled} onChange={event => setChecked(event.target.checked ? key : null)} /><span>{text}</span></label>;
+  return <div className="space-y-3 rounded-lg border border-danger/40 p-3">
+    <p className="font-medium">{t.incidentTitle}</p>
+    {incident?.kind === "REVERTED" && <>
+      <p>{t.revertedHint}</p>
+      <dl className="space-y-1"><div><dt className="font-medium">{t.nonce}</dt><dd className="font-mono">{incident.review.nonce}</dd></div>
+        <div><dt className="font-medium">{t.transactions}</dt><dd className="break-all font-mono text-xs">{incident.review.transactionHash}</dd></div></dl>
+      {consent("close", t.closeRevertedConsent)}
+      <Button type="button" onClick={() => void act("CLOSE_REVERTED")} disabled={checked !== "close" || busy || disabled}>{t.closeReverted}</Button>
+    </>}
+    {incident?.kind === "QUARANTINE" && <>
+      <p>{t.quarantineHint}</p>
+      <dl className="space-y-1"><div><dt className="font-medium">{t.originalResult}</dt>
+        <dd className="break-all font-mono text-xs">{incident.restore.originalReceipt.status} · #{incident.restore.originalReceipt.blockNumber} · {incident.restore.originalReceipt.transactionHash}</dd></div></dl>
+      {consent("restore", t.restoreConsent)}
+      <Button type="button" onClick={() => void act("RESTORE")} disabled={checked !== "restore" || busy || disabled}>{t.restore}</Button>
+      {incident.reanchor && <>
+        <p className="text-ink-muted">{t.reanchorHint}</p>
+        {consent("reanchor", t.reanchorConsent)}
+        <Button type="button" variant="outline" onClick={() => void act("REANCHOR")} disabled={checked !== "reanchor" || busy || disabled}>{t.reanchor}</Button>
+      </>}
+    </>}
+    {message && <p role={message === "incidentDone" ? "status" : "alert"} className={message === "incidentDone" ? "" : "text-danger"}>{t[message]}</p>}
+  </div>;
 }

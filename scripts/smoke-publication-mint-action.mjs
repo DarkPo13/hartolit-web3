@@ -4,7 +4,8 @@ import { spawnSync } from "node:child_process";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { localMintChain } from "./local-mint-chain.mjs";
 import { preparePinRecord, startFakeKubo } from "./smoke-publication-upload-action.mjs";
-import { browserCheckpoint, stopAfterBrowserStage } from "./publication-browser-checkpoint.mjs";
+import { createServer } from "node:http";
+import { browserCheckpoint, browserStage, stopAfterBrowserStage } from "./publication-browser-checkpoint.mjs";
 
 /** D68: mint routes. Without mint configuration nothing is offered or authorized.
  * With an owned Anvil (PUBLICATION_LOCAL_CHAIN=1) a fresh publisher wallet prepares,
@@ -16,12 +17,14 @@ export async function smokePublicationMintAction({ api, db, fixture, confirm, ow
   const kubo = await startFakeKubo(token);
   // A fresh wallet: earlier stages left history for the shared test wallet on other chains.
   const account = privateKeyToAccount(generatePrivateKey()), wallet = account.address.toLowerCase();
-  let chain;
+  let chain, relay;
   try {
     const actual = process.env.PUBLICATION_LOCAL_CHAIN === "1";
     if (actual) chain = await localMintChain(account);
+    // Browser fixture only: the server reaches Anvil through a relay the helper can switch off (node outage).
+    if (chain && browserStage("mint")) relay = await startRpcRelay(chain.url);
     const storage = { key: "fictional-mint", scope: "fictional-local-node", apiUrl: kubo.url, gatewayUrl: kubo.url, token };
-    await restart(storage, { wallet, env: chain ? { HARTOLIT_MINT_RPC_URL: chain.url, HARTOLIT_MINT_CONTRACT_ADDRESS: chain.target.contractAddress,
+    await restart(storage, { wallet, env: chain ? { HARTOLIT_MINT_RPC_URL: relay?.url ?? chain.url, HARTOLIT_MINT_CONTRACT_ADDRESS: chain.target.contractAddress,
       HARTOLIT_MINT_CONTRACT_CODE_HASH: chain.target.contractCodeHash, HARTOLIT_MINT_RECIPIENT_WALLET: chain.target.recipientWallet,
       HARTOLIT_MINT_CONFIRMATIONS: String(chain.target.requiredConfirmations) } : {} });
     const record = await preparePinRecord({ api, fixture, confirm, ownerId, publisherId, publisher, account });
@@ -30,7 +33,16 @@ export async function smokePublicationMintAction({ api, db, fixture, confirm, ow
     // Browser fixture: the helper acts as the fresh test wallet (signs and sends on the owned Anvil only).
     if (chain && await browserCheckpoint("mint", { base, actors: { "/publisher": publisher }, label: record.id, handlers: {
       "/wallet": async () => ({ address: wallet }),
-      "/send": async tx => ({ hash: await chain.send({ request: { from: wallet, chainId: 97, to: tx.to, data: tx.data, nonce: Number(BigInt(tx.nonce)), value: "0" } }) }),
+      // An optional gas limit lets a pass make the mint revert (out of gas).
+      "/send": async tx => ({ hash: await chain.send({ request: { from: wallet, chainId: 97, to: tx.to, data: tx.data, nonce: Number(BigInt(tx.nonce)), value: "0" } },
+        undefined, tx.gas ? BigInt(tx.gas) : undefined) }),
+      "/outage": async ({ on }) => { relay.down = !!on; return { down: relay.down }; },
+      // What the scheduler would do: one monitoring tick for this record's attempt.
+      "/monitor": async () => {
+        const state = (await (await api(`${record.root}/mint`, { user: publisher })).json()).mint;
+        const response = await api(`${record.root}/mint/check`, { user: publisher, method: "POST", body: { attemptId: state.attempt.id } });
+        return { status: response.status, check: (await response.json()).check ?? null };
+      },
       "/rpc": async ({ method, params }) => ({ result: await chain.reader.request({ method, params }) }),
       "/mine": async () => { await chain.reader.request({ method: "anvil_mine", params: [`0x${chain.target.requiredConfirmations.toString(16)}`] }); return { ok: true }; },
     } })) stopAfterBrowserStage("mint");
@@ -159,9 +171,95 @@ export async function smokePublicationMintAction({ api, db, fixture, confirm, ow
     assert.equal(await db.publicationMintAttempt.count({ where: { publisherWallet: wallet, status: { in: ["DISPATCHING", "UNKNOWN"] } } }), 0, "no open attempt holds the wallet");
     const refusedRow = await db.publication.findUniqueOrThrow({ where: { id: refused.publicationId } });
     assert.equal(refusedRow.tokenId, null); assert.equal(refusedRow.transactionHash, null);
-    process.stdout.write("Mint action passed: reviewed intent, designated-publisher preparation and single fixed-nonce permission, exact wallet request, hash report and depth-checked finalization on actual Anvil; a refused send is cancelled by a same-nonce self-send and closed over HTTP after depth, freeing the wallet.\n");
+
+    // Incident panel routes (D43-D45, D49, D50 over HTTP). A mint that runs out of gas is
+    // included but reverted: the reviewed closure frees the wallet (D44).
+    const incident = (root, attemptId, user = publisher) => api(`${root}/mint/incident?attemptId=${attemptId}`, { user });
+    const resolve = (root, body, user = publisher) => api(`${root}/mint/incident`, { user, method: "POST", body });
+    assert.equal((await incident(record.root, command.attemptId)).status, 409, "a healthy finalized mint has no incident");
+    const failing = await preparePinRecord({ api, fixture, confirm, ownerId, publisherId, publisher, account });
+    assert.equal((await api(`${failing.root}/pin-attempts/upload`, { user: publisher, method: "POST", body: failing.body })).status, 200);
+    const failingIntent = (await (await api(`${failing.root}/mint`, { user: publisher })).json()).mint.candidate.intent.sha256;
+    const failingPrepared = await api(`${failing.root}/mint/preparation`, { user: publisher, method: "POST", body: { publicationId: failing.publicationId, requestId: randomUUID(),
+      confirmationId: failing.confirmationId, passportVersion: 4, expectedSha256: failing.payloadHash, expectedIntentSha256: failingIntent, acknowledgement: "PREPARE_EXACT_MINT" } });
+    const failingCommand = (await (await api(`${failing.root}/mint/dispatch`, { user: publisher, method: "POST", body: { preparationId: (await failingPrepared.json()).preparation.id,
+      requestId: randomUUID(), expectedIntentSha256: failingIntent, acknowledgement: "SEND_EXACT_MINT" } })).json()).command;
+    const revertedHash = await chain.send(failingCommand, undefined, 35_000n);
+    assert.equal((await chain.reader.waitForTransactionReceipt({ hash: revertedHash })).status, "reverted", "the send runs out of execution gas");
+    assert.equal((await api(`${failing.root}/mint/report`, { user: publisher, method: "POST", body: { attemptId: failingCommand.attemptId, transactionHash: revertedHash } })).status, 200);
+    await chain.reader.request({ method: "anvil_mine", params: [`0x${chain.target.requiredConfirmations.toString(16)}`] });
+    await api(`${failing.root}/mint/check`, { user: publisher, method: "POST", body: { attemptId: failingCommand.attemptId } });
+    const revertedState = (await (await api(`${failing.root}/mint`, { user: publisher })).json()).mint;
+    assert.equal(revertedState.attempt.lastObservation, "REVERTED"); assert.equal(revertedState.attempt.status, "DISPATCHING", "a revert waits for review");
+    assert.equal((await incident(failing.root, failingCommand.attemptId, other)).status, 403, "only the designated publisher reviews incidents");
+    const reverted = (await (await incident(failing.root, failingCommand.attemptId)).json()).incident;
+    assert.equal(reverted.kind, "REVERTED"); assert.equal(reverted.review.transactionHash, revertedHash);
+    const closeReverted = { attemptId: failingCommand.attemptId, action: "CLOSE_REVERTED", requestId: randomUUID(), transactionId: reverted.review.transactionId,
+      expectedIntentSha256: reverted.review.intentSha256, expectedWalletStateSha256: reverted.review.walletStateSha256,
+      expectedObservationVersion: reverted.review.observationVersion, acknowledgement: "CLOSE_REVERTED_MINT" };
+    assert.equal((await resolve(failing.root, { ...closeReverted, action: "RESTORE" })).status, 409, "the action must match the incident");
+    assert.equal((await resolve(failing.root, { ...closeReverted, acknowledgement: "RESTORE_FAILED_MINT" })).status, 422);
+    assert.equal((await resolve(failing.root, closeReverted, other)).status, 403);
+    assert.equal((await resolve(failing.root, closeReverted)).status, 200, "the reverted send is closed");
+    const failedState = (await (await api(`${failing.root}/mint`, { user: publisher })).json()).mint;
+    assert.equal(failedState.attempt.status, "FAILED_TERMINAL"); assert.equal(failedState.attempt.failureStatus, "REVERTED"); assert.equal(failedState.publication.status, "CHAIN_FAILED");
+
+    // A node outage during later checks quarantines the three closed attempts (success, revert,
+    // cancellation); with the node back, each unchanged result is restored after review.
+    const chainEnv = { HARTOLIT_MINT_RPC_URL: chain.url, HARTOLIT_MINT_CONTRACT_ADDRESS: chain.target.contractAddress, HARTOLIT_MINT_CONTRACT_CODE_HASH: chain.target.contractCodeHash,
+      HARTOLIT_MINT_RECIPIENT_WALLET: chain.target.recipientWallet, HARTOLIT_MINT_CONFIRMATIONS: String(chain.target.requiredConfirmations) };
+    const closedAttempts = [[record, command.attemptId, "SUCCESS", "PUBLISHED"], [failing, failingCommand.attemptId, "FAILURE", "CHAIN_FAILED"], [refused, refusedCommand.attemptId, "CANCELLATION", "CHAIN_FAILED"]];
+    await new Promise(resolveWait => setTimeout(resolveWait, 31_000)); // monitoring cooldown after the last checks
+    await restart(storage, { wallet, env: { ...chainEnv, HARTOLIT_MINT_RPC_URL: "http://127.0.0.1:9" } });
+    for (const [row, attemptId] of closedAttempts) {
+      const outage = await api(`${row.root}/mint/check`, { user: publisher, method: "POST", body: { attemptId } });
+      assert.equal((await outage.json()).check.status, "UNAVAILABLE");
+      assert.equal((await (await api(`${row.root}/mint`, { user: publisher })).json()).mint.attempt.quarantined, true, "an unconfirmed closed result is quarantined");
+    }
+    assert.equal((await db.publication.findUniqueOrThrow({ where: { id: record.publicationId } })).status, "CHAIN_SUSPENDED", "the issued record is suspended");
+    await restart(storage, { wallet, env: chainEnv });
+    for (const [row, attemptId, closed, restoredStatus] of closedAttempts) {
+      const review = (await (await incident(row.root, attemptId)).json()).incident;
+      assert.equal(review.kind, "QUARANTINE"); assert.equal(review.closed, closed);
+      const r = review.restore, common = { attemptId, action: "RESTORE", requestId: randomUUID(), expectedIntentSha256: r.intentSha256,
+        expectedWalletStateSha256: r.walletStateSha256, expectedObservationVersion: r.observationVersion, expectedQuarantinedAt: r.quarantinedAt };
+      if (review.reanchor) {
+        const a = review.reanchor;
+        const reanchor = await resolve(row.root, { attemptId, action: "REANCHOR", requestId: randomUUID(), expectedIntentSha256: a.intentSha256, expectedWalletStateSha256: a.walletStateSha256,
+          expectedObservationVersion: a.observationVersion, expectedQuarantinedAt: a.quarantinedAt, expectedFirstObservationId: a.firstObservationId,
+          expectedAnchorObservationId: a.anchorObservationId, acknowledgement: "ADOPT_REINCLUDED_MINT_ANCHOR" });
+        assert.equal(reanchor.status, 409, `${closed}: an unchanged inclusion is not a new anchor`);
+      }
+      const body = closed === "SUCCESS" ? { ...common, expectedFinalizedObservationId: r.finalizedObservationId, acknowledgement: "RESTORE_ORIGINAL_MINT" }
+        : closed === "FAILURE" ? { ...common, expectedFailedObservationId: r.failedObservationId, acknowledgement: "RESTORE_FAILED_MINT" }
+          : { ...common, expectedCancelledObservationId: r.cancelledObservationId, expectedCancellationId: r.cancellationId, acknowledgement: "RESTORE_CANCELLED_MINT" };
+      assert.equal((await resolve(row.root, body, other)).status, 403);
+      const restored = await resolve(row.root, body);
+      assert.equal(restored.status, 200, `${closed}: unchanged result restored (${restored.status})`);
+      const after = (await (await api(`${row.root}/mint`, { user: publisher })).json()).mint;
+      assert.equal(after.attempt.quarantined, false); assert.equal(after.publication.status, restoredStatus);
+    }
+    process.stdout.write("Mint action passed: reviewed intent, designated-publisher preparation and single fixed-nonce permission, exact wallet request, hash report and depth-checked finalization on actual Anvil; a refused send is cancelled by a same-nonce self-send and closed over HTTP after depth, freeing the wallet; an out-of-gas mint is closed and a node-outage quarantine of success, revert and cancellation is restored through the incident route.\n");
   } finally {
+    await relay?.close();
     await chain?.stop();
     await kubo.close();
   }
+}
+
+// Test-only JSON-RPC relay on loopback; while `down` it answers 503 like an unavailable node.
+async function startRpcRelay(target) {
+  const relay = { down: false };
+  const server = createServer(async (req, res) => {
+    const chunks = []; for await (const chunk of req) chunks.push(chunk);
+    if (relay.down) { res.writeHead(503); res.end(); return; }
+    try {
+      const upstream = await fetch(target, { method: "POST", headers: { "content-type": "application/json" }, body: Buffer.concat(chunks) });
+      res.writeHead(upstream.status, { "content-type": "application/json" }); res.end(Buffer.from(await upstream.arrayBuffer()));
+    } catch { res.writeHead(502); res.end(); }
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  relay.url = `http://127.0.0.1:${server.address().port}`;
+  relay.close = () => { server.closeAllConnections(); return new Promise(resolve => server.close(resolve)); };
+  return relay;
 }
