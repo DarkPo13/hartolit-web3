@@ -24,6 +24,7 @@ model User {
   sessions         Session[]
   accounts         Account[]
   twofactors       TwoFactor[]
+  twoFactorReplayGuard TwoFactorReplayGuard?
   farmers          Farmer[]
   fields           Field[]
   passports        Passport[]
@@ -111,6 +112,14 @@ model TwoFactor {
   @@index([secret])
   @@index([userId])
   @@map("twoFactor")
+}
+
+/// Last accepted TOTP time step per user (RFC 6238 section 5.2); a code is refused unless its step is newer.
+model TwoFactorReplayGuard {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastStep  BigInt
+  updatedAt DateTime @default(now())
 }
 
 model RateLimit {

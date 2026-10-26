@@ -994,3 +994,11 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 
 - Full gate run on `0747309` (Windows, Node 24.18.0, Anvil 1.8.6, PostgreSQL on the alternate host port, STARTTLS Mailpit): lint, typecheck, ten Node suites including `test:i18n`, Prisma validate/deploy/status/diff, build, contracts build/test, ABI check, production audit (0 high), public-boundary, drafts/evidence/review/feedback/auth/retention smokes, backup drill, chain and verifier smokes, default/actual-chain/offline-Kubo publication smokes, monitor, `browser:acceptance` (Chrome 46), `a11y:audit` (195) and `security:probe` (141) exited 0. `browser:acceptance` in Firefox exited 1: the CSP blocked Zod's `new Function` probe (reported even though caught).
 - Fix: `z.config({ jitless: true })` in the client root (Zod's documented setting for strict CSPs). Afterwards Firefox 46/46 and Chrome 46/46; lint, typecheck, build, `test:capture`, `test:public`, `test:verifier` exit 0.
+
+## 2026-10-26 - Refuse reused TOTP codes (D73)
+
+- Built after the user's decision. Better Auth verifies with a window of one step, so a code works for up to about 90 seconds and for any number of sign-ins. A before-hook records the last accepted step per user (migration `20261026112851_totp_replay_guard`) and refuses anything not newer.
+- Smokes that enrol an admin and sign in right away now enrol with the previous step's code (still valid) and sign in with the current one, so they need no 30-second wait. The auth smoke's extra sign-in uses its own fictional address: the run's sign-ins otherwise exceed five per address and the check got 429.
+- `prisma format` reformatted the whole schema (about 900 changed lines); the schema was restored and the model added by hand, so the diff is nine lines and `migrate diff` reports no drift.
+- An `auth:smoke` run failed at the invitation email because the STARTTLS Mailpit container had been recreated with a new certificate; rerunning `npm run mail:tls-ca` fixed it (environment, not code).
+- Validation: lint, typecheck, build, `db:deploy`, `migrate diff` (no drift), auth (with control), review, feedback, drafts and publication (default and actual chain) smokes, `browser:acceptance` 46, `a11y:audit` 195, `security:probe` 141; no residue.

@@ -98,12 +98,14 @@ async function startServer(publisherId = "", configuredWallet = "", target = {},
   throw new Error("Isolated publication server did not become ready");
 }
 
-function totp(uri) {
+// offset -1 is the previous 30-second step, still accepted: enrolment uses it so the
+// sign-in right after can use the current step (a reused step is refused).
+function totp(uri, offset = 0) {
   const secret = new URL(uri).searchParams.get("secret"); assert.ok(secret);
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   const bits = [...secret.toUpperCase().replace(/=+$/, "")].map((letter) => alphabet.indexOf(letter).toString(2).padStart(5, "0")).join("");
   const key = Buffer.from((bits.match(/.{8}/g) ?? []).map((byte) => parseInt(byte, 2)));
-  const counter = Buffer.alloc(8); counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
+  const counter = Buffer.alloc(8); counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000) + offset));
   const digest = createHmac("sha1", key).update(counter).digest();
   return ((digest.readUInt32BE(digest[digest.length - 1] & 15) & 0x7fffffff) % 1_000_000).toString().padStart(6, "0");
 }
@@ -115,7 +117,7 @@ async function signIn(email, mfa = false) {
   const enabled = await api("/api/auth/two-factor/enable", { user, method: "POST", body: { password, method: "totp" } });
   assert.equal(enabled.status, 200);
   const { totpURI } = await enabled.json();
-  assert.equal((await api("/api/auth/two-factor/verify-totp", { user, method: "POST", body: { code: totp(totpURI) } })).status, 200);
+  assert.equal((await api("/api/auth/two-factor/verify-totp", { user, method: "POST", body: { code: totp(totpURI, -1) } })).status, 200);
   const verified = jar();
   assert.equal((await api("/api/auth/sign-in/email", { user: verified, method: "POST", body: { email, password } })).status, 200);
   assert.equal((await api("/api/auth/two-factor/verify-totp", { user: verified, method: "POST", body: { code: totp(totpURI) } })).status, 200);

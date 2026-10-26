@@ -55,7 +55,9 @@ async function request(path, { jar, body, method = body ? "POST" : "GET", origin
   return response;
 }
 
-function totp(uri) {
+// step -1 is the previous 30-second step, still accepted: enrolment uses it so the
+// sign-in right after can use the current step (a reused step is refused).
+function totp(uri, step = 0) {
   const secret = new URL(uri).searchParams.get("secret");
   assert.ok(secret);
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -63,7 +65,7 @@ function totp(uri) {
   for (const letter of secret.toUpperCase().replace(/=+$/, "")) bits += alphabet.indexOf(letter).toString(2).padStart(5, "0");
   const key = Buffer.from((bits.match(/.{8}/g) ?? []).map((byte) => parseInt(byte, 2)));
   const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000)));
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000) + step));
   const digest = createHmac("sha1", key).update(counter).digest();
   const offset = digest[digest.length - 1] & 15;
   return ((digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).toString().padStart(6, "0");
@@ -102,7 +104,8 @@ try {
   assert.equal(enrollment.status, 200, "MFA enrollment starts");
   const { totpURI } = await enrollment.json();
   assert.ok(totpURI);
-  const verified = await request("/api/auth/two-factor/verify-totp", { jar: admin, body: { code: totp(totpURI) } });
+  const enrolmentCode = totp(totpURI, -1);
+  const verified = await request("/api/auth/two-factor/verify-totp", { jar: admin, body: { code: enrolmentCode } });
   assert.equal(verified.status, 200, "MFA enrollment verifies");
   assert.equal((await request("/admin", { jar: admin })).headers.get("location"), "/login", "enrollment revokes old sessions");
   const adminVerified = makeJar();
@@ -110,7 +113,15 @@ try {
   assert.equal(challenge.status, 200, "admin credential accepted");
   assert.equal((await challenge.json()).twoFactorRedirect, true, "MFA challenge required on next login");
   assert.equal((await request("/admin", { jar: adminVerified })).headers.get("location"), "/login", "MFA challenge is not a session");
+  // RFC 6238 section 5.2: the code already used for enrolment cannot complete a sign-in.
+  const replayed = await request("/api/auth/two-factor/verify-totp", { jar: adminVerified, body: { code: enrolmentCode } });
+  assert.equal(replayed.status, 401, "a reused TOTP code is refused");
+  assert.equal((await request("/admin", { jar: adminVerified })).headers.get("location"), "/login", "a refused code creates no session");
   assert.equal((await request("/api/auth/two-factor/verify-totp", { jar: adminVerified, body: { code: totp(totpURI) } })).status, 200, "MFA login succeeds");
+  const second = makeJar();
+  // Its own address: the run's other sign-ins already use most of the per-address limit.
+  assert.equal((await request("/api/auth/sign-in/email", { jar: second, body: { email: adminEmail, password }, ip: "198.51.100.112" })).status, 200);
+  assert.equal((await request("/api/auth/two-factor/verify-totp", { jar: second, body: { code: totp(totpURI) }, ip: "198.51.100.112" })).status, 401, "the sign-in code cannot be used for a second sign-in");
   assert.equal((await request("/admin", { jar: adminVerified })).status, 200, "admin page opens after MFA");
   assert.equal((await request("/api/auth/admin/list-users", { jar: adminVerified })).status, 200, "admin API opens after MFA");
   assert.equal((await request("/api/auth/admin/impersonate-user", { jar: adminVerified, body: { userId: "none" } })).status, 404, "unsafe admin operation remains unavailable");
@@ -185,7 +196,7 @@ try {
   await db.user.deleteMany({ where: { email: { in: createdEmails } } });
   assert.equal(await db.user.count({ where: { email: { in: createdEmails } } }), 0, "fixture users removed");
   // Rate-limit counters are keyed `${ip}|${path}`; remove this run's fictional client addresses.
-  await db.rateLimit.deleteMany({ where: { OR: [testIp, "198.51.100.110", "198.51.100.111"].map(ip => ({ key: { startsWith: `${ip}|` } })) } });
+  await db.rateLimit.deleteMany({ where: { OR: [testIp, "198.51.100.110", "198.51.100.111", "198.51.100.112"].map(ip => ({ key: { startsWith: `${ip}|` } })) } });
   if (capturedIds.length) {
     const deletion = await fetch(`${mailpit}/api/v1/messages`, {
       method: "DELETE",

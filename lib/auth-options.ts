@@ -2,6 +2,7 @@ import { admin, twoFactor } from "better-auth/plugins";
 import { loadEnvConfig } from "@next/env";
 import { after } from "next/server";
 import { sendPasswordResetEmail } from "./reset-email";
+import { refuseReusedTotp } from "./totp-replay";
 
 loadEnvConfig(process.cwd());
 
@@ -51,5 +52,6 @@ export const authOptions = {
       sameSite: "lax" as const,
     },
   },
+  hooks: { before: refuseReusedTotp },
   plugins: [admin(), twoFactor({ issuer: "Hartolit" })],
 };
