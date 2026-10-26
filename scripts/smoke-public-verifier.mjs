@@ -58,6 +58,13 @@ try {
   assert.equal(valid.headers.get("cache-control"), "no-store");
   assert.match(valid.headers.get("x-robots-tag") ?? "", /noindex/);
   assert.equal(valid.headers.get("referrer-policy"), "no-referrer");
+  // Per-request nonce CSP: every script tag carries this response's nonce; no other script source.
+  const csp = valid.headers.get("content-security-policy") ?? "";
+  const nonce = csp.match(/script-src 'self' 'nonce-([A-Za-z0-9+/=]+)' 'strict-dynamic'/)?.[1];
+  assert.ok(nonce && /frame-ancestors 'none'/.test(csp) && /object-src 'none'/.test(csp) && !/script-src[^;]*unsafe/.test(csp), `strict nonce CSP (${csp})`);
+  const scripts = [...valid.html.matchAll(/<script\b[^>]*>/g)].map(match => match[0]);
+  assert.ok(scripts.length > 0 && scripts.every(tag => tag.includes(`nonce="${nonce}"`)), "every script carries the response nonce");
+  assert.notEqual((await page("1")).headers.get("content-security-policy"), csp, "the nonce changes per request");
   for (const text of [t.shareTitle, `${base}/passports/1`, "data:image/png;base64,", t.downloadJson]) assert.ok(valid.html.includes(text), `share section missing ${text}`);
   assert.ok(valid.html.includes(t.issuerUnavailable) && !valid.html.includes('role="alert"'), "unreachable database is a quiet note, not a warning");
   // A forged Host header must not change the share link or QR target.

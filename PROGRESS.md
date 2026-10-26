@@ -962,3 +962,11 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - The browser happy-path pass caught a UX defect in the first version: right after a successful send the panel already offered "Cancel this mint" (the attempt is still `DISPATCHING`). Cancellation is now offered only when the wallet reported no transaction.
 - Scratch-test pitfalls recorded: the refusal counter must live outside the page (a reload reset it and the wallet "refused" the cancellation too, which the UI correctly ignored); the smoke's mint stage has older records with attempts, so the pass finds its record by intent hash; a monitoring check starts a 30-second cooldown.
 - Validation: lint, typecheck, build, default and actual-chain `publication:smoke` exited 0 (control: without the route exits 1); browser passes on rebuilt tree: refusal+cancellation 24/24, mint 13/13, issued 32/32, withdrawal 13/13.
+
+## 2026-10-26 - Content Security Policy (D71)
+
+- Added the nonce CSP from the Next 16 guide in `proxy.ts`, production only, with all pages forced dynamic (the build listed `/two-factor`, `/access` and the 404 as static).
+- The first browser run caught `style-src` violations: Radix inserts style elements at runtime without a nonce. Styles now allow inline; scripts stay nonce-only with `strict-dynamic`.
+- Controls: a policy with a different response nonce still passed, which showed Next applies the response policy's nonce (not only the request header); removing the policy makes `verifier:smoke` exit 1 at the new check.
+- A rerun of `browser:acceptance` hit 429 at sign-in: repeated local runs from 127.0.0.1 exhausted the five-per-15-minutes limit because the script deletes only rate-limit keys it created. Clearing local rows fixed it; not a product defect.
+- Regression under the policy: public-boundary, drafts, evidence, review, feedback and default publication smokes exited 0; browser passes listed in D71 passed. `auth:smoke` was run without the TLS mail settings by mistake (exit 1 at the invitation email; rerun separately).

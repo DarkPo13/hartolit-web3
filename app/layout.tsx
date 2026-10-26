@@ -55,6 +55,9 @@ export const viewport: Viewport = {
   themeColor: "#10b981",
 };
 
+// The CSP nonce from proxy.ts exists only per request, so no page may be prerendered.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
