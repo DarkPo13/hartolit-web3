@@ -5,6 +5,11 @@ import type { ReactNode } from "react";
 import { Toaster } from "sonner";
 import { LocaleProvider } from "@/lib/i18n/context";
 import { isDemoMode } from "@/lib/demo-mode";
+import { z } from "zod";
+
+// The production CSP forbids eval (D71); without this Zod probes `new Function`,
+// which Firefox reports as a policy violation even though Zod catches it.
+z.config({ jitless: true });
 
 const DemoWeb3Providers = dynamic(() => import("./DemoWeb3Providers").then((module) => module.DemoWeb3Providers), { ssr: false });
 

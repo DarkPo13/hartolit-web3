@@ -989,3 +989,8 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 
 - Better Auth keys counters as `${ip}|${path}` (`@better-auth/core` `createRateLimitKey`). The drafts, evidence, review, feedback and auth smokes never removed theirs, and the publication smoke matched `${ip}:`, which removes nothing; runs left 48-150 rows. The auth smoke also followed email links without its fictional client address (rows under 127.0.0.1) and used two fixed addresses that would hit the five-per-15-minutes limit after a few local runs.
 - Each smoke now deletes keys starting with its own addresses plus `|`; email-link requests carry the test address. After drafts, evidence, review, feedback, auth (production build with STARTTLS Mailpit) and default publication smokes, all exit 0 and the table is empty.
+
+## 2026-10-26 - Final gate run; Zod under the CSP in Firefox
+
+- Full gate run on `0747309` (Windows, Node 24.18.0, Anvil 1.8.6, PostgreSQL on the alternate host port, STARTTLS Mailpit): lint, typecheck, ten Node suites including `test:i18n`, Prisma validate/deploy/status/diff, build, contracts build/test, ABI check, production audit (0 high), public-boundary, drafts/evidence/review/feedback/auth/retention smokes, backup drill, chain and verifier smokes, default/actual-chain/offline-Kubo publication smokes, monitor, `browser:acceptance` (Chrome 46), `a11y:audit` (195) and `security:probe` (141) exited 0. `browser:acceptance` in Firefox exited 1: the CSP blocked Zod's `new Function` probe (reported even though caught).
+- Fix: `z.config({ jitless: true })` in the client root (Zod's documented setting for strict CSPs). Afterwards Firefox 46/46 and Chrome 46/46; lint, typecheck, build, `test:capture`, `test:public`, `test:verifier` exit 0.
