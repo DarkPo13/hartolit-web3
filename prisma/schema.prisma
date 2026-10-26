@@ -40,6 +40,8 @@ model User {
   mintFailures     PublicationMintFailure[]
   mintCancellations PublicationMintCancellation[]
   mintReanchors    PublicationMintReanchor[]
+  mintReopensProposed PublicationMintReopen[] @relation("MintReopenProposer")
+  mintReopensApproved PublicationMintReopen[] @relation("MintReopenApprover")
   publicationCorrections PublicationCorrection[]
   evidenceGrantsGiven EvidenceAccessGrant[] @relation("EvidenceGrantGranter")
   evidenceGrantsRevoked EvidenceAccessGrant[] @relation("EvidenceGrantRevoker")
@@ -190,6 +192,22 @@ enum PublicationMintAttemptStatus {
   FAILED_TERMINAL
 }
 
+/// Accepted incident classes (2026-10-26). LOST and SUCCESS_REVERTED wait 24 hours and ten times the depth.
+enum PublicationMintReopenKind {
+  LOST
+  SUCCESS_REVERTED
+  FAILURE_SUCCEEDED
+  TOKEN_CHANGED
+  CANCELLATION_CHANGED
+  DISPATCH_ANCHOR_CHANGED
+}
+
+enum PublicationMintReopenStatus {
+  PROPOSED
+  APPLIED
+  WITHDRAWN
+}
+
 enum PublicationMintRecoveryKind {
   SUCCESS
   FAILURE
@@ -267,6 +285,10 @@ enum AuditAction {
   EVIDENCE_DOWNLOADED
   PRESERVATION_HOLD_PLACED
   PRESERVATION_HOLD_RELEASED
+  PUBLICATION_MINT_REOPEN_PROPOSED
+  PUBLICATION_MINT_REOPEN_WITHDRAWN
+  PUBLICATION_MINT_REOPENED
+  PUBLICATION_MINT_DISPATCH_REANCHORED
 }
 
 model Farmer {
@@ -573,8 +595,10 @@ model PublicationMintAttempt {
   failedObservationId String? @unique @db.Uuid
   failureStatus   PublicationMintObservationStatus?
   failedObservation PublicationMintObservation? @relation("MintFailureProof", fields: [failedObservationId, id, failureStatus], references: [id, attemptId, status], onDelete: NoAction, map: "PublicationMintAttempt_failure_proof_fkey")
-  failure         PublicationMintFailure?
-  cancellation    PublicationMintCancellation?
+  // A reopened attempt (D75) can be closed again, so closures are a history.
+  failures        PublicationMintFailure[]
+  cancellations   PublicationMintCancellation[]
+  reopens         PublicationMintReopen[]
   // Current canonical inclusion of the unchanged first transaction after a
   // reviewed re-inclusion; null means the first proof is still the anchor.
   anchorObservationId String? @db.Uuid
@@ -643,7 +667,7 @@ model PublicationMintObservation {
 // Reviewed consumed-nonce failure; never permission to resend this preparation.
 model PublicationMintFailure {
   id              String @id @default(uuid()) @db.Uuid
-  attemptId       String @unique @db.Uuid
+  attemptId       String @db.Uuid
   attempt         PublicationMintAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
   requestId       String @unique @db.Uuid
   actorId         String
@@ -658,12 +682,13 @@ model PublicationMintFailure {
   closedAt        DateTime @default(now())
 
   @@unique([observationId, attemptId, transactionId, proofStatus])
+  @@index([attemptId])
 }
 
 // Reviewed canonical self-send; separate from exact-call REVERTED mint proofs.
 model PublicationMintCancellation {
   id              String @id @default(uuid()) @db.Uuid
-  attemptId       String @unique @db.Uuid
+  attemptId       String @db.Uuid
   attempt         PublicationMintAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
   requestId       String @unique @db.Uuid
   actorId         String
@@ -686,6 +711,7 @@ model PublicationMintCancellation {
   @@unique([id, attemptId, observationId])
   @@index([discoveryId])
   @@index([actorId])
+  @@index([attemptId])
 }
 
 enum DraftNoticeEmailStatus {
@@ -818,6 +844,41 @@ model PublicationMintWalletCheckpoint {
 
 // Append-only reviewed adoption of a new canonical inclusion for the SAME first
 // transaction and outcome. The first proof stays immutable history.
+/// Two-person reopening of a closed mint whose recorded result no longer holds on chain, or
+/// moving a pending attempt's dispatch anchor to an earlier verified block (D75). The publisher
+/// proposes with a reason; another MFA admin approves after fresh checks (and the waiting period).
+model PublicationMintReopen {
+  id                         String @id @default(uuid()) @db.Uuid
+  attemptId                  String @db.Uuid
+  attempt                    PublicationMintAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  requestId                  String @unique @db.Uuid
+  kind                       PublicationMintReopenKind
+  status                     PublicationMintReopenStatus @default(PROPOSED)
+  reason                     String @db.VarChar(1000)
+  proposedById               String
+  proposedBy                 User @relation("MintReopenProposer", fields: [proposedById], references: [id], onDelete: Restrict)
+  proposedAt                 DateTime @default(now())
+  proposedHeadBlock          BigInt
+  proposalEvidenceJson       String @db.Text
+  reviewedObservationVersion Int
+  priorStatus                PublicationMintAttemptStatus
+  priorProofObservationId    String? @db.Uuid
+  priorTokenId               String? @db.VarChar(78)
+  priorAnchorBlockNumber     BigInt?
+  priorAnchorBlockHash       String? @db.VarChar(66)
+  newAnchorBlockNumber       BigInt?
+  newAnchorBlockHash         String? @db.VarChar(66)
+  approvedById               String?
+  approvedBy                 User? @relation("MintReopenApprover", fields: [approvedById], references: [id], onDelete: Restrict)
+  approvalRequestId          String? @unique @db.Uuid
+  approvedAt                 DateTime?
+  approvedHeadBlock          BigInt?
+  approvalEvidenceJson       String? @db.Text
+  withdrawnAt                DateTime?
+
+  @@index([attemptId, status])
+}
+
 model PublicationMintReanchor {
   id                  String @id @default(uuid()) @db.Uuid
   attemptId           String @db.Uuid

@@ -8,14 +8,15 @@ import { configuredMintReader } from "@/lib/publication/mint-config";
 type Context = { params: Promise<{ id: string }> };
 export const maxDuration = 60;
 
-// Review of a reverted open mint (D44) or a quarantined closed one (D43, D45, D49, D50).
+// Review of a reverted open mint (D44), a quarantined closed one (D43, D45, D49, D50), a changed
+// dispatch anchor or a reopening proposal (D75), or a foreign transaction at the nonce (runbook only).
 export async function GET(request: NextRequest, context: Context) {
   const actor = await reviewActor(request, false, true);
   if (actor instanceof NextResponse) return actor;
   const { id } = await context.params;
   const attemptId = request.nextUrl.searchParams.get("attemptId");
   if (!z.uuid().safeParse(id).success || !z.uuid().safeParse(attemptId).success) return draftResponse({ error: "Invalid incident target" }, 400);
-  try { return draftResponse({ incident: await getMintIncident(actor.id, id, attemptId!) }); }
+  try { return draftResponse({ incident: await getMintIncident(actor.id, id, attemptId!, configuredMintReader()) }); }
   catch (error) { return reviewFailure(error); }
 }
 

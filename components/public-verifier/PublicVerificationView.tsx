@@ -53,6 +53,8 @@ export function PublicVerificationView({ result, share = null, issuer = null }: 
           ? <p className="mt-1">{t.correctionSuperseded} <Link href={`/passports/${encodeURIComponent(issuer.supersededBy.tokenId)}`} prefetch={false} className="underline">{t.token} #{issuer.supersededBy.tokenId}</Link></p>
           : <p className="mt-1">{t.correctionPending}</p>}
       </div>}
+      {result.status === "VALID" && !!issuer?.previousTokenIds?.length && <p role="alert" className="mt-3 rounded-lg border border-red-600 p-3 text-sm font-medium text-red-700">
+        {t.previousTokens.replace("{tokens}", issuer.previousTokenIds.map(id => `#${id}`).join(", "))}</p>}
       {result.status === "VALID" && issuer?.corrects && <p className="mt-3 rounded-lg border border-border p-3 text-sm text-ink-muted">
         {t.correctionCorrects} <Link href={`/passports/${encodeURIComponent(issuer.corrects)}`} prefetch={false} className="font-medium text-brand-700 underline">{t.token} #{issuer.corrects}</Link></p>}
       {result.status === "VALID" && <dl className="mt-5 grid gap-4 border-t border-border pt-5 text-sm sm:grid-cols-2">

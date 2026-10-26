@@ -16,7 +16,7 @@ type MintState = {
   publication: { id: string; status: string; confirmationId: string; passportVersion: number; payloadHash: string } | null;
   candidate: Described | null;
   preparation: (Described & { id: string; intentSha256: string }) | null;
-  attempt: { id: string; status: string; nonce: string; transactionHashes: string[]; quarantined: boolean; failureStatus: string | null; lastObservation: string | null;
+  attempt: { id: string; status: string; nonce: string; transactionHashes: string[]; quarantined: boolean; failureStatus: string | null; lastObservation: string | null; reopened: { kind: string; priorTokenId: string | null } | null;
     latestDiscovery: { id: string; status: string; transactionHash: string | null } | null } | null;
 };
 type Review = { discoveryId: string; intentSha256: string; walletStateSha256: string; observationVersion: number; discoveryVersion: number; transactionHash: string; nonce: string };
@@ -139,7 +139,7 @@ function MintControls({ passportId, canWrite, disabled, onChanged }: Props) {
   const open = !!state?.attempt && ["DISPATCHING", "UNKNOWN"].includes(state.attempt.status);
   const conflict = open && state?.attempt?.latestDiscovery?.status === "CONFLICT" ? state.attempt.latestDiscovery : null;
   // Offered only when the wallet reported no transaction (refused or failed); a sent mint is checked, not cancelled.
-  const cancellable = open && !state?.attempt?.transactionHashes.length && !conflict;
+  const cancellable = open && (!state?.attempt?.transactionHashes.length || state?.attempt?.reopened?.kind === "LOST") && !conflict;
   const loadReview = useCallback(async (attemptId: string, discoveryId: string) => {
     const response = await fetch(`${base}/cancellation?attemptId=${encodeURIComponent(attemptId)}&discoveryId=${encodeURIComponent(discoveryId)}`, { cache: "no-store" }).catch(() => null);
     const value: Review | null = response?.ok ? (await response.json()).review : null;
@@ -220,8 +220,9 @@ function MintControls({ passportId, canWrite, disabled, onChanged }: Props) {
       {["DISPATCHING", "UNKNOWN"].includes(state.attempt.status) && <Button type="button" variant="outline" size="sm" onClick={() => void check()} disabled={busy || disabled}>{t.checkResult}</Button>}
       {state.attempt.failureStatus === "CANCELLED" && <p role="status" className="font-medium">{t.cancelledDone}</p>}
     </div>}
-    {actionable && state?.attempt && (state.attempt.quarantined || (open && state.attempt.lastObservation === "REVERTED")) &&
-      <MintIncident key={`${state.attempt.id}:${state.attempt.status}:${state.attempt.quarantined}`} base={base} attemptId={state.attempt.id}
+    {state && !state.walletChanged && state.attempt && (state.attempt.quarantined ||
+      (open && (state.attempt.lastObservation === "REVERTED" || ["REORG", "CONFLICT"].includes(state.attempt.latestDiscovery?.status ?? "")))) &&
+      <MintIncident key={`${state.attempt.id}:${state.attempt.status}:${state.attempt.quarantined}`} base={base} attemptId={state.attempt.id} canWrite={canWrite}
         disabled={disabled} onResolved={async () => { await load(); await onChanged(); }} />}
     {actionable && cancellable && <div className="space-y-3 rounded-lg border border-border p-3">
       <p className="font-medium">{t.cancelTitle}</p>
@@ -254,22 +255,28 @@ function MintControls({ passportId, canWrite, disabled, onChanged }: Props) {
 }
 
 type Receipt = { transactionHash: string; blockNumber: string; blockHash: string; status: string };
+type Proposal = { id: string; kind: string; reason: string; proposedAt: string; observationVersion: number; approvableAt: string; approvableAtBlock: string; ownProposal: boolean } | null;
 type Incident =
-  | { kind: "REVERTED"; review: { transactionId: string; intentSha256: string; walletStateSha256: string; observationVersion: number; nonce: string; transactionHash: string } }
-  | { kind: "QUARANTINE"; closed: "SUCCESS" | "FAILURE" | "CANCELLATION";
+  | { kind: "REVERTED"; proposal: Proposal; review: { transactionId: string; intentSha256: string; walletStateSha256: string; observationVersion: number; nonce: string; transactionHash: string } | null }
+  | { kind: "QUARANTINE"; proposal: Proposal; closed: "SUCCESS" | "FAILURE" | "CANCELLATION";
       restore: { intentSha256: string; walletStateSha256: string; observationVersion: number; quarantinedAt: string; originalReceipt: Receipt;
-        finalizedObservationId?: string; failedObservationId?: string; cancelledObservationId?: string; cancellationId?: string };
-      reanchor: { intentSha256: string; walletStateSha256: string; observationVersion: number; quarantinedAt: string; firstObservationId: string; anchorObservationId: string } | null };
+        finalizedObservationId?: string; failedObservationId?: string; cancelledObservationId?: string; cancellationId?: string } | null;
+      reanchor: { intentSha256: string; walletStateSha256: string; observationVersion: number; quarantinedAt: string; firstObservationId: string; anchorObservationId: string } | null }
+  | { kind: "PENDING_REORG"; proposal: Proposal }
+  | { kind: "FOREIGN_NONCE"; proposal: null; transactionHash: string };
+type Action = "CLOSE_REVERTED" | "RESTORE" | "REANCHOR" | "PROPOSE_REOPEN" | "APPROVE_REOPEN" | "WITHDRAW_REOPEN";
+type Consent = "close" | "restore" | "reanchor" | "propose" | "approve";
 
-/** Reviewed incident actions (D43-D45, D49, D50): each has its own acknowledgement and a fresh
- * server-side check; none sends, resends or uses a new nonce.
+/** Reviewed incident actions (D43-D45, D49, D50, D75): each has its own acknowledgement and a fresh
+ * server-side check; none sends, resends or uses a new nonce. Reopening needs two administrators.
  */
-function MintIncident({ base, attemptId, disabled, onResolved }: { base: string; attemptId: string; disabled: boolean; onResolved: () => Promise<void> }) {
+function MintIncident({ base, attemptId, canWrite, disabled, onResolved }: { base: string; attemptId: string; canWrite: boolean; disabled: boolean; onResolved: () => Promise<void> }) {
   const t = useT().publicationMint;
   const [incident, setIncident] = useState<Incident | null>(null);
-  const [checked, setChecked] = useState<"close" | "restore" | "reanchor" | null>(null);
+  const [checked, setChecked] = useState<Consent | null>(null);
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<"incidentNotReady" | "incidentDone" | "accessDenied" | "uncertain" | null>(null);
+  const [message, setMessage] = useState<"incidentNotReady" | "incidentDone" | "accessDenied" | "uncertain" | "reopenNotNeeded" | null>(null);
   const requests = useRef<Record<string, string>>({});
   const load = useCallback(async () => {
     const response = await fetch(`${base}/incident?attemptId=${encodeURIComponent(attemptId)}`, { cache: "no-store" }).catch(() => null);
@@ -277,17 +284,18 @@ function MintIncident({ base, attemptId, disabled, onResolved }: { base: string;
   }, [base, attemptId]);
   useEffect(() => { void load(); }, [load]);
 
-  async function act(action: "CLOSE_REVERTED" | "RESTORE" | "REANCHOR") {
+  async function act(action: Action) {
     if (!incident || busy || disabled) return;
     setBusy(true); setMessage(null);
     requests.current[action] ??= crypto.randomUUID();
     const requestId = requests.current[action];
     let input: Record<string, unknown>;
-    if (action === "CLOSE_REVERTED" && incident.kind === "REVERTED") {
+    const proposal = incident.proposal;
+    if (action === "CLOSE_REVERTED" && incident.kind === "REVERTED" && incident.review) {
       const r = incident.review;
       input = { requestId, transactionId: r.transactionId, expectedIntentSha256: r.intentSha256, expectedWalletStateSha256: r.walletStateSha256,
         expectedObservationVersion: r.observationVersion, acknowledgement: "CLOSE_REVERTED_MINT" };
-    } else if (action === "RESTORE" && incident.kind === "QUARANTINE") {
+    } else if (action === "RESTORE" && incident.kind === "QUARANTINE" && incident.restore) {
       const r = incident.restore;
       const common = { requestId, expectedIntentSha256: r.intentSha256, expectedWalletStateSha256: r.walletStateSha256,
         expectedObservationVersion: r.observationVersion, expectedQuarantinedAt: r.quarantinedAt };
@@ -299,43 +307,88 @@ function MintIncident({ base, attemptId, disabled, onResolved }: { base: string;
       input = { requestId, expectedIntentSha256: r.intentSha256, expectedWalletStateSha256: r.walletStateSha256, expectedObservationVersion: r.observationVersion,
         expectedQuarantinedAt: r.quarantinedAt, expectedFirstObservationId: r.firstObservationId, expectedAnchorObservationId: r.anchorObservationId,
         acknowledgement: "ADOPT_REINCLUDED_MINT_ANCHOR" };
+    } else if (action === "PROPOSE_REOPEN" && !proposal) {
+      input = { requestId, reason: reason.trim(), acknowledgement: "PROPOSE_MINT_REOPEN" };
+    } else if (action === "APPROVE_REOPEN" && proposal && !proposal.ownProposal) {
+      input = { requestId, proposalId: proposal.id, expectedKind: proposal.kind, expectedObservationVersion: proposal.observationVersion, acknowledgement: "APPROVE_MINT_REOPEN" };
+    } else if (action === "WITHDRAW_REOPEN" && proposal) {
+      input = { proposalId: proposal.id, acknowledgement: "WITHDRAW_MINT_REOPEN" };
     } else { setBusy(false); return; }
     const response = await fetch(`${base}/incident`, { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ attemptId, action, ...input }) }).catch(() => null);
     setChecked(null);
-    if (response?.ok) { setMessage("incidentDone"); await onResolved(); }
-    else {
+    if (response?.ok) {
+      setMessage("incidentDone"); setReason(""); delete requests.current[action];
+      if (action === "PROPOSE_REOPEN" || action === "WITHDRAW_REOPEN") await load(); else await onResolved();
+    } else {
       // A refused action needs a fresh review and a new request.
       delete requests.current[action];
       await load();
-      setMessage(!response ? "uncertain" : [401, 403].includes(response.status) ? "accessDenied" : "incidentNotReady");
+      setMessage(!response ? "uncertain" : [401, 403].includes(response.status) ? "accessDenied"
+        : action === "PROPOSE_REOPEN" && response.status === 409 ? "reopenNotNeeded" : "incidentNotReady");
     }
     setBusy(false);
   }
 
-  const consent = (key: "close" | "restore" | "reanchor", text: string) => <label className="flex items-start gap-2"><input type="checkbox" className="mt-1 accent-brand-600"
+  const consent = (key: Consent, text: string) => <label className="flex items-start gap-2"><input type="checkbox" className="mt-1 accent-brand-600"
     checked={checked === key} disabled={busy || disabled} onChange={event => setChecked(event.target.checked ? key : null)} /><span>{text}</span></label>;
+  const kindText = (kind: string) => (t.reopenKinds as Record<string, string>)[kind] ?? kind;
+  const proposal = incident?.proposal ?? null;
+  const reopenSection = (incident?.kind === "QUARANTINE" || incident?.kind === "PENDING_REORG") && <div className="space-y-2 border-t border-border pt-3">
+    <p className="font-medium">{t.reopenTitle}</p>
+    <p className="text-ink-muted">{t.reopenHint}</p>
+    {!proposal && canWrite && <>
+      <label className="block">{t.reopenReason}<textarea value={reason} onChange={event => setReason(event.target.value)} maxLength={1000} rows={3}
+        disabled={busy || disabled} className="mt-1 block w-full rounded-lg border border-border bg-surface px-3 py-2" /></label>
+      {consent("propose", t.reopenConsent)}
+      <Button type="button" variant="outline" onClick={() => void act("PROPOSE_REOPEN")}
+        disabled={checked !== "propose" || reason.trim().length < 10 || busy || disabled}>{t.reopenPropose}</Button>
+    </>}
+    {!proposal && !canWrite && <p className="text-ink-muted">{t.reopenPublisherOnly}</p>}
+    {proposal && <div role="status" className="space-y-1">
+      <p><span className="font-medium">{kindText(proposal.kind)}</span></p>
+      <p className="whitespace-pre-wrap break-words text-ink-muted">{proposal.reason}</p>
+      <p>{t.reopenApprovable.replace("{time}", new Date(proposal.approvableAt).toLocaleString()).replace("{block}", proposal.approvableAtBlock)}</p>
+    </div>}
+    {proposal && proposal.ownProposal && <p className="text-ink-muted">{t.reopenOwn}</p>}
+    {proposal && !proposal.ownProposal && <>
+      {consent("approve", t.reopenApproveConsent)}
+      <Button type="button" onClick={() => void act("APPROVE_REOPEN")} disabled={checked !== "approve" || busy || disabled}>{t.reopenApprove}</Button>
+    </>}
+    {proposal && <Button type="button" variant="outline" size="sm" onClick={() => void act("WITHDRAW_REOPEN")} disabled={busy || disabled}>{t.reopenWithdraw}</Button>}
+  </div>;
+  if (!incident) return null;
   return <div className="space-y-3 rounded-lg border border-danger/40 p-3">
     <p className="font-medium">{t.incidentTitle}</p>
-    {incident?.kind === "REVERTED" && <>
+    {incident.kind === "FOREIGN_NONCE" && <div role="alert" className="space-y-2">
+      <p>{t.foreignNonceHint}</p>
+      <code className="block break-all text-xs">{incident.transactionHash}</code>
+    </div>}
+    {incident.kind === "PENDING_REORG" && <p>{t.dispatchAnchorHint}</p>}
+    {incident.kind === "REVERTED" && <>
       <p>{t.revertedHint}</p>
-      <dl className="space-y-1"><div><dt className="font-medium">{t.nonce}</dt><dd className="font-mono">{incident.review.nonce}</dd></div>
-        <div><dt className="font-medium">{t.transactions}</dt><dd className="break-all font-mono text-xs">{incident.review.transactionHash}</dd></div></dl>
-      {consent("close", t.closeRevertedConsent)}
-      <Button type="button" onClick={() => void act("CLOSE_REVERTED")} disabled={checked !== "close" || busy || disabled}>{t.closeReverted}</Button>
+      {incident.review && <dl className="space-y-1"><div><dt className="font-medium">{t.nonce}</dt><dd className="font-mono">{incident.review.nonce}</dd></div>
+        <div><dt className="font-medium">{t.transactions}</dt><dd className="break-all font-mono text-xs">{incident.review.transactionHash}</dd></div></dl>}
+      {canWrite && incident.review && <>
+        {consent("close", t.closeRevertedConsent)}
+        <Button type="button" onClick={() => void act("CLOSE_REVERTED")} disabled={checked !== "close" || busy || disabled}>{t.closeReverted}</Button>
+      </>}
     </>}
-    {incident?.kind === "QUARANTINE" && <>
+    {incident.kind === "QUARANTINE" && <>
       <p>{t.quarantineHint}</p>
-      <dl className="space-y-1"><div><dt className="font-medium">{t.originalResult}</dt>
-        <dd className="break-all font-mono text-xs">{incident.restore.originalReceipt.status} · #{incident.restore.originalReceipt.blockNumber} · {incident.restore.originalReceipt.transactionHash}</dd></div></dl>
-      {consent("restore", t.restoreConsent)}
-      <Button type="button" onClick={() => void act("RESTORE")} disabled={checked !== "restore" || busy || disabled}>{t.restore}</Button>
-      {incident.reanchor && <>
+      {incident.restore && <dl className="space-y-1"><div><dt className="font-medium">{t.originalResult}</dt>
+        <dd className="break-all font-mono text-xs">{incident.restore.originalReceipt.status} · #{incident.restore.originalReceipt.blockNumber} · {incident.restore.originalReceipt.transactionHash}</dd></div></dl>}
+      {canWrite && incident.restore && <>
+        {consent("restore", t.restoreConsent)}
+        <Button type="button" onClick={() => void act("RESTORE")} disabled={checked !== "restore" || busy || disabled}>{t.restore}</Button>
+      </>}
+      {canWrite && incident.reanchor && <>
         <p className="text-ink-muted">{t.reanchorHint}</p>
         {consent("reanchor", t.reanchorConsent)}
         <Button type="button" variant="outline" onClick={() => void act("REANCHOR")} disabled={checked !== "reanchor" || busy || disabled}>{t.reanchor}</Button>
       </>}
     </>}
+    {reopenSection}
     {message && <p role={message === "incidentDone" ? "status" : "alert"} className={message === "incidentDone" ? "" : "text-danger"}>{t[message]}</p>}
   </div>;
 }

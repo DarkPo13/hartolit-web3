@@ -14,9 +14,10 @@ const rows = [{ id: "fictional-attempt", status: "FINALIZED", nonce: 7n, observa
   quarantinedAt: null, finalizedObservation: observation }];
 // Fictional transaction double for the wallet-state queries: the latest
 // checkpoint, rows after it, whole-wallet quarantine and checkpoint counts.
-const transaction = (selected, { checkpoint = null, closed = 0, open = 0, reanchors = 0, onQuery = () => {} } = {}) => ({ $queryRaw: async () => [],
+const transaction = (selected, { checkpoint = null, closed = 0, open = 0, reanchors = 0, reopened = 0, onQuery = () => {} } = {}) => ({ $queryRaw: async () => [],
   publicationMintWalletCheckpoint: { findFirst: async () => checkpoint },
   publicationMintReanchor: { count: async () => reanchors },
+  publicationMintReopen: { count: async () => reopened },
   publicationMintAttempt: {
     count: async args => args.where.status.in ? closed : open,
     findMany: async args => { onQuery(args.where);
@@ -95,7 +96,8 @@ test("a current checkpoint replaces covered anchors; stale checkpoints and cover
   assert.deepEqual(queried[0].nonce, { gt: 70n }, "only proofs after the checkpoint are loaded");
   assert.equal(history.uncheckpointed, 1); assert.equal(history.anchors.length, 2);
   assert.deepEqual(history.anchors[0], { attemptId: null, nonce: 70n, receipt: { blockNumber: "40", blockHash: hash("e"), confirmations: "3" } });
-  for (const counts of [{ closed: 63, reanchors: 1 }, { closed: 64, reanchors: 2 }, { closed: 64, reanchors: 1, open: 1 }]) {
+  // A covered attempt reopened after the checkpoint (D75) can close again with another proof.
+  for (const counts of [{ closed: 63, reanchors: 1 }, { closed: 64, reanchors: 2 }, { closed: 64, reanchors: 1, open: 1 }, { closed: 64, reanchors: 1, reopened: 1 }]) {
     await assert.rejects(mintWalletHistory(transaction([after], { checkpoint, ...counts }), 97, "fictional-wallet"),
       error => error.status === 503 && /stale/.test(error.message));
   }

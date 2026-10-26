@@ -16,6 +16,7 @@ const reservationSelect = {
   id: true, confirmationId: true, status: true, passportVersion: true, approvedVersion: true,
   payloadHash: true, publisherWallet: true, createdAt: true, cancelledAt: true, walletVerifiedAt: true,
   tokenId: true, chainId: true, contractAddress: true, transactionHash: true,
+  mintPreparation: { select: { attempt: { select: { reopens: { where: { status: "APPLIED", priorTokenId: { not: null } }, select: { priorTokenId: true } } } } } },
 } satisfies Prisma.PublicationSelect;
 type ReservationRow = Prisma.PublicationGetPayload<{ select: typeof reservationSelect }>;
 
@@ -39,7 +40,7 @@ export function publicationPublisherAccess(adminId: string) {
   }
 }
 
-function reservationResponse(row: ReservationRow) {
+function reservationResponse(row: Omit<ReservationRow, "mintPreparation">, previousTokenIds: string[] = []) {
   return {
     id: row.id, confirmationId: row.confirmationId, status: row.status,
     passportVersion: row.passportVersion, approvedVersion: row.approvedVersion,
@@ -48,7 +49,9 @@ function reservationResponse(row: ReservationRow) {
     walletVerifiedAt: row.walletVerifiedAt?.toISOString() ?? null,
     // Public chain identifiers, only once finalized (suspended keeps them for review).
     issued: row.tokenId && row.chainId && row.contractAddress && row.transactionHash && (row.status === "PUBLISHED" || row.status === "CHAIN_SUSPENDED")
-      ? { tokenId: row.tokenId, chainId: row.chainId, contractAddress: row.contractAddress, transactionHash: row.transactionHash } : null,
+      ? { tokenId: row.tokenId, chainId: row.chainId, contractAddress: row.contractAddress, transactionHash: row.transactionHash,
+        // Numbers this record had before a reopening (D75): printed copies must be replaced.
+        previousTokenIds: previousTokenIds.filter(id => id !== row.tokenId) } : null,
   };
 }
 
@@ -166,5 +169,6 @@ export async function publicationReservations(passportId: string) {
     where: { id: passportId }, select: { publications: { orderBy: { createdAt: "desc" }, take: 50, select: reservationSelect } },
   });
   if (!row) throw new WorkflowError(404, "Passport not found");
-  return row.publications.map(reservationResponse);
+  const previous = [...new Set(row.publications.flatMap(publication => publication.mintPreparation?.attempt?.reopens.map(reopen => reopen.priorTokenId!) ?? []))];
+  return row.publications.map(publication => reservationResponse(publication, previous));
 }

@@ -191,7 +191,9 @@ export async function smokePublicationMintAction({ api, db, fixture, confirm, ow
     await api(`${failing.root}/mint/check`, { user: publisher, method: "POST", body: { attemptId: failingCommand.attemptId } });
     const revertedState = (await (await api(`${failing.root}/mint`, { user: publisher })).json()).mint;
     assert.equal(revertedState.attempt.lastObservation, "REVERTED"); assert.equal(revertedState.attempt.status, "DISPATCHING", "a revert waits for review");
-    assert.equal((await incident(failing.root, failingCommand.attemptId, other)).status, 403, "only the designated publisher reviews incidents");
+    const otherView = await incident(failing.root, failingCommand.attemptId, other);
+    assert.equal(otherView.status, 200, "other admins see the incident (D75 approval)");
+    assert.equal((await otherView.json()).incident.review, null, "only the designated publisher gets the closure review");
     const reverted = (await (await incident(failing.root, failingCommand.attemptId)).json()).incident;
     assert.equal(reverted.kind, "REVERTED"); assert.equal(reverted.review.transactionHash, revertedHash);
     const closeReverted = { attemptId: failingCommand.attemptId, action: "CLOSE_REVERTED", requestId: randomUUID(), transactionId: reverted.review.transactionId,

@@ -89,7 +89,7 @@ export async function smokeMintFailure({ db, publisherId, candidate, peer, chain
   const closed = await attempt(), stored = await publication();
   assert.equal(closed.status, "FAILED_TERMINAL"); assert.equal(closed.failureStatus, "REVERTED"); assert.equal(closed.finalizedObservationId, null);
   assert.equal(stored.status, "CHAIN_FAILED"); assert.equal(stored.transactionHash, null); assert.equal(stored.tokenId, null);
-  const journal = await db.publicationMintFailure.findUniqueOrThrow({ where: { attemptId } });
+  const journal = await db.publicationMintFailure.findFirstOrThrow({ where: { attemptId } });
   assert.equal(journal.actorId, publisherId); assert.equal(journal.observationId, closed.failedObservationId);
   assert.equal(journal.transactionId, matched.matchedTransactionId); assert.equal(journal.reviewedObservationVersion, fresh.expectedObservationVersion);
   assert.equal((await db.publicationMintResult.findUniqueOrThrow({ where: { attemptId } })).status, "SUSPENDED");

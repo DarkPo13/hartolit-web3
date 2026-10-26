@@ -4,14 +4,16 @@ import { getDb } from "@/lib/db";
 
 export type IssuerRecordKind = "MATCH" | "SUSPENDED" | "DISAGREES" | "NO_RECORD" | "UNAVAILABLE";
 /** `supersededBy.tokenId` is null while the correction is not yet published. */
-export type IssuerRecordNotice = { kind: IssuerRecordKind; supersededBy: { tokenId: string | null } | null; corrects: string | null };
+/** `previousTokenIds`: numbers this record had before a two-person reopening (D75); printed copies with them must be replaced. */
+export type IssuerRecordNotice = { kind: IssuerRecordKind; supersededBy: { tokenId: string | null } | null; corrects: string | null; previousTokenIds: string[] };
 type Row = { id: string; passportId: string; status: string; payloadHash: string; ipfsCid: string | null; chainId: number | null; contractAddress: string | null; tokenId: string | null };
 type Lookup = {
   publication: { findUnique(args: unknown): Promise<Row | null>; findFirst(args: unknown): Promise<Row | { tokenId: string | null } | null> };
   publicationCorrection: { findUnique(args: unknown): Promise<{ correctionPassportId?: string; supersededPublication?: { tokenId: string | null } } | null> };
+  publicationMintReopen?: { findMany(args: unknown): Promise<{ priorTokenId: string | null }[]> };
 };
 const select = { id: true, passportId: true, status: true, payloadHash: true, ipfsCid: true, chainId: true, contractAddress: true, tokenId: true } as const;
-const quiet = (kind: IssuerRecordKind): IssuerRecordNotice => ({ kind, supersededBy: null, corrects: null });
+const quiet = (kind: IssuerRecordKind): IssuerRecordNotice => ({ kind, supersededBy: null, corrects: null, previousTokenIds: [] });
 
 // A record published again after a cancelled or reverted mint keeps the failed row as history:
 // prefer the open publication, else the latest failed one (it still signals "never issued").
@@ -47,13 +49,18 @@ export async function issuerRecordNotice(verified: { tokenId: string; contractAd
       ]);
       const kind = kindOf(verified, byToken, byHash);
       if (!byToken || kind === "DISAGREES") return quiet(kind);
-      const [superseding, correcting] = await Promise.all([
+      const [superseding, correcting, reopened] = await Promise.all([
         db.publicationCorrection.findUnique({ where: { supersededPublicationId: byToken.id }, select: { correctionPassportId: true } }),
         db.publicationCorrection.findUnique({ where: { correctionPassportId: byToken.passportId }, select: { supersededPublication: { select: { tokenId: true } } } }),
+        // Earlier numbers of the same record: reopenings of its publications' attempts (D75), including one published again (D74).
+        db.publicationMintReopen?.findMany({ where: { status: "APPLIED", priorTokenId: { not: null },
+          attempt: { preparation: { publication: { passportId: byToken.passportId, payloadHash: byToken.payloadHash } } } },
+          orderBy: { approvedAt: "asc" }, select: { priorTokenId: true } }) ?? [],
       ]);
+      const previousTokenIds = [...new Set(reopened.map(row => row.priorTokenId).filter((id): id is string => !!id && id !== verified.tokenId))];
       const replacement = superseding?.correctionPassportId ? await db.publication.findFirst({ where: { passportId: superseding.correctionPassportId,
         status: "PUBLISHED", chainId: 97, contractAddress: verified.contractAddress }, select: { tokenId: true } }) : null;
-      return { kind, supersededBy: superseding ? { tokenId: replacement?.tokenId ?? null } : null, corrects: correcting?.supersededPublication?.tokenId ?? null };
+      return { kind, supersededBy: superseding ? { tokenId: replacement?.tokenId ?? null } : null, corrects: correcting?.supersededPublication?.tokenId ?? null, previousTokenIds };
     })()]);
   } catch { return quiet("UNAVAILABLE"); }
   finally { clearTimeout(timer); }

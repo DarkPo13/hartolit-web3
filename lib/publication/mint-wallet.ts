@@ -92,12 +92,14 @@ type Checkpoint = Awaited<ReturnType<Prisma.TransactionClient["publicationMintWa
  */
 export async function mintCheckpointCurrent(tx: Prisma.TransactionClient, checkpoint: NonNullable<Checkpoint>) {
   const covered = { chainId: checkpoint.chainId, publisherWallet: checkpoint.publisherWallet, nonce: { lte: checkpoint.coveredThroughNonce } };
-  const [closed, open, reanchors] = await Promise.all([
+  const [closed, open, reanchors, reopened] = await Promise.all([
     tx.publicationMintAttempt.count({ where: { ...covered, status: { in: [...CLOSED_MINT_STATUSES] } } }),
     tx.publicationMintAttempt.count({ where: { ...covered, status: { notIn: [...CLOSED_MINT_STATUSES] } } }),
     tx.publicationMintReanchor.count({ where: { attempt: covered } }),
+    // A covered attempt reopened after the attestation (D75) may close again with another proof.
+    tx.publicationMintReopen.count({ where: { attempt: covered, status: "APPLIED", approvedAt: { gt: checkpoint.createdAt } } }),
   ]);
-  return closed === checkpoint.coveredCount && open === 0 && reanchors === checkpoint.coveredReanchorCount;
+  return closed === checkpoint.coveredCount && open === 0 && reanchors === checkpoint.coveredReanchorCount && reopened === 0;
 }
 
 export function checkpointAnchor(checkpoint: NonNullable<Checkpoint>): MintWalletAnchor {

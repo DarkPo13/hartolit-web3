@@ -84,6 +84,14 @@ test("correction notices link the other public token and keep the VALID verdict"
   assert.ok(!view({}).includes(t.correctionTitle));
 });
 
+test("a record with earlier token numbers (D75) warns that printed copies must be replaced", () => {
+  const view = previousTokenIds => renderToStaticMarkup(React.createElement(PublicVerificationView, { result: valid,
+    issuer: { kind: "MATCH", supersededBy: null, corrects: null, previousTokenIds } }));
+  const html = view(["4", "6"]);
+  assert.ok(html.includes(t.previousTokens.replace("{tokens}", "#4, #6")) && html.includes('role="alert"') && html.includes(t.validBadge));
+  assert.ok(!view([]).includes(t.previousTokens.slice(0, 20)) && en.publicVerifier.previousTokens.includes("{tokens}"));
+});
+
 test("every other result has its own state, no treatment facts and a way to check again", () => {
   const cases = [
     [{ status: "PENDING", reason: "CONFIRMING" }, [t.pendingBadge, t.pendingTitle, t.pendingDescription]],

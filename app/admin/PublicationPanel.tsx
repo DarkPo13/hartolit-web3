@@ -20,7 +20,7 @@ const PublicationMint = dynamic(() => import("./PublicationMint").then(m => m.Pu
 export function PublicationPanel({ passportId, confirmation, disabled }: {
   passportId: string; confirmation: PublicConfirmation; disabled: boolean;
 }) {
-  const t = useT().publisher;
+  const t = useT().publisher, tm = useT().publicationMint;
   const { locale } = useLocale();
   const headingId = useId();
   const [data, setData] = useState<PublicationOverview | null>(null);
@@ -91,6 +91,7 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
     {data && <>
       {issued ? <div role="status" className="rounded-lg border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900">
         <p className="font-semibold">{t.issuedTitle} #{issued.tokenId}</p><p className="mt-1">{t.issuedHint}</p>
+        {!!issued.previousTokenIds?.length && <p role="alert" className="mt-2 font-medium text-danger">{tm.reprintHint.replace("{token}", issued.previousTokenIds.join(", #"))}</p>}
         <dl className="mt-3 space-y-2"><div><dt className="font-medium">{t.contract}</dt><dd className="break-all font-mono text-xs">{issued.contractAddress}</dd></div>
           <div><dt className="font-medium">{t.transaction}</dt><dd className="break-all font-mono text-xs">{issued.transactionHash}</dd></div></dl>
         <a href={`/passports/${encodeURIComponent(issued.tokenId)}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block font-medium text-brand-700 underline">{t.openPublic}</a>

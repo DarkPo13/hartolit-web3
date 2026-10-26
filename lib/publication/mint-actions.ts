@@ -17,6 +17,7 @@ export async function mintOverview(passportId: string) {
       mintPreparation: { select: { id: true, requestId: true, intentJson: true, intentSha256: true, createdAt: true,
         attempt: { select: { id: true, status: true, nonce: true, deadlineAt: true, unknownAt: true, finalizedAt: true, quarantinedAt: true,
           failureStatus: true, discoveryVersion: true, discoveries: { select: { id: true, revision: true, status: true, transactionHash: true }, orderBy: { revision: "desc" }, take: 1 },
+          reopens: { where: { status: "APPLIED" }, select: { kind: true, priorTokenId: true }, orderBy: { approvedAt: "desc" }, take: 1 },
           transactions: { select: { transactionHash: true }, orderBy: { createdAt: "asc" } },
           observations: { select: { reportedHash: true, status: true }, orderBy: { revision: "desc" }, take: 1 } } } } } },
   });
@@ -47,6 +48,8 @@ export async function mintOverview(passportId: string) {
       unknownAt: attempt.unknownAt?.toISOString() ?? null, finalizedAt: attempt.finalizedAt?.toISOString() ?? null, quarantined: !!attempt.quarantinedAt,
       transactionHashes: attempt.transactions.map(row => row.transactionHash), lastObservation: attempt.observations[0]?.status ?? null,
       failureStatus: attempt.failureStatus,
+      // D75: the last applied reopening (a LOST one offers the same-nonce self-send again).
+      reopened: attempt.reopens[0] ? { kind: attempt.reopens[0].kind, priorTokenId: attempt.reopens[0].priorTokenId } : null,
       // Only the latest search can be reviewed for a cancellation closure (D48).
       latestDiscovery: attempt.discoveries[0]?.revision === attempt.discoveryVersion
         ? { id: attempt.discoveries[0].id, status: attempt.discoveries[0].status, transactionHash: attempt.discoveries[0].transactionHash } : null } : null,

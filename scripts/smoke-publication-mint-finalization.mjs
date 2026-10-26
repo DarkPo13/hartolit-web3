@@ -100,7 +100,7 @@ export async function smokeMintFinalization({ api, base: appBase, publisher, ope
   // The admin views must present the record as issued, never as an unissued snapshot.
   const overview = await (await api(`/api/admin/passports/${passportId}/publication`, { user: publisher })).json();
   assert.deepEqual(overview.reservations.find(row => row.id === published.id).issued, { tokenId: published.tokenId, chainId: published.chainId,
-    contractAddress: published.contractAddress, transactionHash: published.transactionHash }, "issued chain identifiers reach the admin view");
+    contractAddress: published.contractAddress, transactionHash: published.transactionHash, previousTokenIds: [] }, "issued chain identifiers reach the admin view; no earlier numbers");
   assert.equal(overview.reservations.find(row => row.id === probe.publication.id)?.issued ?? null, null, "an unissued publication has no chain identifiers");
   for (const view of ["certificate", "verification"]) {
     const response = await api(`/admin/passports/${passportId}/${view}`, { user: publisher });

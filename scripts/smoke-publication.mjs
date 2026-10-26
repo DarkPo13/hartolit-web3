@@ -18,6 +18,7 @@ import { smokePinUploads } from "./smoke-publication-upload.mjs";
 import { smokePublicationPreparation } from "./smoke-publication-preparation.mjs";
 import { smokePublicationUploadAction } from "./smoke-publication-upload-action.mjs";
 import { smokePublicationMintAction } from "./smoke-publication-mint-action.mjs";
+import { smokePublicationMintReopen } from "./smoke-publication-mint-reopen.mjs";
 
 nextEnv.loadEnvConfig(process.cwd());
 const database = new URL(process.env.DATABASE_URL);
@@ -322,6 +323,8 @@ try {
     restart: async target => { await stopServer(); await startServer(publisherId, wallet, target); }, base });
   await smokePublicationMintAction({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, operator,
     restart: async (target, extra = {}) => { await stopServer(); await startServer(publisherId, extra.wallet ?? wallet, target, extra.env); }, base });
+  if (process.env.PUBLICATION_LOCAL_CHAIN === "1") await smokePublicationMintReopen({ api, db, fixture, confirm, ownerId, publisherId, publisher, other,
+    restart: async (target, extra = {}) => { await stopServer(); await startServer(publisherId, extra.wallet ?? wallet, target, extra.env); } });
   process.stdout.write("Publication smoke passed: exact bytes, private EOA proof, bound upload target, explicit intent, single send, lost acknowledgement/readback, concurrency, recall, constraints and audit. No public side effects.\n");
 } finally {
   await stopServer();
@@ -343,7 +346,8 @@ try {
     await db.auditLog.deleteMany({ where: { passportId: id } });
     // The finalization proof FK is deferred; delete this owned cycle atomically.
     await db.$transaction(async tx => {
-      // A restored cancellation's recovery row references the closure, so it goes first.
+      // Reopenings reference the attempt and its earlier proof; a restored cancellation's recovery row references the closure.
+      await tx.publicationMintReopen.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
       await tx.publicationMintRecovery.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
       await tx.publicationMintCancellation.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });
       await tx.publicationMintFailure.deleteMany({ where: { attempt: { preparation: { publication: { passportId: id } } } } });

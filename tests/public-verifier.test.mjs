@@ -154,13 +154,18 @@ test("the issuer record only annotates a VALID result with a coarse kind", async
     publicationCorrection: { findUnique: async ({ where }) => where.supersededPublicationId ? superseding : correcting },
   });
   const kind = async (...args) => (await issuerRecordNotice(...args)).kind;
-  assert.deepEqual(await issuerRecordNotice(verified, db(row)), { kind: "MATCH", supersededBy: null, corrects: null });
+  assert.deepEqual(await issuerRecordNotice(verified, db(row)), { kind: "MATCH", supersededBy: null, corrects: null, previousTokenIds: [] });
   assert.equal(await kind(verified, db({ ...row, status: "CHAIN_SUSPENDED" })), "SUSPENDED");
   assert.equal(await kind(verified, db({ ...row, payloadHash: "d".repeat(64) }, null)), "DISAGREES");
   assert.equal(await kind(verified, db({ ...row, ipfsCid: "bafkreiother" })), "DISAGREES");
   assert.equal(await kind(verified, db(null, { ...row, tokenId: "8" })), "DISAGREES", "the document is recorded as another published token");
   assert.equal(await kind(verified, db(null, { ...row, status: "CHAIN_FAILED", tokenId: null })), "SUSPENDED", "the app believes this document was never issued");
   assert.equal(await kind(verified, db(null, null)), "NO_RECORD");
+  const reopened = { ...db(row), publicationMintReopen: { findMany: async ({ where }) => {
+    assert.equal(where.status, "APPLIED"); assert.equal(where.attempt.preparation.publication.payloadHash, verified.payloadHash);
+    return [{ priorTokenId: "4" }, { priorTokenId: "7" }, { priorTokenId: "4" }];
+  } } };
+  assert.deepEqual((await issuerRecordNotice(verified, reopened)).previousTokenIds, ["4"], "earlier numbers of the record, without the current one or repeats");
   assert.equal(await kind(verified, db(row, { ...row, id: "pub-6", status: "CHAIN_FAILED", tokenId: null })), "MATCH", "a record published again after a failed mint matches its new token");
   assert.equal(await kind(verified, { publication: { findUnique: async () => { throw new Error("fictional-private-db-detail"); } } }), "UNAVAILABLE");
   assert.equal(await kind(verified, { publication: { findUnique: () => new Promise(() => {}) } }, 20), "UNAVAILABLE", "a hanging database cannot block the page");
@@ -185,5 +190,5 @@ test("corrections link public tokens only: pending, superseded and corrects", as
   assert.equal((await issuerRecordNotice(verified, db({ correcting: { supersededPublication: { tokenId: "3" } } }))).corrects, "3");
   const disagreeing = { publication: { findUnique: async () => ({ ...row, payloadHash: "d".repeat(64) }), findFirst: async () => ({ tokenId: "9" }) },
     publicationCorrection: { findUnique: async () => ({ correctionPassportId: "passport-9" }) } };
-  assert.deepEqual(await issuerRecordNotice(verified, disagreeing), { kind: "DISAGREES", supersededBy: null, corrects: null }, "no links from a disagreeing record");
+  assert.deepEqual(await issuerRecordNotice(verified, disagreeing), { kind: "DISAGREES", supersededBy: null, corrects: null, previousTokenIds: [] }, "no links from a disagreeing record");
 });
