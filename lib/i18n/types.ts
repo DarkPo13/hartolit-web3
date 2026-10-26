@@ -14,6 +14,7 @@ export interface Translations {
   };
   publicationMint: {
     title: string; hint: string; loading: string; loadError: string; notConfigured: string; readOnly: string; contract: string; recipient: string; cid: string; depth: string; intentHash: string; reviewConsent: string; prepare: string; prepared: string; sendTitle: string; sendNotice: string; connect: string; connectedWallet: string; wrongWallet: string; wrongNetwork: string; switchNetwork: string; disconnect: string; sendConsent: string; send: string; waitingWallet: string; permissionUsed: string; walletError: string; changed: string; accessDenied: string; uncertain: string; attempt: string; nonce: string; transactions: string; checkResult: string; pending: string; checkedRecently: string; blocked: string; unavailable: string; statusDispatching: string; statusUnknown: string; statusFinalized: string; statusFailed: string; walletChanged: string;
+    cancelTitle: string; cancelHint: string; cancelConsent: string; cancelSend: string; cancelSent: string; cancelFound: string; closeConsent: string; close: string; closeNotReady: string; cancelledDone: string;
   };
   publicationPreparation: {
     title: string; hint: string; notConfigured: string; target: string; binding: string;

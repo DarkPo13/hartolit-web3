@@ -955,3 +955,10 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 
 - `next dev` with `NEXT_PUBLIC_DEMO_MODE=true` (scratch script, signed-in fictional user): test data, simulated mint to completion, the demo certificate and `/verify/1` render with no console or server errors. `/verify/1` answers "Verification unavailable: contract address not configured" in English only (legacy demo page, production-disabled; not changed).
 - `next dev` 16.4.3 rewrote the managed block at the top of AGENTS.md (its heading is now level 2); committed as AGENTS.md instructs.
+
+## 2026-10-26 - Free the wallet after a refused send (D70)
+
+- Built the UI/HTTP for the finding from the browser refusal scenario (see D70): self-send with the same nonce from the panel, check, reviewed closure. Reused D46/D48 services unchanged; no migration.
+- The browser happy-path pass caught a UX defect in the first version: right after a successful send the panel already offered "Cancel this mint" (the attempt is still `DISPATCHING`). Cancellation is now offered only when the wallet reported no transaction.
+- Scratch-test pitfalls recorded: the refusal counter must live outside the page (a reload reset it and the wallet "refused" the cancellation too, which the UI correctly ignored); the smoke's mint stage has older records with attempts, so the pass finds its record by intent hash; a monitoring check starts a 30-second cooldown.
+- Validation: lint, typecheck, build, default and actual-chain `publication:smoke` exited 0 (control: without the route exits 1); browser passes on rebuilt tree: refusal+cancellation 24/24, mint 13/13, issued 32/32, withdrawal 13/13.

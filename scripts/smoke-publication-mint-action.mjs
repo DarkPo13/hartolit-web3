@@ -115,7 +115,51 @@ export async function smokePublicationMintAction({ api, db, fixture, confirm, ow
     const ran = monitor(["--run", "--limit", "5"], mintEnv);
     assert.equal(ran.output.mode, "run"); assert.equal(typeof ran.output.batch.checked, "number"); assert.equal(ran.status, ran.attention ? 1 : 0);
     assert.equal((await db.publication.findUniqueOrThrow({ where: { id: record.publicationId } })).status, "PUBLISHED", "monitoring never undoes a finalized record");
-    process.stdout.write("Mint action passed: reviewed intent, designated-publisher preparation and single fixed-nonce permission, exact wallet request, hash report and depth-checked finalization on actual Anvil.\n");
+
+    // The publisher refuses in the wallet after permission: a same-nonce self-send and the
+    // reviewed closure (D46/D48 over HTTP) free the wallet; the record stays unissued.
+    const refused = await preparePinRecord({ api, fixture, confirm, ownerId, publisherId, publisher, account });
+    assert.equal((await api(`${refused.root}/pin-attempts/upload`, { user: publisher, method: "POST", body: refused.body })).status, 200);
+    const refusedMint = `${refused.root}/mint`;
+    const refusedState = async () => (await (await api(refusedMint, { user: publisher })).json()).mint;
+    const candidate = (await refusedState()).candidate;
+    const refusedPrepared = await api(`${refusedMint}/preparation`, { user: publisher, method: "POST", body: { publicationId: refused.publicationId, requestId: randomUUID(),
+      confirmationId: refused.confirmationId, passportVersion: 4, expectedSha256: refused.payloadHash, expectedIntentSha256: candidate.intent.sha256, acknowledgement: "PREPARE_EXACT_MINT" } });
+    assert.equal(refusedPrepared.status, 201);
+    const refusedCommand = (await (await api(`${refusedMint}/dispatch`, { user: publisher, method: "POST", body: { preparationId: (await refusedPrepared.json()).preparation.id,
+      requestId: randomUUID(), expectedIntentSha256: candidate.intent.sha256, acknowledgement: "SEND_EXACT_MINT" } })).json()).command;
+    const cancellation = (query, user = publisher) => api(`${refusedMint}/cancellation?${new URLSearchParams(query)}`, { user });
+    assert.equal((await cancellation({ attemptId: refusedCommand.attemptId, discoveryId: randomUUID() })).status, 409, "no closure review without a found conflict");
+    await chain.cancel(refusedCommand);
+    const found = await api(`${refusedMint}/check`, { user: publisher, method: "POST", body: { attemptId: refusedCommand.attemptId } });
+    assert.equal((await found.json()).check.status, "CONFLICT", "the check finds the same-nonce self-send");
+    const conflictState = await refusedState();
+    assert.equal(conflictState.attempt.latestDiscovery.status, "CONFLICT"); assert.equal(conflictState.attempt.status, "DISPATCHING");
+    const target = { attemptId: refusedCommand.attemptId, discoveryId: conflictState.attempt.latestDiscovery.id };
+    assert.equal((await cancellation(target, other)).status, 403, "only the designated publisher reviews the closure");
+    const reviewed = (await (await cancellation(target)).json()).review;
+    assert.equal(reviewed.nonce, String(refusedCommand.request.nonce)); assert.equal(reviewed.transactionHash, conflictState.attempt.latestDiscovery.transactionHash);
+    const closure = { attemptId: refusedCommand.attemptId, requestId: randomUUID(), discoveryId: reviewed.discoveryId, expectedIntentSha256: reviewed.intentSha256,
+      expectedWalletStateSha256: reviewed.walletStateSha256, expectedObservationVersion: reviewed.observationVersion, expectedDiscoveryVersion: reviewed.discoveryVersion,
+      acknowledgement: "CLOSE_CANCELLED_MINT" };
+    const close = (body, user = publisher) => api(`${refusedMint}/cancellation`, { user, method: "POST", body });
+    assert.equal((await close({ ...closure, acknowledgement: "SEND_EXACT_MINT" })).status, 422);
+    assert.equal((await close(closure, other)).status, 403);
+    assert.equal((await close(closure)).status, 409, "a cancellation below the configured depth does not release the slot");
+    await chain.reader.request({ method: "anvil_mine", params: [`0x${chain.target.requiredConfirmations.toString(16)}`] });
+    const closingBody = { ...closure, requestId: randomUUID() };
+    const closed = await close(closingBody);
+    assert.equal(closed.status, 200, `closure after depth (${closed.status})`);
+    const recordedClosure = (await closed.json()).cancellation;
+    assert.equal(recordedClosure.status, "RECORDED"); assert.equal(recordedClosure.issued, false); assert.equal(recordedClosure.canResend, false);
+    assert.equal((await (await close(closingBody)).json()).cancellation.cancellationId, recordedClosure.cancellationId, "the same request is idempotent");
+    const closedState = await refusedState();
+    assert.equal(closedState.attempt.status, "FAILED_TERMINAL"); assert.equal(closedState.attempt.failureStatus, "CANCELLED");
+    assert.equal(closedState.publication.status, "CHAIN_FAILED", "the record stays unissued");
+    assert.equal(await db.publicationMintAttempt.count({ where: { publisherWallet: wallet, status: { in: ["DISPATCHING", "UNKNOWN"] } } }), 0, "no open attempt holds the wallet");
+    const refusedRow = await db.publication.findUniqueOrThrow({ where: { id: refused.publicationId } });
+    assert.equal(refusedRow.tokenId, null); assert.equal(refusedRow.transactionHash, null);
+    process.stdout.write("Mint action passed: reviewed intent, designated-publisher preparation and single fixed-nonce permission, exact wallet request, hash report and depth-checked finalization on actual Anvil; a refused send is cancelled by a same-nonce self-send and closed over HTTP after depth, freeing the wallet.\n");
   } finally {
     await chain?.stop();
     await kubo.close();

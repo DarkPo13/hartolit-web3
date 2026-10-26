@@ -16,10 +16,12 @@ type MintState = {
   publication: { id: string; status: string; confirmationId: string; passportVersion: number; payloadHash: string } | null;
   candidate: Described | null;
   preparation: (Described & { id: string; intentSha256: string }) | null;
-  attempt: { id: string; status: string; nonce: string; transactionHashes: string[]; quarantined: boolean } | null;
+  attempt: { id: string; status: string; nonce: string; transactionHashes: string[]; quarantined: boolean; failureStatus: string | null;
+    latestDiscovery: { id: string; status: string; transactionHash: string | null } | null } | null;
 };
+type Review = { discoveryId: string; intentSha256: string; walletStateSha256: string; observationVersion: number; discoveryVersion: number; transactionHash: string; nonce: string };
 type Props = { passportId: string; canWrite: boolean; disabled: boolean; onChanged: () => Promise<unknown> };
-type ErrorKey = "loadError" | "changed" | "accessDenied" | "uncertain" | "permissionUsed" | "walletError" | "pending" | "checkedRecently" | "blocked" | "unavailable";
+type ErrorKey = "loadError" | "changed" | "accessDenied" | "uncertain" | "permissionUsed" | "walletError" | "pending" | "checkedRecently" | "blocked" | "unavailable" | "closeNotReady";
 
 /** D68: review, prepare, receive one permission, send from the publisher's wallet,
  * report the hash and check the result. The server never signs.
@@ -46,7 +48,11 @@ function MintControls({ passportId, canWrite, disabled, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [reviewChecked, setReviewChecked] = useState(false);
   const [sendChecked, setSendChecked] = useState(false);
-  const alive = useRef(true), running = useRef(false), requests = useRef<{ preparation?: string; dispatch?: string }>({});
+  const [cancelChecked, setCancelChecked] = useState(false);
+  const [closeChecked, setCloseChecked] = useState(false);
+  const [cancelHash, setCancelHash] = useState<string | null>(null);
+  const [review, setReview] = useState<Review | null>(null);
+  const alive = useRef(true), running = useRef(false), requests = useRef<{ preparation?: string; dispatch?: string; close?: string }>({});
 
   const load = useCallback(async () => {
     try {
@@ -126,6 +132,47 @@ function MintControls({ passportId, canWrite, disabled, onChanged }: Props) {
       status === "BLOCKED" ? "blocked" : status === "UNAVAILABLE" ? "unavailable" : "pending");
   });
 
+  // D46/D48: a same-nonce self-send makes the original mint impossible; after it is
+  // confirmed at depth, the reviewed closure releases only this wallet slot.
+  const open = !!state?.attempt && ["DISPATCHING", "UNKNOWN"].includes(state.attempt.status);
+  const conflict = open && state?.attempt?.latestDiscovery?.status === "CONFLICT" ? state.attempt.latestDiscovery : null;
+  // Offered only when the wallet reported no transaction (refused or failed); a sent mint is checked, not cancelled.
+  const cancellable = open && !state?.attempt?.transactionHashes.length && !conflict;
+  const loadReview = useCallback(async (attemptId: string, discoveryId: string) => {
+    const response = await fetch(`${base}/cancellation?attemptId=${encodeURIComponent(attemptId)}&discoveryId=${encodeURIComponent(discoveryId)}`, { cache: "no-store" }).catch(() => null);
+    const value: Review | null = response?.ok ? (await response.json()).review : null;
+    if (alive.current) setReview(value);
+    return value;
+  }, [base]);
+  const attemptId = state?.attempt?.id, conflictId = conflict?.id;
+  useEffect(() => { if (canWrite && attemptId && conflictId) void loadReview(attemptId, conflictId); }, [canWrite, attemptId, conflictId, loadReview]);
+
+  const sendCancellation = () => run(async () => {
+    const attempt = state?.attempt;
+    if (!attempt || !cancellable || !cancelChecked || !ready || !stillReady() || !wallet) return;
+    setCancelChecked(false);
+    try {
+      const hash = await sendTransactionAsync({ to: wallet as `0x${string}`, value: 0n, nonce: Number(attempt.nonce), chainId: 97 });
+      if (alive.current) setCancelHash(hash.toLowerCase());
+    } catch (cause) { if (alive.current && !rejectedByWallet(cause)) setError("walletError"); }
+  });
+
+  const close = () => run(async () => {
+    const attempt = state?.attempt;
+    if (!attempt || !conflict || !review || !closeChecked) return;
+    requests.current.close ??= crypto.randomUUID();
+    const response = await fetch(`${base}/cancellation`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      attemptId: attempt.id, requestId: requests.current.close, discoveryId: review.discoveryId, expectedIntentSha256: review.intentSha256,
+      expectedWalletStateSha256: review.walletStateSha256, expectedObservationVersion: review.observationVersion,
+      expectedDiscoveryVersion: review.discoveryVersion, acknowledgement: "CLOSE_CANCELLED_MINT" }) }).catch(() => null);
+    const after = await load();
+    if (after?.attempt?.status === "FAILED_TERMINAL") { setCloseChecked(false); await onChanged(); return; }
+    // A changed review needs a new request; the old one stays bound to what was reviewed.
+    requests.current.close = undefined;
+    if (after?.attempt && conflict) await loadReview(after.attempt.id, conflict.id);
+    if (alive.current) { setCloseChecked(false); setError(!response ? "uncertain" : [401, 403].includes(response.status) ? "accessDenied" : response.status === 503 ? "unavailable" : "closeNotReady"); }
+  });
+
   const described = state?.preparation ?? state?.candidate;
   const statusText: Record<string, string> = { DISPATCHING: t.statusDispatching, UNKNOWN: t.statusUnknown, FINALIZED: t.statusFinalized, FAILED_TERMINAL: t.statusFailed };
   return <section aria-labelledby={heading} className="space-y-3 rounded-xl border border-border bg-surface p-4 text-sm">
@@ -169,6 +216,33 @@ function MintControls({ passportId, canWrite, disabled, onChanged }: Props) {
       <p>{t.nonce}: <span className="font-mono">{state.attempt.nonce}</span></p>
       {!!state.attempt.transactionHashes.length && <div><p>{t.transactions}</p>{state.attempt.transactionHashes.map(hash => <code key={hash} className="block break-all text-xs">{hash}</code>)}</div>}
       {["DISPATCHING", "UNKNOWN"].includes(state.attempt.status) && <Button type="button" variant="outline" size="sm" onClick={() => void check()} disabled={busy || disabled}>{t.checkResult}</Button>}
+      {state.attempt.failureStatus === "CANCELLED" && <p role="status" className="font-medium">{t.cancelledDone}</p>}
+    </div>}
+    {canWrite && cancellable && <div className="space-y-3 rounded-lg border border-border p-3">
+      <p className="font-medium">{t.cancelTitle}</p>
+      <p className="text-ink-muted">{t.cancelHint}</p>
+      {!isConnected ? <Button type="button" variant="outline" onClick={() => void walletAction("connect")} disabled={busy || disabled}>{t.connect}</Button> : <>
+        <div><p className="font-medium">{t.connectedWallet}</p><code className="mt-1 block break-all">{address}</code></div>
+        {!matches && <p role="alert" className="text-danger">{t.wrongWallet}</p>}
+        {matches && chainId !== 97 && <Button type="button" variant="outline" onClick={() => void walletAction("switch")} disabled={busy || disabled}>{t.switchNetwork}</Button>}
+        {ready && <>
+          <label className="flex items-start gap-2"><input type="checkbox" className="mt-1 accent-brand-600" checked={cancelChecked} disabled={busy || disabled}
+            onChange={event => setCancelChecked(event.target.checked)} /><span>{t.cancelConsent}</span></label>
+          <Button type="button" variant="outline" onClick={() => void sendCancellation()} disabled={!cancelChecked || busy || disabled}>{t.cancelSend}</Button>
+        </>}
+      </>}
+      {cancelHash && <div role="status"><p>{t.cancelSent}</p><code className="mt-1 block break-all text-xs">{cancelHash}</code></div>}
+    </div>}
+    {canWrite && conflict && <div className="space-y-3 rounded-lg border border-border p-3">
+      <p className="font-medium">{t.cancelTitle}</p>
+      <p role="status">{t.cancelFound}</p>
+      {review && <dl className="space-y-1">
+        <div><dt className="font-medium">{t.nonce}</dt><dd className="font-mono">{review.nonce}</dd></div>
+        <div><dt className="font-medium">{t.transactions}</dt><dd className="break-all font-mono text-xs">{review.transactionHash}</dd></div>
+      </dl>}
+      <label className="flex items-start gap-2"><input type="checkbox" className="mt-1 accent-brand-600" checked={closeChecked} disabled={busy || disabled || !review}
+        onChange={event => setCloseChecked(event.target.checked)} /><span>{t.closeConsent}</span></label>
+      <Button type="button" onClick={() => void close()} disabled={!closeChecked || !review || busy || disabled}>{t.close}</Button>
     </div>}
     {error && <p role="alert" className="text-danger">{t[error]}</p>}
   </section>;
