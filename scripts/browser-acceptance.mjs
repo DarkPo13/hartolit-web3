@@ -107,7 +107,7 @@ try {
   await admin.getByLabel(uk.account.setupPassword).fill(adminPassword);
   const enabled = admin.waitForResponse(response => new URL(response.url()).pathname === "/api/auth/two-factor/enable");
   await admin.getByRole("button", { name: uk.account.setupStart }).click();
-  const totpUri = (await (await enabled).json()).totpURI;
+  const { totpURI: totpUri, backupCodes } = await (await enabled).json();
   await admin.getByRole("img", { name: uk.account.authenticatorQrAlt }).waitFor();
   note(true, "setup shows the authenticator QR code");
   await admin.getByLabel(uk.account.code).fill(totp(totpUri));
@@ -310,6 +310,20 @@ try {
   note((await op.getByRole("region", { name: en.review.myPassports }).innerText()).includes(en.crops.sunflower), "operator list shows the English crop");
   note(await overflow(op) <= 0, "operator EN: no overflow at 390px");
   await op.screenshot({ path: path.join(out, "operator-approved-en.png"), fullPage: true });
+  // 9. Lost authenticator: a saved recovery code signs the admin in through the UI.
+  const recoveryContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const recovery = await recoveryContext.newPage(); watch(recovery, "recovery");
+  await recovery.goto(`${base}/login`);
+  await recovery.getByLabel(uk.account.email).fill(adminEmail);
+  await recovery.getByLabel(uk.account.password).fill(adminPassword);
+  await recovery.getByRole("button", { name: uk.account.signIn }).click();
+  await recovery.waitForURL(url => url.pathname === "/two-factor", { timeout: 15_000 });
+  await recovery.getByRole("button", { name: uk.account.useRecoveryCode }).click();
+  await recovery.getByLabel(uk.account.recoveryCode).fill(backupCodes[0]);
+  await recovery.getByRole("button", { name: uk.account.verify }).click();
+  await recovery.waitForURL(url => url.pathname === "/settings/security", { timeout: 15_000 });
+  note(await recovery.getByRole("form", { name: uk.account.replaceTitle }).isVisible(), "a recovery code signs the admin in and offers to replace the authenticator");
+  await recoveryContext.close();
   const audit = await db.auditLog.findMany({ where: { passport: { farmer: { legalName: marker } } }, select: { action: true } });
   note(["PASSPORT_SUBMITTED", "REVIEW_ASSIGNED", "REVIEW_APPROVED"].every(action => audit.some(row => row.action === action)), "audit trail recorded");
   // The rejected malware upload is the only expected HTTP failure; going offline is the only expected console noise.

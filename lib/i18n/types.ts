@@ -223,6 +223,8 @@ export interface Translations {
     setupInstructions: string;
     authenticatorQrAlt: string;
     backupCodes: string;
+    useRecoveryCode: string; useAuthenticator: string; recoveryCode: string; recoveryDescription: string;
+    replaceTitle: string; replaceHint: string; replaceSubmit: string;
     backupWarning: string;
     mfaActive: string;
     mfaComplete: string;

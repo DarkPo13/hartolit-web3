@@ -14,6 +14,8 @@ export function TwoFactorForm() {
   const [code, setCode] = useState("");
   const [error, setError] = useState(false);
   const [pending, setPending] = useState(false);
+  // Recovery codes are the fallback when the authenticator device is lost.
+  const [recovery, setRecovery] = useState(false);
   const t = useT();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -21,12 +23,14 @@ export function TwoFactorForm() {
     setPending(true);
     setError(false);
     try {
-      const result = await authClient.twoFactor.verifyTotp({ code });
+      const result = recovery
+        ? await authClient.twoFactor.verifyBackupCode({ code: code.trim() })
+        : await authClient.twoFactor.verifyTotp({ code });
       if (result.error) {
         setError(true);
         return;
       }
-      router.replace("/");
+      router.replace(recovery ? "/settings/security" : "/");
       router.refresh();
     } catch {
       setError(true);
@@ -38,13 +42,16 @@ export function TwoFactorForm() {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-10">
       <Card className="w-full max-w-md">
-        <CardHeader><CardTitle as="h1">{t.account.twoFactorTitle}</CardTitle><CardDescription>{t.account.twoFactorDescription}</CardDescription></CardHeader>
+        <CardHeader><CardTitle as="h1">{t.account.twoFactorTitle}</CardTitle><CardDescription>{recovery ? t.account.recoveryDescription : t.account.twoFactorDescription}</CardDescription></CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
-            <Input label={t.account.code} value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoFocus disabled={pending} />
+            {recovery
+              ? <Input key="recovery" label={t.account.recoveryCode} value={code} onChange={(event) => setCode(event.target.value)} autoComplete="off" spellCheck={false} maxLength={32} required autoFocus disabled={pending} />
+              : <Input key="totp" label={t.account.code} value={code} onChange={(event) => setCode(event.target.value)} autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoFocus disabled={pending} />}
             {error && <p role="alert" className="text-sm text-danger">{t.account.codeError}</p>}
             <Button type="submit" loading={pending} className="w-full">{t.account.verify}</Button>
           </form>
+          <button type="button" onClick={() => { setRecovery(!recovery); setCode(""); setError(false); }} className="mt-4 block text-left text-sm text-brand-700 underline">{recovery ? t.account.useAuthenticator : t.account.useRecoveryCode}</button>
           <Link href="/login" className="mt-4 inline-block text-sm text-ink-muted hover:text-ink">{t.account.backToLogin}</Link>
         </CardContent>
       </Card>

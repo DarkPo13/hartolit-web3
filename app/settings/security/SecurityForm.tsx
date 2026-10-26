@@ -59,6 +59,26 @@ export function SecurityForm({ enabled, isAdmin }: { enabled: boolean; isAdmin: 
     }
   }
 
+  // Disabling first keeps admin routes closed until a new authenticator is verified.
+  async function replace(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending) return;
+    setPending(true);
+    setError(false);
+    try {
+      const result = await authClient.twoFactor.disable({ password });
+      if (result.error) throw new Error("MFA disable failed");
+      setPassword("");
+      setActive(false);
+      setNewlyEnabled(false);
+      setBackupCodes(undefined);
+    } catch {
+      setError(true);
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function revoke() {
     setPending(true);
     setError(false);
@@ -82,6 +102,12 @@ export function SecurityForm({ enabled, isAdmin }: { enabled: boolean; isAdmin: 
               {backupCodes && <RecoveryCodes codes={backupCodes} />}
               {!newlyEnabled && <Button type="button" onClick={revoke} disabled={pending}>{t.account.revokeOthers}</Button>}
               {revoked && <p role="status" className="text-sm text-ink-muted">{t.account.revokeSuccess}</p>}
+              {!newlyEnabled && <form onSubmit={replace} aria-label={t.account.replaceTitle} className="space-y-3 rounded-lg border border-border p-4">
+                <h2 className="font-medium text-ink">{t.account.replaceTitle}</h2>
+                <p className="text-sm text-ink-muted">{t.account.replaceHint}</p>
+                <Input type="password" label={t.account.setupPassword} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required disabled={pending} />
+                <Button type="submit" variant="outline" loading={pending}>{t.account.replaceSubmit}</Button>
+              </form>}
               <div><Link href={newlyEnabled ? "/login" : isAdmin ? "/admin" : "/"} className="text-sm text-brand-700 underline">{newlyEnabled ? t.account.backToLogin : isAdmin ? t.account.admin : t.header.title}</Link></div>
             </>
           ) : qr ? (
