@@ -276,6 +276,9 @@ try {
   await confirmCheck.check(); await confirmButton.click();
   await admin.getByText(uk.review.publicPreview.confirmedTitle).waitFor({ timeout: 15_000 });
   note(await admin.getByText(uk.publisher.title).count() > 0, "confirmed snapshot leads to the publication step");
+  const detailText = await admin.locator("main").innerText();
+  note(detailText.includes(uk.codes.audit.PASSPORT_SUBMITTED) && detailText.includes(uk.treatmentTypes.herbicide) && !/PASSPORT SUBMITTED|\bherbicide\b|· (READY|METEO)\b/.test(detailText),
+    "admin detail shows localized audit actions, treatment type and evidence states");
   note(await overflow(admin) <= 0, "admin detail: no overflow");
   await admin.screenshot({ path: path.join(out, "admin-confirmed.png"), fullPage: true });
 

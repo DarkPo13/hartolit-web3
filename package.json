@@ -21,6 +21,7 @@
     "chain:smoke": "node scripts/smoke-chain.mjs",
     "verifier:smoke": "node scripts/smoke-public-verifier.mjs",
     "test:capture": "node --test tests/capture-completion.test.mjs",
+    "test:i18n": "node --test tests/translations.test.mjs",
     "test:public-boundary": "node scripts/check-public-boundary.mjs",
     "db:setup": "node scripts/setup-local-auth.mjs",
     "evidence:setup": "node scripts/setup-local-evidence.mjs",

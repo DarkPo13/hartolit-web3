@@ -16,7 +16,7 @@ export async function adminRecords(view: RecordView, page: number, search: strin
       db.farmer.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip, take: 20, select: { id: true, legalName: true, registrationId: true, createdAt: true, archivedAt: true, owner: { select: { email: true } }, _count: { select: { fields: true, passports: true } } } }),
       db.farmer.count({ where }),
     ]);
-    return { total, items: rows.map((row) => ({ id: row.id, title: row.legalName, detail: [row.registrationId, row.owner.email, `${row._count.fields} fields`, `${row._count.passports} passports`].filter(Boolean).join(" · "), status: row.archivedAt ? "ARCHIVED" : "ACTIVE", createdAt: row.createdAt.toISOString(), passportId: null, role: null })) };
+    return { total, items: rows.map((row) => ({ id: row.id, title: row.legalName, detail: [row.registrationId, row.owner.email].filter(Boolean).join(" · "), facts: { fields: row._count.fields, passports: row._count.passports }, status: row.archivedAt ? "ARCHIVED" : "ACTIVE", createdAt: row.createdAt.toISOString(), passportId: null, role: null })) };
   }
   if (view === "fields") {
     const where = search ? { OR: [{ label: contains }, { cadastralNumber: contains }, { farmer: { legalName: contains } }] } : {};
@@ -24,7 +24,7 @@ export async function adminRecords(view: RecordView, page: number, search: strin
       db.field.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip, take: 20, select: { id: true, label: true, crop: true, areaHectares: true, cadastralNumber: true, createdAt: true, archivedAt: true, farmer: { select: { legalName: true } }, _count: { select: { passports: true } } } }),
       db.field.count({ where }),
     ]);
-    return { total, items: rows.map((row) => ({ id: row.id, title: row.label || row.farmer.legalName || row.crop, detail: [row.crop, row.areaHectares?.toString(), row.cadastralNumber, `${row._count.passports} passports`].filter(Boolean).join(" · "), status: row.archivedAt ? "ARCHIVED" : "ACTIVE", createdAt: row.createdAt.toISOString(), passportId: null, role: null })) };
+    return { total, items: rows.map((row) => ({ id: row.id, title: row.label || row.farmer.legalName || row.crop, detail: [row.areaHectares?.toString(), row.cadastralNumber].filter(Boolean).join(" · "), facts: { crop: row.crop, passports: row._count.passports }, status: row.archivedAt ? "ARCHIVED" : "ACTIVE", createdAt: row.createdAt.toISOString(), passportId: null, role: null })) };
   }
   if (view === "users") {
     const where = search ? { OR: [{ name: contains }, { email: contains }] } : {};
@@ -32,7 +32,7 @@ export async function adminRecords(view: RecordView, page: number, search: strin
       db.user.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip, take: 20, select: { id: true, name: true, email: true, role: true, banned: true, twoFactorEnabled: true, createdAt: true } }),
       db.user.count({ where }),
     ]);
-    return { total, items: rows.map((row) => ({ id: row.id, title: row.name || row.email, detail: `${row.email} · ${row.role ?? "user"} · MFA ${row.twoFactorEnabled ? "on" : "off"}`, status: row.banned ? "BANNED" : "ACTIVE", role: row.role, createdAt: row.createdAt.toISOString(), passportId: null })) };
+    return { total, items: rows.map((row) => ({ id: row.id, title: row.name || row.email, detail: row.email, facts: { mfa: row.twoFactorEnabled }, status: row.banned ? "BANNED" : "ACTIVE", role: row.role, createdAt: row.createdAt.toISOString(), passportId: null })) };
   }
   if (view === "publications") {
     const where = search ? { OR: [{ ipfsCid: contains }, { transactionHash: contains }, { passport: { farmer: { legalName: contains } } }] } : {};
@@ -48,7 +48,7 @@ export async function adminRecords(view: RecordView, page: number, search: strin
       db.adminAction.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "desc" }], skip, take: 20, select: { id: true, action: true, entity: true, entityId: true, createdAt: true, actor: { select: { email: true } } } }),
       db.adminAction.count({ where }),
     ]);
-    return { total, items: rows.map((row) => ({ id: row.id, title: row.action.replaceAll("_", " "), detail: `${row.actor.email} · ${row.entity} · ${row.entityId}`, status: null, createdAt: row.createdAt.toISOString(), passportId: null, role: null })) };
+    return { total, items: rows.map((row) => ({ id: row.id, title: row.action.replaceAll("_", " "), code: row.action, detail: `${row.actor.email} · ${row.entity} · ${row.entityId}`, status: null, createdAt: row.createdAt.toISOString(), passportId: null, role: null })) };
   }
   const userIds = search ? (await db.user.findMany({ where: { email: contains }, select: { id: true } })).map((user) => user.id) : [];
   const actions = search ? Object.values(AuditAction).filter((action) => action.toLowerCase().includes(search.toLowerCase())) : [];
@@ -59,5 +59,5 @@ export async function adminRecords(view: RecordView, page: number, search: strin
   ]);
   const actors = await db.user.findMany({ where: { id: { in: rows.map((row) => row.actorId) } }, select: { id: true, name: true, email: true } });
   const names = new Map(actors.map((person) => [person.id, person.name || person.email]));
-  return { total, items: rows.map((row) => ({ id: row.id, title: row.action.replaceAll("_", " "), detail: [names.get(row.actorId) ?? row.actorId, row.note].filter(Boolean).join(" · "), status: null, createdAt: row.createdAt.toISOString(), passportId: row.passportId, role: null })) };
+  return { total, items: rows.map((row) => ({ id: row.id, title: row.action.replaceAll("_", " "), code: row.action, detail: [names.get(row.actorId) ?? row.actorId, row.note].filter(Boolean).join(" · "), status: null, createdAt: row.createdAt.toISOString(), passportId: row.passportId, role: null })) };
 }

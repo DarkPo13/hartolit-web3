@@ -73,7 +73,7 @@ export function RecordEditor({ kind, id, onClose, onChanged, onOpenPassport }: {
       </form>
       {canArchive && <button type="button" onClick={archive} disabled={busy} className="mt-3 rounded-lg border border-border px-4 py-2 text-sm disabled:opacity-50">{record.archivedAt ? m.restore : m.archive}</button>}
       <h4 className="mt-5 text-sm font-semibold">{m.linkedPassports}</h4>
-      {!record.passports.length ? <p className="text-sm text-ink-muted">{t.review.noRecords}</p> : <ul className="mt-2 space-y-2">{record.passports.map((passport) => <li key={passport.id} className="flex flex-wrap items-center gap-2 text-sm"><button type="button" onClick={() => onOpenPassport(passport.id)} className="break-all text-brand-700 underline">{passport.id}</button><span>{passport.status}</span></li>)}</ul>}
+      {!record.passports.length ? <p className="text-sm text-ink-muted">{t.review.noRecords}</p> : <ul className="mt-2 space-y-2">{record.passports.map((passport) => <li key={passport.id} className="flex flex-wrap items-center gap-2 text-sm"><button type="button" onClick={() => onOpenPassport(passport.id)} className="break-all text-brand-700 underline">{passport.id}</button><span>{t.codes.passportStatus[passport.status] ?? passport.status}</span></li>)}</ul>}
     </>}
     {error && <p role="alert" className="mt-3 text-sm text-danger">{error === "load" ? t.review.loadError : m.saveError}</p>}
     {notice && <p role="status" className="mt-3 text-sm text-brand-700">{notice}</p>}

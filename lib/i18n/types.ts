@@ -525,6 +525,12 @@ export interface Translations {
     pageTitle: string;
     pageDesc: string;
   };
+  /** Labels for stored codes, keyed by the Prisma enum value (checked by tests/translations.test.mjs). */
+  codes: {
+    audit: Record<string, string>; adminActions: Record<string, string>; recordStatus: Record<string, string>;
+    publicationStatus: Record<string, string>; passportStatus: Record<string, string>; doseUnit: Record<string, string>;
+    fields: string; passports: string; roleAdmin: string; roleUser: string; mfaOn: string; mfaOff: string;
+  };
   crops: {
     wheat: string;
     barley: string;
