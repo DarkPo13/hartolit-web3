@@ -16,7 +16,7 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import nextEnv from "@next/env";
 import { createJiti } from "jiti";
-import { chromium } from "playwright-core";
+import * as playwright from "playwright-core";
 import { DeleteObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
 
 nextEnv.loadEnvConfig(process.cwd());
@@ -26,6 +26,8 @@ if (!existsSync(ca)) throw new Error("Run `npm run mail:tls-ca` with the mail-tl
 const port = 3000, base = `http://127.0.0.1:${port}`;
 const mailpit = process.env.MAILPIT_API_URL ?? "http://127.0.0.1:8026", smtpPort = process.env.MAILPIT_TLS_SMTP_PORT ?? "1026";
 const suffix = randomBytes(6).toString("hex");
+const engine = process.env.BROWSER_ENGINE ?? "chromium";
+if (!["chromium", "firefox", "webkit"].includes(engine)) throw new Error("BROWSER_ENGINE must be chromium, firefox or webkit");
 const out = process.env.BROWSER_ACCEPTANCE_OUT ?? path.join(os.tmpdir(), `hartolit-browser-acceptance-${suffix}`);
 await mkdir(out, { recursive: true });
 process.env.BETTER_AUTH_URL = base;
@@ -87,7 +89,10 @@ try {
   server.stderr.on("data", c => serverLog.push(c.toString()));
   for (let i = 0; i < 120 && !ready; i++) await new Promise(r => setTimeout(r, 250));
   assert.ok(ready, "server not ready");
-  browser = await chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : { channel: process.env.BROWSER_CHANNEL ?? "chrome" }) });
+  // Chromium uses an installed Chrome/Edge; firefox and webkit need `npx playwright-core install <engine>`.
+  browser = engine === "chromium"
+    ? await playwright.chromium.launch({ headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : { channel: process.env.BROWSER_CHANNEL ?? "chrome" }) })
+    : await playwright[engine].launch({ headless: true });
 
   // 1. Admin: first sign-in must enrol MFA through the UI.
   const adminContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -136,7 +141,8 @@ try {
   note(!!link && new URL(link).origin === base, "invitation email arrives with a link to this app");
 
   // 3. Operator sets a password from the email link and signs in.
-  const opContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  // Firefox has no mobile emulation; it still gets the 390px viewport.
+  const opContext = await browser.newContext({ viewport: { width: 390, height: 844 }, ...(engine === "firefox" ? {} : { isMobile: true, hasTouch: true }) });
   const op = await opContext.newPage(); watch(op, "operator");
   await op.goto(link);
   await op.getByLabel(uk.account.newPassword).fill(operatorPassword);
