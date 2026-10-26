@@ -950,3 +950,8 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - Regression: `browser:acceptance` signs in with a recovery code through the UI (46 checks); with the old `/two-factor` form rebuilt it exits 1 there.
 - Other scenario results (no defects): markup in every draft text field, the user name and feedback is stored and shown as literal text in the operator form, the admin register and the feedback inbox, and no injected script runs; disabling an operator from the register (after its confirmation dialog) ends their open session, refuses sign-in with an error and re-enabling restores it; two tabs editing one draft: the second gets the conflict notice with reload/keep-mine, the server keeps the first value, reload shows it.
 - Observation, not fixed (library behaviour, Better Auth 1.7.5): a successful TOTP code is not marked used, so the same code can complete a second sign-in within its 30-second window (RFC 6238 section 5.2 recommends refusing it). Attackers still need the password and a fresh code. A failed code also invalidates the pending sign-in, so the user must re-enter the password.
+
+## 2026-10-26 - Demo mode pass
+
+- `next dev` with `NEXT_PUBLIC_DEMO_MODE=true` (scratch script, signed-in fictional user): test data, simulated mint to completion, the demo certificate and `/verify/1` render with no console or server errors. `/verify/1` answers "Verification unavailable: contract address not configured" in English only (legacy demo page, production-disabled; not changed).
+- `next dev` 16.4.3 rewrote the managed block at the top of AGENTS.md (its heading is now level 2); committed as AGENTS.md instructs.
