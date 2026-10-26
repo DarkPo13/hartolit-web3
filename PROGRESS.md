@@ -1002,3 +1002,11 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - `prisma format` reformatted the whole schema (about 900 changed lines); the schema was restored and the model added by hand, so the diff is nine lines and `migrate diff` reports no drift.
 - An `auth:smoke` run failed at the invitation email because the STARTTLS Mailpit container had been recreated with a new certificate; rerunning `npm run mail:tls-ca` fixed it (environment, not code).
 - Validation: lint, typecheck, build, `db:deploy`, `migrate diff` (no drift), auth (with control), review, feedback, drafts and publication (default and actual chain) smokes, `browser:acceptance` 46, `a11y:audit` 195, `security:probe` 141; no residue.
+
+## 2026-10-26 - Publish a cancelled or reverted record again (D74)
+
+- Chose a new publication for the same confirmation over a second preparation inside the failed publication: every mint service assumes one preparation per publication, while reservation, proof, upload and mint already exist as steps. Uniqueness moved to partial indexes in SQL (the existing pattern for the active wallet slot); `migrate diff` stays clean.
+- The first run answered 409: the snapshot builder refuses any passport with a publication beyond `RESERVED`/`CANCELLED`. Relaxing it everywhere would also let a new confirmation (a different snapshot) through, so only the publication service passes an exception for `CHAIN_FAILED`.
+- The SQL check could not read Prisma's P2002 in the jiti-loaded smoke (Prisma's error formatting throws a TypeError there, as in the earlier cleanup failure), so it uses `INSERT ... ON CONFLICT <partial index> DO NOTHING RETURNING`, which fails outright if the index is missing (shown in a rolled-back transaction).
+- The browser pass first waited for a Connect button, but the publisher wallet session is shared between steps and was already connected; it now waits for the proof step.
+- Validation: lint, typecheck, build, `test:verifier`, `test:i18n`, `db:deploy`, `migrate diff` (no drift), default and actual-chain publication smokes, verifier and review smokes, refusal browser pass 26; no residue.

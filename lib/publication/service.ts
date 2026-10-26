@@ -9,6 +9,8 @@ import { buildPublicSnapshot } from "@/lib/public-snapshot/service";
 import { WorkflowError } from "@/lib/review/service";
 import { publisherWalletSchema, type PublicationReservationInput } from "./schema";
 
+// Mint closed as cancelled or reverted (D44, D48): history, not an open publication.
+const FAILED_PUBLICATION = ["CHAIN_FAILED", "CHAIN_FAILED_SUSPENDED"] as const;
 const configurationSchema = z.strictObject({ userId: z.string().trim().min(1).max(191), walletAddress: publisherWalletSchema });
 const reservationSelect = {
   id: true, confirmationId: true, status: true, passportVersion: true, approvedVersion: true,
@@ -89,25 +91,30 @@ async function lockPublicationCandidate(tx: Prisma.TransactionClient, adminId: s
     throw new WorkflowError(409, "Stored public confirmation is invalid");
   }
 
-  const existing = await tx.publication.findUnique({ where: { confirmationId: confirmation.id } });
+  // Publications whose mint failed are history: a cancelled or reverted attempt (CHAIN_FAILED)
+  // may be followed by a new publication of the same snapshot; a quarantined one must be resolved first.
+  const existing = await tx.publication.findFirst({ where: { confirmationId: confirmation.id, status: { notIn: [...FAILED_PUBLICATION] } } });
+  const failed = existing ? [] : await tx.publication.findMany({ where: { confirmationId: confirmation.id, status: { in: [...FAILED_PUBLICATION] } },
+    orderBy: { createdAt: "desc" }, select: { id: true, status: true } });
+  if (failed.some(row => row.status === "CHAIN_FAILED_SUSPENDED")) throw new WorkflowError(409, "A quarantined failed publication of this record must be resolved first");
   if (existing && (existing.status !== stage || existing.reservedById !== adminId || existing.publisherWallet !== publisher.walletAddress ||
     existing.canonicalJson !== confirmation.canonicalJson || existing.payloadHash !== confirmation.payloadHash ||
     existing.passportVersion !== confirmation.passportVersion || existing.approvedVersion !== confirmation.approvedVersion || existing.chainId !== 97)) {
     throw new WorkflowError(409, "Publication reservation cannot be replaced or restarted");
   }
   const otherActive = await tx.publication.findFirst({
-    where: { passportId, status: { not: "CANCELLED" }, confirmationId: { not: confirmation.id } }, select: { id: true },
+    where: { passportId, status: { notIn: ["CANCELLED", "CHAIN_FAILED"] }, confirmationId: { not: confirmation.id } }, select: { id: true },
   });
   if (otherActive) throw new WorkflowError(409, "This passport already has an active publication");
 
   // Rebuild only to validate current facts and selected READY evidence. Persist the saved bytes.
   const preview = await buildPublicSnapshot(tx, passportId, confirmation.weatherFileId, confirmation.chemicalFileId, {
     certificateId: confirmation.certificateId, snapshotAt: snapshot.snapshotAt,
-  }, stage === "PINNED" ? existing?.id : undefined);
+  }, stage === "PINNED" ? existing?.id : undefined, true);
   if (preview.canonicalJson !== confirmation.canonicalJson || preview.sha256 !== confirmation.payloadHash) {
     throw new WorkflowError(409, "Public facts or selected evidence changed after confirmation");
   }
-  return { existing, confirmation, publisher };
+  return { existing, confirmation, publisher, previousFailedId: failed[0]?.id ?? null };
 }
 
 async function lockExistingPublication(tx: Prisma.TransactionClient, adminId: string, passportId: string, publicationId: string, stage: "RESERVED" | "PINNED") {
@@ -135,18 +142,20 @@ export async function lockPinnedPublication(tx: Prisma.TransactionClient, adminI
 /** Private planning only: no IPFS request, chain transaction or wallet ownership claim. */
 export async function reservePublication(adminId: string, passportId: string, input: PublicationReservationInput) {
   return getDb().$transaction(async (tx) => {
-    const { existing, confirmation, publisher } = await lockPublicationCandidate(tx, adminId, passportId, input);
+    const { existing, confirmation, publisher, previousFailedId } = await lockPublicationCandidate(tx, adminId, passportId, input);
     if (existing) return { reservation: reservationResponse(existing), created: false };
 
     const reservation = await tx.publication.create({ data: {
       passportId, confirmationId: confirmation.id, reservedById: adminId, publisherWallet: publisher.walletAddress,
       passportVersion: confirmation.passportVersion, approvedVersion: confirmation.approvedVersion,
-      idempotencyKey: `confirmation:${confirmation.id}`, canonicalJson: confirmation.canonicalJson,
+      // A new publication after a failed one gets its own key; the failed one keeps the original.
+      idempotencyKey: previousFailedId ? `confirmation:${confirmation.id}:after:${previousFailedId}` : `confirmation:${confirmation.id}`, canonicalJson: confirmation.canonicalJson,
       payloadHash: confirmation.payloadHash, chainId: 97,
     }, select: reservationSelect });
     await tx.auditLog.create({ data: {
       passportId, publicationId: reservation.id, actorId: adminId, action: "PUBLICATION_RESERVED",
       version: confirmation.passportVersion, fromStatus: "APPROVED", toStatus: "APPROVED",
+      ...(previousFailedId ? { note: `Published again after failed publication ${previousFailedId}` } : {}),
     } });
     return { reservation: reservationResponse(reservation), created: true };
   });

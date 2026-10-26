@@ -52,12 +52,14 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
 
   const current = data?.reservations.find(r => r.confirmationId === confirmation.id && r.status === "RESERVED" &&
     r.passportVersion === confirmation.preview.passportVersion && r.payloadHash === confirmation.preview.sha256);
-  const blocked = data?.reservations.some(r => r.status !== "RESERVED" && r.status !== "CANCELLED");
+  // A publication whose mint was closed as cancelled or reverted is history and may be followed by a new one.
+  const blocked = data?.reservations.some(r => !["RESERVED", "CANCELLED", "CHAIN_FAILED"].includes(r.status));
+  const failedBefore = data?.reservations.some(r => r.confirmationId === confirmation.id && r.status === "CHAIN_FAILED");
   const cancelled = data?.reservations.some(r => r.confirmationId === confirmation.id && r.status === "CANCELLED");
   // Once issued (or suspended after issuance) the preparation steps are history, not actions.
   const issued = data?.reservations.find(r => r.status === "PUBLISHED")?.issued ?? null;
   const suspended = data?.reservations.some(r => r.status === "CHAIN_SUSPENDED");
-  const publication = data?.reservations.find(r => r.confirmationId === confirmation.id && r.status !== "CANCELLED" &&
+  const publication = data?.reservations.find(r => r.confirmationId === confirmation.id && !["CANCELLED", "CHAIN_FAILED", "CHAIN_FAILED_SUSPENDED"].includes(r.status) &&
     r.passportVersion === confirmation.preview.passportVersion && r.payloadHash === confirmation.preview.sha256);
 
   async function reserve() {
@@ -100,7 +102,10 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
             const result = await load();
             if (alive.current && uncertain && !result?.reservations.find(r => r.id === current.id)?.walletVerifiedAt) setError("saveUncertain");
           }}
-        /> : <Button type="button" onClick={() => void reserve()} loading={busy} disabled={disabled || busy || loading}>{t.reserve}</Button>}
+        /> : <>
+          {failedBefore && <p role="status" className="text-sm">{t.republishHint}</p>}
+          <Button type="button" onClick={() => void reserve()} loading={busy} disabled={disabled || busy || loading}>{failedBefore ? t.republish : t.reserve}</Button>
+        </>}
       </>}
       {data.reservations.some(r => r.status === "PUBLISHED") && <PublicationCorrection base={base} canWrite={data.publisher.canProve} disabled={disabled || busy || loading} />}
       {publication && !issued && !suspended && <PublicationPreparation key={`${publication.id}:${confirmation.id}:${confirmation.preview.sha256}:${data.pinning.target?.configurationSha256}:${data.publisher.canProve}`} base={base}

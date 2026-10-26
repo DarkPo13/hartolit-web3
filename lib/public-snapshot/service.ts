@@ -27,12 +27,16 @@ export async function buildPublicSnapshot(
   chemicalFileId: string,
   metadata: { certificateId: string; snapshotAt: string },
   pinnedPublicationId?: string,
+  // Only the publication service passes this: a closed failed publication (CHAIN_FAILED) may be
+  // followed by a new publication of the same confirmation, never by a new confirmation.
+  ignoreFailedPublications = false,
 ) {
   const row = await db.passport.findUnique({ where: { id }, select: previewSelect });
   if (!row) throw new WorkflowError(404, "Passport not found");
   // Only the locked publication service may revalidate facts for its exact PINNED
   // record. Preview/confirmation callers omit the ID and retain the original gate.
-  const conflictingPublication = row.publications.some(publication => publication.id !== pinnedPublicationId || publication.status !== "PINNED");
+  const conflictingPublication = row.publications.some(publication => !(ignoreFailedPublications && publication.status === "CHAIN_FAILED") &&
+    (publication.id !== pinnedPublicationId || publication.status !== "PINNED"));
   if (row.status !== "APPROVED" || row.approvedVersion === null || row.approvedVersion !== row.submittedVersion || conflictingPublication) {
     throw new WorkflowError(409, "Only an approved, unpublished passport can be previewed");
   }

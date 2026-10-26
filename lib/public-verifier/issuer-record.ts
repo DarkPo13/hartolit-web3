@@ -7,11 +7,18 @@ export type IssuerRecordKind = "MATCH" | "SUSPENDED" | "DISAGREES" | "NO_RECORD"
 export type IssuerRecordNotice = { kind: IssuerRecordKind; supersededBy: { tokenId: string | null } | null; corrects: string | null };
 type Row = { id: string; passportId: string; status: string; payloadHash: string; ipfsCid: string | null; chainId: number | null; contractAddress: string | null; tokenId: string | null };
 type Lookup = {
-  publication: { findUnique(args: unknown): Promise<Row | null>; findFirst(args: unknown): Promise<{ tokenId: string | null } | null> };
+  publication: { findUnique(args: unknown): Promise<Row | null>; findFirst(args: unknown): Promise<Row | { tokenId: string | null } | null> };
   publicationCorrection: { findUnique(args: unknown): Promise<{ correctionPassportId?: string; supersededPublication?: { tokenId: string | null } } | null> };
 };
 const select = { id: true, passportId: true, status: true, payloadHash: true, ipfsCid: true, chainId: true, contractAddress: true, tokenId: true } as const;
 const quiet = (kind: IssuerRecordKind): IssuerRecordNotice => ({ kind, supersededBy: null, corrects: null });
+
+// A record published again after a cancelled or reverted mint keeps the failed row as history:
+// prefer the open publication, else the latest failed one (it still signals "never issued").
+async function byPayload(db: Lookup, payloadHash: string) {
+  const open = await db.publication.findFirst({ where: { payloadHash, status: { notIn: ["CHAIN_FAILED", "CHAIN_FAILED_SUSPENDED"] } }, select }) as Row | null;
+  return open ?? await db.publication.findFirst({ where: { payloadHash }, orderBy: { createdAt: "desc" }, select }) as Row | null;
+}
 
 function kindOf(verified: { tokenId: string; contractAddress: string; payloadHash: string; cid: string }, byToken: Row | null, byHash: Row | null): IssuerRecordKind {
   // The same committed document recorded against another token or contract.
@@ -36,7 +43,7 @@ export async function issuerRecordNotice(verified: { tokenId: string; contractAd
     return await Promise.race([timeout, (async () => {
       const [byToken, byHash] = await Promise.all([
         db.publication.findUnique({ where: { chainId_contractAddress_tokenId: { chainId: 97, contractAddress: verified.contractAddress, tokenId: verified.tokenId } }, select }),
-        db.publication.findUnique({ where: { payloadHash: verified.payloadHash }, select }),
+        byPayload(db, verified.payloadHash),
       ]);
       const kind = kindOf(verified, byToken, byHash);
       if (!byToken || kind === "DISAGREES") return quiet(kind);

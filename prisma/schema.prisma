@@ -438,7 +438,10 @@ model Publication {
   id              String            @id @default(uuid()) @db.Uuid
   passportId      String            @db.Uuid
   passport        Passport          @relation(fields: [passportId], references: [id], onDelete: Restrict)
-  confirmationId  String            @unique @db.Uuid
+  /// One open publication per confirmation and payload hash: partial unique indexes in
+  /// migration 20261026140000 exclude CHAIN_FAILED/CHAIN_FAILED_SUSPENDED, which allows
+  /// publishing a cancelled or reverted record again (2026-10-26 decision).
+  confirmationId  String            @db.Uuid
   confirmation    PublicSnapshotConfirmation @relation(fields: [confirmationId, passportId], references: [id, passportId], onDelete: Restrict)
   reservedById    String
   reservedBy      User              @relation(fields: [reservedById], references: [id], onDelete: Restrict)
@@ -448,7 +451,7 @@ model Publication {
   status          PublicationStatus @default(RESERVED)
   idempotencyKey  String            @unique @db.VarChar(128)
   canonicalJson   String            @db.Text
-  payloadHash     String            @unique @db.Char(64)
+  payloadHash     String            @db.Char(64)
   ipfsCid         String?           @db.VarChar(255)
   chainId         Int?
   contractAddress String?           @db.VarChar(42)
@@ -467,7 +470,8 @@ model Publication {
 
   @@unique([chainId, contractAddress, tokenId])
   @@unique([id, passportId])
-  @@unique([confirmationId, passportId])
+  @@index([confirmationId, passportId])
+  @@index([payloadHash])
   @@index([passportId, status])
 }
 
@@ -935,7 +939,7 @@ model PublicSnapshotConfirmation {
   confirmedBy      User         @relation(fields: [confirmedById], references: [id], onDelete: Restrict)
   confirmedAt      DateTime     @default(now())
   invalidatedAt    DateTime?
-  publication      Publication?
+  publications     Publication[]
 
   @@unique([id, passportId])
   @@unique([passportId, approvedVersion])

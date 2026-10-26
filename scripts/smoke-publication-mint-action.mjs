@@ -217,6 +217,8 @@ export async function smokePublicationMintAction({ api, db, fixture, confirm, ow
       assert.equal((await (await api(`${row.root}/mint`, { user: publisher })).json()).mint.attempt.quarantined, true, "an unconfirmed closed result is quarantined");
     }
     assert.equal((await db.publication.findUniqueOrThrow({ where: { id: record.publicationId } })).status, "CHAIN_SUSPENDED", "the issued record is suspended");
+    assert.equal((await api(refused.root, { user: publisher, method: "POST", body: { confirmationId: refused.confirmationId, passportVersion: 4, expectedSha256: refused.payloadHash, walletAddress: wallet } })).status, 409,
+      "a quarantined failed publication blocks publishing the record again");
     await restart(storage, { wallet, env: chainEnv });
     for (const [row, attemptId, closed, restoredStatus] of closedAttempts) {
       const review = (await (await incident(row.root, attemptId)).json()).incident;
@@ -239,7 +241,51 @@ export async function smokePublicationMintAction({ api, db, fixture, confirm, ow
       const after = (await (await api(`${row.root}/mint`, { user: publisher })).json()).mint;
       assert.equal(after.attempt.quarantined, false); assert.equal(after.publication.status, restoredStatus);
     }
-    process.stdout.write("Mint action passed: reviewed intent, designated-publisher preparation and single fixed-nonce permission, exact wallet request, hash report and depth-checked finalization on actual Anvil; a refused send is cancelled by a same-nonce self-send and closed over HTTP after depth, freeing the wallet; an out-of-gas mint is closed and a node-outage quarantine of success, revert and cancellation is restored through the incident route.\n");
+
+    // Published again (decision of 2026-10-26): the cancelled record's same confirmed snapshot gets a
+    // new publication with a fresh wallet proof, upload consent and a higher nonce; the failed one stays.
+    const again = await api(refused.root, { user: publisher, method: "POST", body: { confirmationId: refused.confirmationId, passportVersion: 4, expectedSha256: refused.payloadHash, walletAddress: wallet } });
+    assert.equal(again.status, 201, `a record whose mint was cancelled can be published again (${again.status === 201 ? "" : await again.clone().text()})`);
+    const againId = (await again.json()).reservation.id;
+    assert.notEqual(againId, refused.publicationId);
+    const repeated = await api(refused.root, { user: publisher, method: "POST", body: { confirmationId: refused.confirmationId, passportVersion: 4, expectedSha256: refused.payloadHash, walletAddress: wallet } });
+    assert.equal(repeated.status, 200); assert.equal((await repeated.json()).reservation.id, againId, "the new reservation is idempotent");
+    assert.equal((await api(refused.root, { user: other, method: "POST", body: { confirmationId: refused.confirmationId, passportVersion: 4, expectedSha256: refused.payloadHash, walletAddress: wallet } })).status, 403, "only the designated publisher publishes again");
+    const againChallenge = (await (await api(`${refused.root}/wallet-challenge`, { user: publisher, method: "POST", body: { publicationId: againId } })).json()).challenge;
+    assert.equal((await api(`${refused.root}/wallet-proof`, { user: publisher, method: "POST", body: { publicationId: againId, challengeId: againChallenge.id,
+      signature: await account.signMessage({ message: againChallenge.message }) } })).status, 200);
+    const againTarget = (await (await api(refused.root, { user: publisher })).json()).pinning.target.configurationSha256;
+    const againConsent = await api(`${refused.root}/pin-attempts`, { user: publisher, method: "POST", body: { publicationId: againId, requestId: randomUUID(),
+      confirmationId: refused.confirmationId, passportVersion: 4, expectedSha256: refused.payloadHash, expectedTargetSha256: againTarget, acknowledgement: "PUBLISH_CONFIRMED_SNAPSHOT" } });
+    assert.equal(againConsent.status, 201);
+    assert.equal((await api(`${refused.root}/pin-attempts/upload`, { user: publisher, method: "POST", body: { publicationId: againId,
+      attemptId: (await againConsent.json()).attempt.id, expectedTargetSha256: againTarget, acknowledgement: "UPLOAD_PREPARED_SNAPSHOT" } })).status, 200, "the same bytes upload again");
+    const againState = (await (await api(refusedMint, { user: publisher })).json()).mint;
+    assert.equal(againState.publication.id, againId, "the mint panel follows the new publication");
+    const againPrepared = await api(`${refusedMint}/preparation`, { user: publisher, method: "POST", body: { publicationId: againId, requestId: randomUUID(),
+      confirmationId: refused.confirmationId, passportVersion: 4, expectedSha256: refused.payloadHash, expectedIntentSha256: againState.candidate.intent.sha256, acknowledgement: "PREPARE_EXACT_MINT" } });
+    assert.equal(againPrepared.status, 201);
+    const againCommand = (await (await api(`${refusedMint}/dispatch`, { user: publisher, method: "POST", body: { preparationId: (await againPrepared.json()).preparation.id,
+      requestId: randomUUID(), expectedIntentSha256: againState.candidate.intent.sha256, acknowledgement: "SEND_EXACT_MINT" } })).json()).command;
+    assert.ok(againCommand.request.nonce > refusedCommand.request.nonce, "a higher nonce; the cancelled one stays claimed");
+    const againHash = await chain.send(againCommand);
+    assert.equal((await api(`${refusedMint}/report`, { user: publisher, method: "POST", body: { attemptId: againCommand.attemptId, transactionHash: againHash } })).status, 200);
+    await chain.reader.request({ method: "anvil_mine", params: [`0x${chain.target.requiredConfirmations.toString(16)}`] });
+    await api(`${refusedMint}/check`, { user: publisher, method: "POST", body: { attemptId: againCommand.attemptId } });
+    const [oldRow, newRow] = await Promise.all([db.publication.findUniqueOrThrow({ where: { id: refused.publicationId } }), db.publication.findUniqueOrThrow({ where: { id: againId } })]);
+    assert.equal(newRow.status, "PUBLISHED", "the record is issued on the second publication"); assert.ok(newRow.tokenId);
+    assert.equal(oldRow.status, "CHAIN_FAILED"); assert.equal(oldRow.tokenId, null, "the failed publication stays as unissued history");
+    assert.equal(newRow.payloadHash, oldRow.payloadHash); assert.equal(newRow.ipfsCid, oldRow.ipfsCid, "same snapshot, same CID");
+    // The database itself allows only one publication per confirmation that did not fail
+    // (the partial index; ON CONFLICT names it, so a missing index makes the query fail).
+    const duplicate = await db.$queryRaw`
+      INSERT INTO "Publication" ("id", "passportId", "confirmationId", "reservedById", "publisherWallet", "passportVersion", "approvedVersion", "status",
+        "idempotencyKey", "canonicalJson", "payloadHash", "chainId", "updatedAt")
+      SELECT gen_random_uuid(), "passportId", "confirmationId", "reservedById", "publisherWallet", "passportVersion", "approvedVersion", 'RESERVED',
+        ${`fictional-duplicate-${randomUUID()}`}, "canonicalJson", "payloadHash", 97, now() FROM "Publication" WHERE "id" = ${againId}::uuid
+      ON CONFLICT ("confirmationId") WHERE "status" NOT IN ('CHAIN_FAILED', 'CHAIN_FAILED_SUSPENDED') DO NOTHING RETURNING "id"`;
+    assert.equal(duplicate.length, 0, "a second open publication of the same confirmation is refused by SQL");
+    process.stdout.write("Mint action passed: reviewed intent, designated-publisher preparation and single fixed-nonce permission, exact wallet request, hash report and depth-checked finalization on actual Anvil; a refused send is cancelled by a same-nonce self-send and closed over HTTP after depth, freeing the wallet; an out-of-gas mint is closed and a node-outage quarantine of success, revert and cancellation is restored through the incident route; the cancelled record is published again and issued.\n");
   } finally {
     await relay?.close();
     await chain?.stop();

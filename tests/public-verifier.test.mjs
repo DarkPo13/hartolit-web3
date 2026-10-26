@@ -149,7 +149,8 @@ test("the issuer record only annotates a VALID result with a coarse kind", async
   const row = { id: "pub-7", passportId: "passport-7", status: "PUBLISHED", payloadHash: verified.payloadHash, ipfsCid: verified.cid, chainId: 97,
     contractAddress: verified.contractAddress, tokenId: "7" };
   const db = (byToken, byHash = byToken, { superseding = null, correcting = null, replacement = null } = {}) => ({
-    publication: { findUnique: async ({ where }) => where.payloadHash ? byHash : byToken, findFirst: async () => replacement },
+    publication: { findUnique: async () => byToken, findFirst: async ({ where }) => !where.payloadHash ? replacement
+      : where.status && ["CHAIN_FAILED", "CHAIN_FAILED_SUSPENDED"].includes(byHash?.status) ? null : byHash },
     publicationCorrection: { findUnique: async ({ where }) => where.supersededPublicationId ? superseding : correcting },
   });
   const kind = async (...args) => (await issuerRecordNotice(...args)).kind;
@@ -160,6 +161,7 @@ test("the issuer record only annotates a VALID result with a coarse kind", async
   assert.equal(await kind(verified, db(null, { ...row, tokenId: "8" })), "DISAGREES", "the document is recorded as another published token");
   assert.equal(await kind(verified, db(null, { ...row, status: "CHAIN_FAILED", tokenId: null })), "SUSPENDED", "the app believes this document was never issued");
   assert.equal(await kind(verified, db(null, null)), "NO_RECORD");
+  assert.equal(await kind(verified, db(row, { ...row, id: "pub-6", status: "CHAIN_FAILED", tokenId: null })), "MATCH", "a record published again after a failed mint matches its new token");
   assert.equal(await kind(verified, { publication: { findUnique: async () => { throw new Error("fictional-private-db-detail"); } } }), "UNAVAILABLE");
   assert.equal(await kind(verified, { publication: { findUnique: () => new Promise(() => {}) } }, 20), "UNAVAILABLE", "a hanging database cannot block the page");
   const saved = process.env.DATABASE_URL; delete process.env.DATABASE_URL; delete globalThis.hartolitDb;
@@ -173,7 +175,7 @@ test("corrections link public tokens only: pending, superseded and corrects", as
     contractAddress: verified.contractAddress, tokenId: "7" };
   const seen = [];
   const db = ({ superseding = null, correcting = null, replacement = null } = {}) => ({
-    publication: { findUnique: async () => row, findFirst: async args => { seen.push(args.where); return replacement; } },
+    publication: { findUnique: async () => row, findFirst: async args => { if (args.where.payloadHash) return row; seen.push(args.where); return replacement; } },
     publicationCorrection: { findUnique: async ({ where }) => where.supersededPublicationId === "pub-7" ? superseding : where.correctionPassportId === "passport-7" ? correcting : null },
   });
   assert.deepEqual((await issuerRecordNotice(verified, db({ superseding: { correctionPassportId: "passport-9" } }))).supersededBy, { tokenId: null }, "correction opened, not yet published");

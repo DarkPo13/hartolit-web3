@@ -13,7 +13,7 @@ export const en: Translations = {
     contract: "Contract", transaction: "Transaction", openPublic: "Open public page",
     suspended: "Issuance checks suspended this record pending an incident review. New preparation is not possible; the public page shows only what the chain confirms.",
     verified: "Wallet ownership verified", stillPrivate: "The record remains private. Certificate issuance will be a separate action.",
-    reserve: "Prepare record", changed: "The data, wallet or message changed. Refresh status and prepare a new message.",
+    reserve: "Prepare record", republish: "Publish again", republishHint: "The previous mint attempt was closed as cancelled or failed and no token was created. The same confirmed snapshot can be published again: it needs a new wallet signature, upload consent and a new transaction with a new number. The previous attempt stays in the history.", changed: "The data, wallet or message changed. Refresh status and prepare a new message.",
     actionError: "Unable to complete preparation. Refresh status before trying again.",
     walletHint: "Connect the allowed wallet in this browser. Only a message signature is needed, with no transfer or chain fee. You do not need to enter a seed phrase or private key.",
     waiting: "Waiting for the action to finish…", connect: "Connect browser wallet", connectedWallet: "Connected wallet",
