@@ -984,3 +984,8 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - axe 4.14 added `label-content-name-mismatch` (WCAG 2.5.3): the language toggles in the admin console, the public page and the confirmed document had visible text "EN"/"УКР" but aria-labels without it, so voice control could not target them. Names now start with the visible text and the buttons carry the target `lang`. The audit then passed 195/195 in Chrome and before the fix failed on those pages (the control).
 - The probe's first committed form accepted 404 as a refusal, so a control that removed the incident route's access check still passed (a made-up ID gives 404). It now requires exact 401/403 per role; the same control exits 1. A sign-in without its TOTP step has no session, so 401 is the correct answer for that role.
 - Validation: lint, `test:public`, `test:verifier`, build; `a11y:audit` 195 in Chrome and 195 in WebKit over TLS (159 before the toggle fix); `security:probe` 141.
+
+## 2026-10-26 - Smokes remove their rate-limit rows
+
+- Better Auth keys counters as `${ip}|${path}` (`@better-auth/core` `createRateLimitKey`). The drafts, evidence, review, feedback and auth smokes never removed theirs, and the publication smoke matched `${ip}:`, which removes nothing; runs left 48-150 rows. The auth smoke also followed email links without its fictional client address (rows under 127.0.0.1) and used two fixed addresses that would hit the five-per-15-minutes limit after a few local runs.
+- Each smoke now deletes keys starting with its own addresses plus `|`; email-link requests carry the test address. After drafts, evidence, review, feedback, auth (production build with STARTTLS Mailpit) and default publication smokes, all exit 0 and the table is empty.

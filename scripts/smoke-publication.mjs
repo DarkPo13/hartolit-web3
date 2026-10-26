@@ -367,6 +367,7 @@ try {
     process.stderr.write(`Fixture cleanup incomplete for ${cleanupFailures.length} passport(s): ${cleanupFailures.join("; ")}\n`);
   }
   await db.user.deleteMany({ where: { email: { in: emails } } }).catch(() => { process.exitCode = 1; process.stderr.write("Fixture users could not be removed\n"); });
-  await db.rateLimit.deleteMany({ where: { OR: Array.from({ length: nextIp }, (_, index) => ({ key: { contains: `${ipPrefix}${index + 1}:` } })) } });
+  // Keys are `${ip}|${path}` (a ':' separator matched nothing, so counters accumulated).
+  await db.rateLimit.deleteMany({ where: { OR: [...Array.from({ length: nextIp }, (_, index) => `${ipPrefix}${index + 1}`), `${ipPrefix}250`].map(ip => ({ key: { startsWith: `${ip}|` } })) } });
   await db.$disconnect();
 }

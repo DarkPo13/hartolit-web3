@@ -129,5 +129,6 @@ try {
     await db.farmer.delete({ where: { id: row.farmerId } });
   }
   await db.user.deleteMany({ where: { email: { in: emails } } });
+  await db.rateLimit.deleteMany({ where: { key: { startsWith: `${testIp}|` } } }); // keys are `${ip}|${path}`
   await db.$disconnect();
 }

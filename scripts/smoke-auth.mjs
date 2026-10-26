@@ -135,7 +135,7 @@ try {
   const invitationMessage = await (await fetch(`${mailpit}/api/v1/message/${invitedMessage.ID}`)).json();
   const invitationLink = invitationMessage.Text?.match(/https?:\/\/[^\s]+/)?.[0];
   assert.ok(invitationLink, "invitation link present");
-  const invitationCallback = await fetch(invitationLink, { redirect: "manual" });
+  const invitationCallback = await fetch(invitationLink, { redirect: "manual", headers: { "x-forwarded-for": testIp } });
   assert.equal(invitationCallback.status, 302);
   const invitationToken = new URL(invitationCallback.headers.get("location")).searchParams.get("token");
   assert.ok(invitationToken, "invitation callback carries a reset token");
@@ -169,7 +169,7 @@ try {
   const fullMessage = await (await fetch(`${mailpit}/api/v1/message/${message.ID}`)).json();
   const link = fullMessage.Text?.match(/https?:\/\/[^\s]+/)?.[0];
   assert.ok(link, "reset link present");
-  const callback = await fetch(link, { redirect: "manual" });
+  const callback = await fetch(link, { redirect: "manual", headers: { "x-forwarded-for": testIp } });
   assert.equal(callback.status, 302, "reset link callback redirects");
   const token = new URL(callback.headers.get("location")).searchParams.get("token");
   assert.ok(token, "callback carries reset token");
@@ -184,6 +184,8 @@ try {
   await db.adminAction.deleteMany({ where: { actor: { email: { in: createdEmails } } } });
   await db.user.deleteMany({ where: { email: { in: createdEmails } } });
   assert.equal(await db.user.count({ where: { email: { in: createdEmails } } }), 0, "fixture users removed");
+  // Rate-limit counters are keyed `${ip}|${path}`; remove this run's fictional client addresses.
+  await db.rateLimit.deleteMany({ where: { OR: [testIp, "198.51.100.110", "198.51.100.111"].map(ip => ({ key: { startsWith: `${ip}|` } })) } });
   if (capturedIds.length) {
     const deletion = await fetch(`${mailpit}/api/v1/messages`, {
       method: "DELETE",

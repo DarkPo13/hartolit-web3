@@ -57,5 +57,6 @@ try {
   console.log("Feedback smoke passed: auth/MFA, private reads, origin, strict validation, persisted values, ownership, idempotence and concurrent quota.");
 } finally {
   await db.user.deleteMany({ where: { email: { in: emails } } });
+  await db.rateLimit.deleteMany({ where: { key: { startsWith: `${ip}|` } } }); // keys are `${ip}|${path}`
   await db.$disconnect();
 }

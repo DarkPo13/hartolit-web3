@@ -335,5 +335,6 @@ try {
   }
   await db.adminAction.deleteMany({ where: { actor: { email: { in: emails } } } });
   await db.user.deleteMany({ where: { email: { in: emails } } });
+  await db.rateLimit.deleteMany({ where: { key: { startsWith: `${ip}|` } } }); // keys are `${ip}|${path}`
   await db.$disconnect(); s3.destroy();
 }
