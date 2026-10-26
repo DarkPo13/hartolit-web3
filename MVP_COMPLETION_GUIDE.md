@@ -191,11 +191,13 @@ All three local gaps pass locally (D67-D69). The accounts below are now the next
 
 Not needed: WalletConnect (removed, D66). Not needed now: Pinata (`PINATA_JWT`, `PINATA_GATEWAY`) and Diia keys belong to legacy demo or deferred features; Mainnet is a separate decision (step 10).
 
-### Proposal awaiting decision: mint incidents the app cannot resolve today
+### Accepted policy: mint incidents the app cannot resolve yet
 
-**Status:** proposal, not implemented. D50 lists five incident classes that stay quarantined with no in-app resolution. On BSC Testnet with normal finality they should be rare, but each one blocks the publisher wallet until resolved. The user (and, before real data, the pilot organization) decides; nothing below is built until then.
+**Status:** accepted by the user on 2026-10-26, in full, as written below; being built (order: re-publication first, then the classes in the table). D50 lists five incident classes that stay quarantined with no in-app resolution. On BSC Testnet with normal finality they should be rare, but each one blocks the publisher wallet until resolved. The pilot organization reviews the policy again before real data.
 
-**Principles proposed for every class**
+**Also accepted on 2026-10-26:** a record whose mint attempt was closed as cancelled (D70) or reverted (D44) may be **published again** by the designated publisher with fresh consent: the same confirmed snapshot (its CID stays pinned), a new preparation and a higher nonce; the old nonce stays claimed. This needs one person, like the other publication steps, because nothing was issued. The two-person rule below applies to the classes in the table. Admin TOTP codes are refused when reused within their 30-second window. Scheduler alerts will go to Telegram, set up with the hosting choice.
+
+**Principles for every class**
 
 1. **The chain is the truth** (AGENTS override A). The database adapts to what the contract state shows at the configured depth. It never adapts the other way.
 2. **Two people, written reason.** The designated MFA publisher proposes a resolution and a second MFA admin approves it. Each step is a strict acknowledgement, journaled and audited like D43-D50.
@@ -203,7 +205,7 @@ Not needed: WalletConnect (removed, D66). Not needed now: Pinata (`PINATA_JWT`, 
 4. **Never reuse a nonce or a preparation.** Nonce claims stay permanent. Any new send uses a new preparation and a higher nonce, through the normal D36/D37 flow.
 5. **Public effect is explained.** If a token identifier that people may have printed changes or disappears, the issuer-record note (D55) says so, and the operator is told to reissue printed certificates.
 
-| Class | What it means | Proposed resolution | Public effect |
+| Class | What it means | Resolution | Public effect |
 |---|---|---|---|
 | Lost proof | A finalized mint is no longer in the canonical chain and its transaction cannot be found | After the waiting period, close as **lost**: the publication becomes terminal-unissued, the quarantine clears after every other wallet anchor verifies, and the same confirmed snapshot may be published again with fresh consent (its CID stays pinned) | The old token does not exist; the public page already shows *not found*. Printed QR codes for it must be replaced |
 | Success became revert | A re-included transaction now reverted | Treat as lost: close as failed with the new REVERTED proof, then the same re-publication path | As above |
@@ -212,7 +214,7 @@ Not needed: WalletConnect (removed, D66). Not needed now: Pinata (`PINATA_JWT`, 
 | Different transaction at the same nonce | Something other than the app used the publisher wallet's nonce | **No in-app resolution.** Treat as a possible wallet compromise: stop using the wallet, revoke its `MINTER_ROLE`, configure a new publisher wallet, then re-publish affected records | Depends on what that transaction did; investigate on the explorer |
 | Changed dispatch anchor while pending | A reorg removed the block the dispatch preflight relied on | After review, re-run bounded discovery from an earlier verified anchor (D41); never resend | None until something is found |
 
-**What would be built after approval:** one review/consent pair per class (like D43), reusing the shared recovery journal; for lost proof, a terminal state plus re-publication; for a changed token ID, an issuer-note kind. An incident without a matching class stays quarantined.
+**What is being built:** one review/consent pair per class (like D43), reusing the shared recovery journal; for lost proof, a terminal state plus re-publication; for a changed token ID, an issuer-note kind. An incident without a matching class stays quarantined.
 
 ### Scheduler and alerting design (not activated)
 
@@ -231,7 +233,7 @@ Not needed: WalletConnect (removed, D66). Not needed now: Pinata (`PINATA_JWT`, 
 
 **Other alerts:** ClamAV unreachable or signatures older than 2 days; SMTP failures; publisher wallet balance below what ten mints need; RPC or gateway errors on the public page; credentials and certificates expiring within 30 days; any `CHAIN_SUSPENDED` publication.
 
-**Who receives alerts:** an on-call contact named before real data (step 10). Each alert links to a short runbook: what the exit code means, which admin panel or command shows details, and when to escalate to the incident policy above.
+**Who receives alerts:** a Telegram channel or chat (accepted 2026-10-26; set up with the hosting choice) and an on-call contact named before real data (step 10). Each alert links to a short runbook: what the exit code means, which admin panel or command shows details, and when to escalate to the incident policy above.
 
 ### Later, with the user: external acceptance
 
