@@ -977,3 +977,10 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - The first actual-chain run passed every assertion but left a fixture passport and the users: the new restored cancellation adds a recovery row that references the closure row, and the smoke cleanup deleted closures first (Prisma surfaced the foreign-key failure as a TypeError). Cleanup now deletes recovery rows first; the leftovers were removed with the same order.
 - The refusal browser pass then reported two 403s: the panel requested incident reviews for older records bound to another wallet. Incident and cancellation blocks now appear only for the configured wallet.
 - Validation: lint, typecheck, build, default and actual-chain `publication:smoke` exited 0 with no residue; browser passes: mint 13, restore 8, revert 16, refusal 24, issued 32.
+
+## 2026-10-26 - Accessibility audit and security probe as project commands
+
+- `npm run a11y:audit` and `npm run security:probe` replace the scratch passes from 2026-10-25. `axe-core` 4.14.0 is now an exact dev dependency (it was already in the tree at 4.11.4 through the lint plugin).
+- axe 4.14 added `label-content-name-mismatch` (WCAG 2.5.3): the language toggles in the admin console, the public page and the confirmed document had visible text "EN"/"УКР" but aria-labels without it, so voice control could not target them. Names now start with the visible text and the buttons carry the target `lang`. The audit then passed 195/195 in Chrome and before the fix failed on those pages (the control).
+- The probe's first committed form accepted 404 as a refusal, so a control that removed the incident route's access check still passed (a made-up ID gives 404). It now requires exact 401/403 per role; the same control exits 1. A sign-in without its TOTP step has no session, so 401 is the correct answer for that role.
+- Validation: lint, `test:public`, `test:verifier`, build; `a11y:audit` 195 in Chrome and 195 in WebKit over TLS (159 before the toggle fix); `security:probe` 141.

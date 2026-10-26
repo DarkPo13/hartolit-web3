@@ -17,7 +17,7 @@ export function ConfirmedSnapshotDocument({ kind, confirmation, passportId }: {
   return <main className="mx-auto max-w-4xl space-y-6 px-4 py-8 md:py-12">
     <nav aria-label={t.navigation} className="flex flex-wrap items-center justify-between gap-3 text-sm">
       <Link href="/admin" className="font-medium text-brand-700 underline">{t.backToReview}</Link>
-      <button type="button" onClick={() => setLocale(locale === "uk" ? "en" : "uk")} className="font-medium text-brand-700 underline" aria-label={locale === "uk" ? "Switch to English" : "Перейти на українську"}>{locale === "uk" ? "EN" : "УКР"}</button>
+      <button type="button" onClick={() => setLocale(locale === "uk" ? "en" : "uk")} className="font-medium text-brand-700 underline" aria-label={locale === "uk" ? "EN, switch to English" : "УКР, перейти на українську"} lang={locale === "uk" ? "en" : "uk"}>{locale === "uk" ? "EN" : "УКР"}</button>
     </nav>
     {certificate && <ResponsibleTreatmentDialog passportId={passportId} />}
     <header className="rounded-2xl border border-border bg-surface p-5 sm:p-7">

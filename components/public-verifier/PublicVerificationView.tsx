@@ -32,7 +32,7 @@ export function PublicVerificationView({ result, share = null, issuer = null }: 
     <nav aria-label={t.navigation} className="flex flex-wrap items-center justify-between gap-3 text-sm print:hidden">
       <span className="font-semibold text-ink">{t.home}</span>
       <button type="button" onClick={() => setLocale(locale === "uk" ? "en" : "uk")} className="font-medium text-brand-700 underline"
-        aria-label={locale === "uk" ? "Switch to English" : "Перейти на українську"}>{locale === "uk" ? "EN" : "УКР"}</button>
+        aria-label={locale === "uk" ? "EN, switch to English" : "УКР, перейти на українську"} lang={locale === "uk" ? "en" : "uk"}>{locale === "uk" ? "EN" : "УКР"}</button>
     </nav>
     <header className="rounded-2xl border border-border bg-surface p-5 sm:p-7">
       <p className="text-sm text-ink-muted">{t.title} · {t.token} #{result.tokenId}</p>
