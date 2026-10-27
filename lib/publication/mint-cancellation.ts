@@ -14,7 +14,8 @@ const unresolved = (status: "UNKNOWN" | "PENDING" | "REORG") => ({ status, issue
  * resend permission. The caller supplies a saved intent/nonce and trusted reader;
  * there is no HTTP action, caller-selected RPC or transaction broadcaster.
  */
-export async function inspectMintCancellation(input: unknown, transactionHash: string, expectedNonce: bigint, trustedReader: MintReader) {
+export async function inspectMintCancellation(input: unknown, transactionHash: string, expectedNonce: bigint, trustedReader: MintReader,
+  { closedProof = false }: { closedProof?: boolean } = {}) {
   try {
     const intent = await validateMintIntent(input);
     requireMatch(typeof transactionHash === "string" && hashPattern.test(transactionHash) && typeof expectedNonce === "bigint" && expectedNonce >= 0n && expectedNonce <= BigInt(Number.MAX_SAFE_INTEGER));
@@ -48,14 +49,19 @@ export async function inspectMintCancellation(input: unknown, transactionHash: s
     // transaction supplied together are insufficient without their canonical block.
     requireMatch(Array.isArray(included.transactions) && included.transactions.length <= 2048 &&
       included.transactions[receipt.transactionIndex] === hash);
-    for (const blockNumber of new Set([receipt.blockNumber - 1n, receipt.blockNumber, head.number])) {
+    // Re-checking an already closed proof (monitor, recovery, reopen) reads no
+    // inclusion-time state: public nodes prune it (D76), and the closure already
+    // proved it. Canonical membership, the exact log-free self-send and head code
+    // still hold. The payload index is not reread at the head, because publishing
+    // the record again (D74) may legitimately mint the same facts later.
+    for (const blockNumber of new Set(closedProof ? [head.number] : [receipt.blockNumber - 1n, receipt.blockNumber, head.number])) {
       const publisherCode = await reader.getCode({ address: intent.publisherWallet as Hash, blockNumber });
       requireMatch(publisherCode === undefined || publisherCode === "0x");
     }
-    for (const blockNumber of new Set([receipt.blockNumber, head.number])) {
+    for (const blockNumber of new Set(closedProof ? [head.number] : [receipt.blockNumber, head.number])) {
       const code = await reader.getCode({ address: intent.contractAddress as Hash, blockNumber });
       requireMatch(code && code !== "0x" && keccak256(code) === intent.contractCodeHash);
-      requireMatch(await reader.readContract({ abi, address: intent.contractAddress as Hash, blockNumber,
+      if (!closedProof) requireMatch(await reader.readContract({ abi, address: intent.contractAddress as Hash, blockNumber,
         functionName: "hashToTokenId", args: [`0x${intent.payloadHash}`] }) === 0n);
     }
     // Reread receipt identity, membership and captured head after code/state reads.

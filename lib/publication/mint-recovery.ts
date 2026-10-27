@@ -186,7 +186,7 @@ async function restoreReviewed(adminId: string, passportId: string, attemptId: s
     };
     await dispatched();
     result = kind === "CANCELLATION"
-      ? await inspectMintCancellation(before.intent, before.original.transactionHash, before.attempt.nonce, reader)
+      ? await inspectMintCancellation(before.intent, before.original.transactionHash, before.attempt.nonce, reader, { closedProof: true })
       : await inspectMintTransaction(before.intent, before.original.transactionHash, reader, before.attempt.nonce);
     await dispatched();
     if (!head || (await reader.getBlock({ blockNumber: head.number })).hash !== head.hash || await reader.getChainId() !== 97) throw new Error();
@@ -318,7 +318,7 @@ export async function adoptReincludedMintAnchor(adminId: string, passportId: str
     };
     await dispatched();
     result = cancellation
-      ? await inspectMintCancellation(before.intent, before.original.transactionHash, before.attempt.nonce, reader)
+      ? await inspectMintCancellation(before.intent, before.original.transactionHash, before.attempt.nonce, reader, { closedProof: true })
       : await inspectMintTransaction(before.intent, before.original.transactionHash, reader, before.attempt.nonce);
     await dispatched();
     if (await reader.getChainId() !== 97) throw new Error();

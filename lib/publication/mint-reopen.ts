@@ -71,7 +71,7 @@ async function classify(context: Context, anchors: Anchor[], rawReader: ReopenRe
   const used = BigInt(await reader.getTransactionCount({ address: attempt.publisherWallet as `0x${string}`, blockNumber: head })) > attempt.nonce;
   const closed = (context.finalized ?? context.failed)!;
   if (closed.status === "CANCELLED") {
-    const result = await inspectMintCancellation(context.intent, closed.transactionHash, attempt.nonce, reader).catch(() => null);
+    const result = await inspectMintCancellation(context.intent, closed.transactionHash, attempt.nonce, reader, { closedProof: true }).catch(() => null);
     if (result?.status === "CANCELLED") return null;
     if (!used) return { kind: "LOST", head, detail: { proof: "self-send not found", nonce: "unused" } };
     return result ? { kind: "CANCELLATION_CHANGED", head, detail: { proof: result.status } } : null;
@@ -237,7 +237,7 @@ export async function approveMintReopen(adminId: string, passportId: string, att
     }
     await tx.publicationMintAttempt.update({ where: { id: attempt.id }, data: { status: "UNKNOWN", unknownAt: now,
       finalizedAt: null, finalizedObservationId: null, finalizationStatus: null, failedAt: null, failedObservationId: null, failureStatus: null,
-      anchorObservationId: null, quarantinedAt: null, monitorToken: null, monitorUntil: null, monitorNextAt: now,
+      anchorObservationId: null, quarantinedAt: null, monitorToken: null, monitorUntil: null, monitorNextAt: now, monitorSettledAt: null,
       discoveryBlockNumber: null, discoveryBlockHash: null, discoveryVersion: attempt.discoveryVersion + 1, observationVersion: attempt.observationVersion + 1 } });
     await tx.publication.update({ where: { id: context.publication.id }, data: { status: "CHAIN_PENDING", contractAddress: null, transactionHash: null, tokenId: null } });
     await tx.publicationMintResult.updateMany({ where: { attemptId: attempt.id }, data: { status: "SUSPENDED" } });

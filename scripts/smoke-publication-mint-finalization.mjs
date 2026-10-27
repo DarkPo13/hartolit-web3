@@ -145,6 +145,44 @@ export async function smokeMintFinalization({ api, base: appBase, publisher, ope
   assert.equal((await tickMintMonitor(db, passportId, attemptId, base)).status, "VERIFIED");
   assert.equal((await attempt()).finalizedObservationId, first.observationId, "scheduled canonical checks preserve first proof");
   assert.equal((await db.publicationMintResult.findUniqueOrThrow({ where: { attemptId } })).status, "VERIFIED");
+  // D76: an unchanged closed proof settles only 24 hours after closure and ten times the depth deep; then it is never claimed again.
+  const depth = BigInt(winner.intent.requiredConfirmations);
+  const included = BigInt(JSON.parse((await db.publicationMintObservation.findUniqueOrThrow({ where: { id: first.observationId } })).resultJson).blockNumber);
+  const headed = tip => ({ ...base, getBlock: async args => args?.blockNumber === undefined || args.blockNumber === tip.number ? tip : base.getBlock(args) });
+  const shallow = headed(await base.getBlock({ blockNumber: included + depth - 1n }));
+  const real = await base.getBlock(), deepTip = { ...real, number: included + 10n * depth + 1n };
+  const atReal = args => args?.blockNumber === deepTip.number ? { ...args, blockNumber: real.number } : args;
+  const deep = { ...headed(deepTip), getCode: async args => base.getCode(atReal(args)), readContract: async args => base.readContract(atReal(args)) };
+  if (deepTip.number <= real.number) deepTip.number = real.number;
+  assert.equal((await tickMintMonitor(db, passportId, attemptId, deep)).status, "VERIFIED");
+  assert.equal((await attempt()).monitorSettledAt, null, "a closure younger than 24 hours is not settled");
+  // The shape CHECK keeps every attempt time after its creation, so age them together.
+  const age = shift => db.$executeRawUnsafe(`UPDATE "PublicationMintAttempt" SET "createdAt" = "createdAt" + $2::interval,
+    "deadlineAt" = "deadlineAt" + $2::interval, "unknownAt" = "unknownAt" + $2::interval, "finalizedAt" = "finalizedAt" + $2::interval WHERE "id" = $1::uuid`, attemptId, shift);
+  assert.equal(await age("-25 hours"), 1);
+  try {
+    assert.equal((await tickMintMonitor(db, passportId, attemptId, shallow)).status, "VERIFIED");
+    assert.equal((await attempt()).monitorSettledAt, null, "a proof shallower than ten times the depth is not settled");
+    assert.equal((await tickMintMonitor(db, passportId, attemptId, deep)).status, "VERIFIED");
+    assert.ok((await attempt()).monitorSettledAt, "an old, deep and unchanged proof settles");
+    let settledRpc = 0;
+    assert.equal((await tickMintMonitor(db, passportId, attemptId, { ...base, getChainId: async () => { settledRpc++; return 97; } })).status, "SKIPPED");
+    assert.equal(settledRpc, 0, "a settled proof is no longer claimed or read");
+    const settledClient = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 3000 });
+    await settledClient.connect();
+    try {
+      const open = await db.publicationMintAttempt.findFirst({ where: { status: { in: ["DISPATCHING", "UNKNOWN"] } }, select: { id: true } });
+      for (const [query, values] of [['UPDATE "PublicationMintAttempt" SET "monitorSettledAt"=\'infinity\' WHERE "id"=$1', [attemptId]],
+        ...(open ? [['UPDATE "PublicationMintAttempt" SET "monitorSettledAt"=NOW() WHERE "id"=$1', [open.id]]] : [])]) {
+        await settledClient.query("BEGIN");
+        try { await assert.rejects(settledClient.query(query, values), error => error.code === "23514" && error.constraint === "PublicationMintAttempt_monitor_settled_check"); }
+        finally { await settledClient.query("ROLLBACK"); }
+      }
+    } finally { await settledClient.end(); }
+  } finally {
+    await db.publicationMintAttempt.update({ where: { id: attemptId }, data: { monitorSettledAt: null } });
+    assert.equal(await age("25 hours"), 1);
+  }
   await rejects(recordUnknownMintOutcome(passportId, attemptId));
   let lateSearchRpc = 0;
   const searches = await db.publicationMintDiscovery.count({ where: { attemptId } });

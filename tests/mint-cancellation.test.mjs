@@ -87,6 +87,22 @@ test("missing, pending, shallow, changed and unavailable cancellation never auth
   assert.equal((await inspect({ getBlock: notFound("BlockNotFoundError") })).status, "REORG");
 });
 
+test("re-checking a closed cancellation needs no pruned inclusion state; the first closure still does (D76)", async () => {
+  // Public nodes answer "missing trie node" for state older than their window; head is block 7.
+  const pruned = fn => async args => { if (args.blockNumber !== 7n) throw new Error("missing trie node"); return fn(args); };
+  const base = reader(), late = patch => inspectMintCancellation(intent, txHash, 7n, reader(patch), { closedProof: true });
+  const prunedNode = { getCode: pruned(base.getCode), readContract: pruned(base.readContract) };
+  await reject(inspect(prunedNode));
+  assert.equal((await late(prunedNode)).status, "CANCELLED");
+  // A later mint of the same facts (publishing the record again, D74) does not break the closed proof.
+  assert.equal((await late({ readContract: async () => 1n })).status, "CANCELLED");
+  // Head code, membership and the exact log-free self-send still bind it.
+  await reject(late({ getCode: async args => args.address === intent.contractAddress ? code : args.blockNumber === 7n ? "0xef0100" : "0x" }));
+  await reject(late({ getCode: async args => args.address === intent.contractAddress ? args.blockNumber === 7n ? "0x6001" : code : "0x" }));
+  await reject(late({ getTransactionReceipt: async () => ({ ...receipt, logs: [{}] }) }));
+  await reject(late({ getBlock: async args => args?.blockNumber === 5n ? { ...included, transactions: [hash("d")] } : head }));
+});
+
 test("cancellation RPC calls share the cumulative deadline without exposing provider details", async t => {
   let now = 0;
   t.mock.method(performance, "now", () => now);

@@ -590,6 +590,8 @@ model PublicationMintAttempt {
   monitorToken    String? @db.Uuid
   monitorUntil    DateTime?
   monitorNextAt   DateTime @default(now())
+  // Set once a closed proof is re-verified unchanged 24 hours after closure and 10x the depth deep (D76); never monitored again.
+  monitorSettledAt DateTime?
   recoveries      PublicationMintRecovery[]
   failedAt        DateTime?
   failedObservationId String? @unique @db.Uuid

@@ -12,6 +12,10 @@ import { boundedMintMonitorReader } from "./mint-reader";
 
 type ReaderFactory = (intent: MintIntent) => MintReader;
 const batchSchema = z.strictObject({ limit: z.number().int().min(1).max(5) });
+// D76: a closed proof re-verified unchanged at ten times the depth is deep enough to settle;
+// the 24 hours since closure are checked in SQL when the lease is released.
+const settledDepth = (checked: { status: string; confirmations?: string }, intent: MintIntent, expected: string) =>
+  checked.status === expected && typeof checked.confirmations === "string" && BigInt(checked.confirmations) >= 10n * BigInt(intent.requiredConfirmations);
 
 // Keep the existing internal export for monitor/recovery consumers.
 export { boundedMintMonitorReader } from "./mint-reader";
@@ -31,13 +35,13 @@ export async function monitorMintAttempt(passportId: string, attemptId: string, 
           "observationVersion" = "observationVersion" + 1
       FROM "PublicationMintPreparation" AS p, "Publication" AS pub
       WHERE a."id" = ${attemptId}::uuid AND a."preparationId" = p."id" AND p."publicationId" = pub."id"
-        AND pub."passportId" = ${passportId}::uuid AND a."monitorNextAt" <= clock_timestamp()
+        AND pub."passportId" = ${passportId}::uuid AND a."monitorNextAt" <= clock_timestamp() AND a."monitorSettledAt" IS NULL
         AND (a."monitorUntil" IS NULL OR a."monitorUntil" <= clock_timestamp())
       RETURNING a."id"`;
     return rows.length === 1;
   });
   if (!claimed) return { status: "SKIPPED" as const, issued: false as const, canResend: false as const };
-  let status: string = "BLOCKED";
+  let status: string = "BLOCKED", deep = false;
   try {
     const context = await getDb().$transaction(async tx => {
       const saved = await lockDispatchedMint(tx, passportId, attemptId);
@@ -46,12 +50,14 @@ export async function monitorMintAttempt(passportId: string, attemptId: string, 
     });
     const reader = boundedMintMonitorReader(readerFor(context.intent));
     if (context.failed?.status === "CANCELLED") {
-      status = (await reconcileMintCancellation(passportId, attemptId, {}, reader, lease)).status;
+      const checked = await reconcileMintCancellation(passportId, attemptId, {}, reader, lease);
+      status = checked.status; deep = settledDepth(checked, context.intent, "CANCELLED");
     } else if (context.finalized || context.failed) {
       // Preserve the original proof and sticky quarantine; never substitute a
       // replacement for an already closed transaction, successful or failed.
       const transactionId = (context.attempt.finalizedObservation ?? context.attempt.failedObservation)!.transactionId!;
-      status = (await reconcileMintResult(passportId, attemptId, { transactionId }, reader, lease)).status;
+      const checked = await reconcileMintResult(passportId, attemptId, { transactionId }, reader, lease);
+      status = checked.status; deep = settledDepth(checked, context.intent, (context.finalized ?? context.failed)!.status);
     } else {
       const search = await discoverMintTransaction(passportId, attemptId, {}, reader, lease);
       status = search.status;
@@ -69,7 +75,9 @@ export async function monitorMintAttempt(passportId: string, attemptId: string, 
       await tx.$executeRaw`
         UPDATE "PublicationMintAttempt"
         SET "monitorToken" = NULL, "monitorUntil" = NULL,
-            "monitorNextAt" = clock_timestamp() + ${["BLOCKED", "UNAVAILABLE"].includes(status) ? 120 : 30} * interval '1 second'
+            "monitorNextAt" = clock_timestamp() + ${["BLOCKED", "UNAVAILABLE"].includes(status) ? 120 : 30} * interval '1 second',
+            "monitorSettledAt" = CASE WHEN ${deep} AND "quarantinedAt" IS NULL AND "status" IN ('FINALIZED', 'FAILED_TERMINAL')
+              AND COALESCE("finalizedAt", "failedAt") <= clock_timestamp() - interval '24 hours' THEN clock_timestamp() ELSE "monitorSettledAt" END
         WHERE "id" = ${attemptId}::uuid AND "monitorToken" = ${lease.token}::uuid`;
     });
   }
@@ -87,6 +95,7 @@ export async function runMintMonitorBatch(input: unknown, readerFor: ReaderFacto
     JOIN "PublicationMintPreparation" AS p ON p."id" = a."preparationId"
     JOIN "Publication" AS pub ON pub."id" = p."publicationId"
     WHERE a."monitorNextAt" <= clock_timestamp() AND (a."monitorUntil" IS NULL OR a."monitorUntil" <= clock_timestamp())
+      AND a."monitorSettledAt" IS NULL
     ORDER BY a."monitorNextAt", a."id" LIMIT ${parsed.data.limit}`;
   const end = performance.now() + 60_000;
   const results = [];

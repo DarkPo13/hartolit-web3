@@ -83,6 +83,19 @@ test("receipt requires exact transaction, contract event and anchored state", as
   await rejects(inspectMintTransaction(intent, txHash, reader({ getBlock: async () => { throw new Error("fictional-private-provider-detail"); } })));
 });
 
+test("a node that pruned old state still verifies a past mint: state and code are read at the head (D76)", async () => {
+  // Public BSC nodes answer "state ... is pruned" / "missing trie node" for state older than their window.
+  const pruned = fn => async args => { if (args.blockNumber !== 7n) throw new Error("missing trie node"); return fn(args); };
+  const original = reader();
+  const verified = await inspectMintTransaction(intent, txHash, reader({ getCode: pruned(original.getCode), readContract: pruned(original.readContract) }));
+  assert.equal(verified.status, "VERIFIED"); assert.equal(verified.tokenId, "1"); assert.equal(verified.blockNumber, "5");
+  // Head state still has to match: a wrong owner, URI, hash, index or runtime at the head is refused.
+  for (const [name, wrong] of [["ownerOf", address("4")], ["tokenURI", "ipfs://wrong"], ["payloadHash", hash("d")], ["hashToTokenId", 2n]]) {
+    await rejects(inspectMintTransaction(intent, txHash, reader({ readContract: async args => args.blockNumber === 7n && args.functionName === name ? wrong : original.readContract(args) })));
+  }
+  await rejects(inspectMintTransaction(intent, txHash, reader({ getCode: async args => args.blockNumber === 7n ? "0x6001" : code })));
+});
+
 test("a durable attempt also requires the exact observed nonce before any receipt or pending adoption", async () => {
   const observed = reader({ getTransaction: async () => ({ ...tx, nonce: 7 }) });
   assert.equal((await inspectMintTransaction(intent, txHash, observed, 7n)).status, "VERIFIED");

@@ -134,7 +134,7 @@ async function readAttempt(passportId: string, attemptId: string, selection: Sel
     try {
       if (await reader.getChainId() !== before.intent.chainId) throw new Error();
       if (before.failed?.status === "CANCELLED") {
-        result = await inspectMintCancellation(before.intent, hash, before.attempt.nonce, reader);
+        result = await inspectMintCancellation(before.intent, hash, before.attempt.nonce, reader, { closedProof: true });
       } else {
         let transaction;
         try { transaction = await reader.getTransaction({ hash: hash as `0x${string}` }); }

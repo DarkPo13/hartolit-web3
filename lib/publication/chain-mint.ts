@@ -128,7 +128,13 @@ export async function inspectMintTransaction(input: unknown, transactionHash: st
     catch (error) { if (missing(error)) return unknown("REORG"); throw error; }
     if (included.hash !== receipt.blockHash || head.number === null || head.number < receipt.blockNumber) return unknown("REORG");
     const confirmations = head.number - receipt.blockNumber + 1n;
-    await codeAt(reader, value, receipt.blockNumber); await codeAt(reader, value, head.number);
+    // Code and token state are read at the captured head, not the inclusion block:
+    // public nodes prune old state (minutes to hours), so inclusion-block reads fail
+    // for any later check (D76). The runtime is fixed by its hash (no proxy, no
+    // selfdestruct) and passports are soulbound, unburnable and written once at mint,
+    // so head state equals inclusion state; the event, receipt and canonical
+    // membership still bind the inclusion block.
+    await codeAt(reader, value, head.number);
     let tokenId: bigint | undefined;
     if (receipt.status === "success") {
       const logs = parseEventLogs({ abi, eventName: "PassportMinted", strict: true,
@@ -139,7 +145,7 @@ export async function inspectMintTransaction(input: unknown, transactionHash: st
         log.args.tokenId > 0n && lower(log.args.mintedBy) === value.publisherWallet && lower(log.args.to) === value.recipientWallet &&
         log.args.payloadHash === `0x${value.payloadHash}` && log.args.ipfsUri === `ipfs://${value.ipfsCid}`);
       tokenId = log.args.tokenId;
-      const common = { abi, address: value.contractAddress as Hash, blockNumber: receipt.blockNumber };
+      const common = { abi, address: value.contractAddress as Hash, blockNumber: head.number };
       const [owner, uri, payloadHash, indexedId] = await Promise.all([
         reader.readContract({ ...common, functionName: "ownerOf", args: [tokenId] }),
         reader.readContract({ ...common, functionName: "tokenURI", args: [tokenId] }),
