@@ -31,7 +31,7 @@ Durable-context tier: **Tier 1** (AGENTS.md, `.ai/PROJECT.md`, `.ai/STATE.md`, `
 
 Project overrides, above everything else:
 
-- **A. Anything already published on a blockchain or to IPFS.** It is permanent and public; code and documents adapt to it, never the reverse. As of 2026-09-24 nothing has been published: no contract is deployed and no real passport exists.
+- **A. Anything already published on a blockchain or to IPFS.** It is permanent and public; code and documents adapt to it, never the reverse. As of 2026-10-27 the only published item is the BSC Testnet (chain 97) contract `0xf5807a0a2d6931e783d47ea2ecbc1fab5201cac5` (details in `.ai/STATE.md`); nothing is on Mainnet or IPFS and no passport has been minted.
 - **B. The GitHub Actions `CI` run for a pushed commit.** It is the clean-runner result for that commit. A local pass on uncommitted changes does not make the last pushed run green.
 
 Then the general order:

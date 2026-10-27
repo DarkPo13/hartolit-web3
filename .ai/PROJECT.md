@@ -101,7 +101,7 @@ Versions reflect `package.json` on 2026-10-04. "Pinned" means an exact version i
 
 | System | Status on 2026-09-24 |
 |---|---|
-| BNB Smart Chain (Testnet 97, Mainnet 56) via public RPC | No contract deployed. `npm run contracts:deploy:testnet` reads `ADMIN_PRIVATE_KEY` from the deploying shell only. |
+| BNB Smart Chain (Testnet 97, Mainnet 56) via public RPC | Testnet contract deployed 2026-10-27 with the wallet-signed `npm run contracts:deploy:wallet` (address in `.ai/STATE.md`); nothing on Mainnet. `npm run contracts:deploy:testnet` reads `ADMIN_PRIVATE_KEY` from the deploying shell only. |
 | IPFS / Pinata | Demo only; real credentials are refused. Public publication is Phase 5. |
 | WalletConnect / Reown | Removed (D66); browser-injected wallets only. |
 | SMTP provider | Local Mailpit only; no hosted provider chosen. |
