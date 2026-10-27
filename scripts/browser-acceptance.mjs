@@ -18,7 +18,9 @@ import nextEnv from "@next/env";
 import { createJiti } from "jiti";
 import * as playwright from "playwright-core";
 import { DeleteObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
+import { isolatePublicationEnv } from "./fixtures/isolated-env.mjs";
 
+isolatePublicationEnv();
 nextEnv.loadEnvConfig(process.cwd());
 if (!["localhost", "127.0.0.1"].includes(new URL(process.env.DATABASE_URL).hostname)) throw new Error("Browser acceptance requires a local database");
 const ca = path.resolve(".mailpit-tls-ca.pem");

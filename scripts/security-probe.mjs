@@ -12,7 +12,9 @@ import { spawn } from "node:child_process";
 import { createHmac, randomBytes } from "node:crypto";
 import nextEnv from "@next/env";
 import { createJiti } from "jiti";
+import { isolatePublicationEnv } from "./fixtures/isolated-env.mjs";
 
+isolatePublicationEnv();
 nextEnv.loadEnvConfig(process.cwd());
 if (!["localhost", "127.0.0.1"].includes(new URL(process.env.DATABASE_URL).hostname)) throw new Error("The security probe requires a local database");
 const port = 3200, base = `http://127.0.0.1:${port}`;

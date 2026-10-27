@@ -19,14 +19,21 @@ import { smokePublicationPreparation } from "./smoke-publication-preparation.mjs
 import { smokePublicationUploadAction } from "./smoke-publication-upload-action.mjs";
 import { smokePublicationMintAction } from "./smoke-publication-mint-action.mjs";
 import { smokePublicationMintReopen } from "./smoke-publication-mint-reopen.mjs";
+import { isolatePublicationEnv } from "./fixtures/isolated-env.mjs";
 
+isolatePublicationEnv();
 nextEnv.loadEnvConfig(process.cwd());
 const database = new URL(process.env.DATABASE_URL);
 if (!["localhost", "127.0.0.1"].includes(database.hostname)) throw new Error("Publication fixtures require a local database");
 const preflight = new pg.Client({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 3000 });
-try { await preflight.connect(); await preflight.query("SELECT 1"); }
+let existingPublications;
+try { await preflight.connect(); existingPublications = Number((await preflight.query('SELECT count(*) AS n FROM "Publication"')).rows[0].n); }
 catch { throw new Error("Local PostgreSQL not ready; publication assertions were not run"); }
 finally { await preflight.end(); }
+// The monitoring stages process every due mint attempt in the database, so a real
+// record (for example a BSC Testnet issuance) would be checked against the fixture's
+// chain and quarantined. Run against a separate local database instead.
+if (existingPublications) throw new Error(`The database already holds ${existingPublications} publication(s); publication fixtures need a database without publications (README, "Smokes and a real Testnet record")`);
 const port = Number(process.env.PUBLICATION_SMOKE_PORT ?? 3001);
 assert.ok(Number.isInteger(port) && port > 1023 && port < 65536);
 const base = `http://127.0.0.1:${port}`;

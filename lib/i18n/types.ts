@@ -152,7 +152,7 @@ export interface Translations {
     drone: string; operator: string; pilotCert: string; temperature: string;
     humidity: string; wind: string; rainfall: string; product: string;
     activeSubstance: string; dose: string; doseUnit: string; volume: string; manufacturer: string;
-    supplier: string; publicationDisabled: string; users: string;
+    supplier: string; users: string;
     records: string; farmers: string; fields: string; publications: string;
     usersTab: string; auditTab: string; role: string; mfa: string;
     active: string; banned: string; created: string; noRecords: string;

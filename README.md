@@ -445,6 +445,16 @@ Copy the deployed address into `NEXT_PUBLIC_CONTRACT_ADDRESS`.
 
 A pilot replaces the local node with an IPFS node on the hosting server (or a provider whose RPC is Kubo-compatible, tested first) and a public HTTPS gateway.
 
+**Smokes and a real Testnet record.** After a real issuance, the local database holds a publication whose mint the monitor keeps checking. `publication:smoke` processes every due mint attempt in its database, so it would check that record against its own chain and quarantine it. It therefore refuses a database that already holds publications. Run it against a separate local database in the same container:
+
+```bash
+docker compose --env-file .env.db.local exec postgres createdb -U <POSTGRES_USER> hartolit_smoke
+DATABASE_URL=<your DATABASE_URL with /hartolit_smoke as the database> npx prisma migrate deploy
+DATABASE_URL=<same> npm run publication:smoke
+```
+
+The fixtures that start their own app (`publication:smoke`, `browser:acceptance`, `a11y:audit`, `security:probe`) blank every `HARTOLIT_*` setting from `.env.local` before loading it, so the Testnet values there never reach a fixture. If a record was quarantined this way, it can be restored with the reviewed unchanged-original recovery in its admin incident panel (D43, D72), because its proof on the real chain is unchanged.
+
 ### 4. Run the dApp
 
 ```bash
