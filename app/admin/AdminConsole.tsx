@@ -9,6 +9,7 @@ import { PublicationPanel } from "./PublicationPanel";
 import { PassportMarkList } from "@/components/PassportMarkList";
 import { EvidenceAccess } from "./EvidenceAccess";
 import { PreservationHolds } from "./PreservationHolds";
+import { RevealStep } from "./RevealStep";
 
 type Person = { id: string; name: string; email: string };
 type Item = { id: string; status: string; version: number; submittedAt: string | null; farmer: { legalName: string | null }; field: { crop: string | null }; owner: Person; reviewer: Person | null;
@@ -76,6 +77,9 @@ export function AdminConsole({ actorId }: { actorId: string }) {
   const detailRequestId = useRef(0);
   const queueRequestId = useRef(0);
   const previewRequestId = useRef(0);
+  const shownDetailId = useRef<string | null>(null);
+  // The step to bring into view after an action that makes it the next one.
+  const [reveal, setReveal] = useState<"preview" | "publication" | null>(null);
   const labels: Record<string, string> = { SUBMITTED: t.submitted, APPROVED: t.approved, REJECTED: t.rejected, CORRECTION_REQUIRED: t.correctionRequired, PUBLISHING: t.publishing, PUBLISHED: t.published, FAILED_RETRYABLE: t.failed };
   const date = (value: string | null) => value ? new Date(value).toLocaleString(locale === "uk" ? "uk-UA" : "en-US") : "—";
 
@@ -94,17 +98,23 @@ export function AdminConsole({ actorId }: { actorId: string }) {
   const loadDetail = useCallback(async (id: string) => {
     const requestId = ++detailRequestId.current;
     previewRequestId.current += 1;
-    setDetailLoading(true); setDetailError(false); setDetail(null);
-    setPublicPreview(null); setPreviewError(""); setPreviewBusy(false); setWeatherFileId(""); setChemicalFileId("");
-    setPublicConfirmation(null); setConfirmationError(""); setConfirmationChecked(false); setConfirmationLoading(true);
+    // Refreshing the passport on screen keeps it until the new data arrives: clearing
+    // it would collapse the page and throw the reviewer back to the top.
+    const refresh = shownDetailId.current === id;
+    const resetSteps = () => { setPublicPreview(null); setPreviewError(""); setPreviewBusy(false); setWeatherFileId(""); setChemicalFileId(""); setConfirmationError(""); setConfirmationChecked(false); };
+    setDetailLoading(true); setDetailError(false);
+    if (!refresh) { shownDetailId.current = null; setDetail(null); resetSteps(); setPublicConfirmation(null); setConfirmationLoading(true); setReveal(null); }
     try {
       const result = await getJson<{ passport: Detail }>(`/api/admin/passports/${encodeURIComponent(id)}`);
       if (requestId !== detailRequestId.current) return;
+      let confirmation: PublicConfirmation | null = null, confirmationFailed = false;
+      try { confirmation = (await getJson<{ confirmation: PublicConfirmation | null }>(`/api/admin/passports/${encodeURIComponent(id)}/public-confirmation`)).confirmation; }
+      catch { confirmationFailed = true; }
+      if (requestId !== detailRequestId.current) return;
+      shownDetailId.current = id;
+      resetSteps();
       setDetail(result.passport); setReviewerId(result.passport.reviewer?.id ?? ""); setDecision(result.passport.status === "APPROVED" ? "CORRECTION_REQUIRED" : "APPROVED"); setDetailError(false);
-      try {
-        const confirmation = await getJson<{ confirmation: PublicConfirmation | null }>(`/api/admin/passports/${encodeURIComponent(id)}/public-confirmation`);
-        if (requestId === detailRequestId.current) setPublicConfirmation(confirmation.confirmation);
-      } catch { if (requestId === detailRequestId.current) setConfirmationError("load"); }
+      setPublicConfirmation(confirmation); if (confirmationFailed) setConfirmationError("load");
     } catch { if (requestId === detailRequestId.current) setDetailError(true); }
     finally { if (requestId === detailRequestId.current) { setDetailLoading(false); setConfirmationLoading(false); } }
   }, []);
@@ -112,8 +122,8 @@ export function AdminConsole({ actorId }: { actorId: string }) {
   useEffect(() => { void loadQueue(); return () => { queueRequestId.current += 1; }; }, [loadQueue]);
   useEffect(() => { if (selectedId) void loadDetail(selectedId); }, [selectedId, loadDetail]);
 
-  async function post(path: "assign" | "decision", body: object) {
-    if (!detail || busy || confirmationBusy) return;
+  async function post(path: "assign" | "decision", body: object): Promise<boolean> {
+    if (!detail || busy || confirmationBusy) return false;
     setBusy(true); setActionError("");
     try {
       const response = await fetch(`/api/admin/passports/${detail.id}/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: detail.version, ...body }) });
@@ -121,12 +131,13 @@ export function AdminConsole({ actorId }: { actorId: string }) {
         if (response.status === 409) {
           const payload = await response.json().catch(() => null);
           await loadDetail(detail.id);
-          setActionError(Array.isArray(payload?.issues) && payload.issues.includes("PUBLICATION_STARTED") ? t.publicationStarted : t.changed); return;
+          setActionError(Array.isArray(payload?.issues) && payload.issues.includes("PUBLICATION_STARTED") ? t.publicationStarted : t.changed); return false;
         }
-        const payload = await response.json(); setActionError(typeof payload.error === "string" ? payload.error : t.actionError); return;
+        const payload = await response.json(); setActionError(typeof payload.error === "string" ? payload.error : t.actionError); return false;
       }
       await Promise.all([loadDetail(detail.id), loadQueue()]); setNote("");
-    } catch { setActionError(t.actionError); }
+      return true;
+    } catch { setActionError(t.actionError); return false; }
     finally { setBusy(false); }
   }
 
@@ -162,6 +173,7 @@ export function AdminConsole({ actorId }: { actorId: string }) {
       }
       await loadDetail(detail.id);
       await loadQueue();
+      setReveal("publication");
     } catch { setConfirmationError("error"); }
     finally { setConfirmationBusy(false); }
   }
@@ -171,8 +183,8 @@ export function AdminConsole({ actorId }: { actorId: string }) {
     <header className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold text-ink">{t.adminTitle}</h1><p className="mt-2 text-sm text-ink-muted">{t.adminHint}</p></div><div className="flex items-center gap-4"><button type="button" onClick={() => setLocale(locale === "uk" ? "en" : "uk")} aria-label={locale === "uk" ? "EN, switch to English" : "УКР, перейти на українську"} lang={locale === "uk" ? "en" : "uk"} className="text-sm font-medium text-brand-700 underline">{locale === "uk" ? "EN" : "УКР"}</button><Link href="/" className="text-sm font-medium text-brand-700 underline">{t.operator}</Link></div></header>
     <p className="rounded-xl border border-border bg-surface p-3 text-sm text-ink-muted">{t.publicationDisabled}</p>
     {selectedId ? <>
-      <button type="button" onClick={() => { detailRequestId.current += 1; previewRequestId.current += 1; setSelectedId(null); setDetail(null); setPublicPreview(null); setPublicConfirmation(null); setPreviewBusy(false); setActionError(""); void loadQueue(); }} className="text-sm font-medium text-brand-700 underline">{t.backToQueue}</button>
-      {detailLoading && <p role="status">{t.loading}</p>}
+      <button type="button" onClick={() => { detailRequestId.current += 1; previewRequestId.current += 1; shownDetailId.current = null; setReveal(null); setSelectedId(null); setDetail(null); setPublicPreview(null); setPublicConfirmation(null); setPreviewBusy(false); setActionError(""); void loadQueue(); }} className="text-sm font-medium text-brand-700 underline">{t.backToQueue}</button>
+      {detailLoading && !detail && <p role="status">{t.loading}</p>}
       {detailError && <p role="alert" className="text-sm text-danger">{t.detailsError} <button type="button" onClick={() => void loadDetail(selectedId)} className="underline">{t.refresh}</button></p>}
       {detail && detail.id === selectedId && <div className="space-y-5">
         <section className="rounded-2xl border border-border bg-surface p-5"><h2 className="text-xl font-semibold text-ink">{detail.farmer.legalName || t.untitled}</h2><p className="mt-2 text-sm text-ink-muted">{labels[detail.status] ?? detail.status} · {crop(detail.field.crop) || "—"}</p><Fields values={[[t.owner, `${detail.owner.name} (${detail.owner.email})`], [t.reviewer, detail.reviewer?.name ?? t.unassigned], [t.submittedAt, date(detail.submittedAt)], [t.reviewedAt, date(detail.reviewedAt)]]} />{detail.reviewNote && <p className="mt-4 whitespace-pre-wrap text-sm">{t.note}: {detail.reviewNote}</p>}</section>
@@ -184,12 +196,12 @@ export function AdminConsole({ actorId }: { actorId: string }) {
         </div>
         <section className="rounded-2xl border border-border bg-surface p-5"><h3 className="font-semibold">{t.evidence}</h3>{!detail.evidence.length ? <p className="mt-3 text-sm text-ink-muted">{t.noEvidence}</p> : <ul className="mt-3 divide-y divide-border">{detail.evidence.map((file) => <li key={file.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm"><span className="break-all">{file.filename} · {code(evidenceLabel, file.kind)} · {code(evidenceLabel, file.status)}</span>{file.status === "READY" && !detail.issued && <a href={`/api/admin/passports/${detail.id}/evidence/${file.id}/preview`} target="_blank" rel="noopener noreferrer" className="text-brand-700 underline">{t.download}</a>}</li>)}</ul>}{detail.issued && <EvidenceAccess passportId={detail.id} />}</section>
         <PreservationHolds key={detail.id} passportId={detail.id} />
-        {detail.status === "APPROVED" && <section className="rounded-2xl border border-border bg-surface p-5" aria-labelledby="public-preview-heading">
+        {detail.status === "APPROVED" && <RevealStep active={reveal === "preview"}><section className="rounded-2xl border border-border bg-surface p-5" aria-labelledby="public-preview-heading">
           <h3 id="public-preview-heading" className="font-semibold">{t.publicPreview.title}</h3>
           {confirmationLoading && <p role="status" className="mt-2 text-sm">{t.loading}</p>}
           {confirmationError && <p role="alert" className="mt-2 text-sm text-danger">{{ load: t.publicPreview.confirmationLoadError, changed: t.publicPreview.confirmChanged, error: t.publicPreview.confirmError }[confirmationError]} <button type="button" onClick={() => void loadDetail(detail.id)} className="underline">{t.refresh}</button></p>}
           {publicConfirmation && <div className="mt-4"><h4 className="font-semibold">{t.publicPreview.confirmedTitle}</h4><p className="mt-1 text-sm text-ink-muted">{t.publicPreview.confirmedAt}: {date(publicConfirmation.confirmedAt)}</p>{!detail.issued && <div className="mt-3 flex flex-wrap gap-4 text-sm"><Link href={`/admin/passports/${encodeURIComponent(detail.id)}/certificate`} className="font-medium text-brand-700 underline">{t.confirmedViews.openCertificate}</Link><Link href={`/admin/passports/${encodeURIComponent(detail.id)}/verification`} className="font-medium text-brand-700 underline">{t.confirmedViews.openVerification}</Link></div>}<PublicSnapshotView preview={publicConfirmation.preview} confirmed note={detail.issued ? t.publicPreview.issuedRecord : undefined} /></div>}
-          {publicConfirmation && <PublicationPanel key={`${detail.id}:${publicConfirmation.id}`} passportId={detail.id} confirmation={publicConfirmation} disabled={busy || confirmationBusy} />}
+          {publicConfirmation && <RevealStep active={reveal === "publication"}><PublicationPanel key={`${detail.id}:${publicConfirmation.id}`} passportId={detail.id} confirmation={publicConfirmation} disabled={busy || confirmationBusy} /></RevealStep>}
           {!publicConfirmation && !confirmationLoading && !confirmationError && <>
           <p className="mt-2 text-sm text-ink-muted">{t.publicPreview.hint}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -200,10 +212,10 @@ export function AdminConsole({ actorId }: { actorId: string }) {
           {previewError && <p role="alert" className="mt-3 text-sm text-danger">{previewError}</p>}
           {publicPreview && publicPreview.passportId === detail.id && publicPreview.passportVersion === detail.version && publicPreview.weatherFileId === weatherFileId && publicPreview.chemicalFileId === chemicalFileId && <><PublicSnapshotView preview={publicPreview.value} />{detail.reviewer?.id === actorId && <div className="mt-4 space-y-3"><label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={confirmationChecked} onChange={(event) => setConfirmationChecked(event.target.checked)} disabled={confirmationBusy} className="mt-1" /><span>{t.publicPreview.confirmCheck}</span></label><button type="button" onClick={() => void confirmPreview()} disabled={!confirmationChecked || confirmationBusy || busy} className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{confirmationBusy ? t.publicPreview.confirming : t.publicPreview.confirm}</button></div>}</>}
           </>}
-        </section>}
+        </section></RevealStep>}
         {(detail.status === "SUBMITTED" || detail.status === "APPROVED") && <section className="rounded-2xl border border-border bg-surface p-5"><h3 className="font-semibold">{t.decision}</h3>{detail.issued && <p role="status" className="mt-2 text-sm text-ink-muted">{t.issuedDecision}</p>}
           {detail.status === "SUBMITTED" && <div className="mt-4 flex flex-wrap items-end gap-3"><label className="min-w-56 flex-1 text-sm">{t.assign}<select value={reviewerId} onChange={(event) => setReviewerId(event.target.value)} disabled={busy} className="mt-1 block w-full rounded-lg border border-border bg-surface px-3 py-2"><option value="">{t.unassigned}</option>{overview?.reviewers.map((person) => <option key={person.id} value={person.id}>{person.name} ({person.email})</option>)}</select></label><button type="button" onClick={() => void post("assign", { reviewerId: reviewerId || null })} disabled={busy || reviewerId === (detail.reviewer?.id ?? "")} className="rounded-lg border border-border px-4 py-2 text-sm disabled:opacity-50">{t.assign}</button>{detail.reviewer?.id !== actorId && <button type="button" onClick={() => void post("assign", { reviewerId: actorId })} disabled={busy} className="rounded-lg border border-border px-4 py-2 text-sm disabled:opacity-50">{t.claim}</button>}</div>}
-          {detail.reviewer?.id === actorId && !detail.issued && <form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); if (decision !== "APPROVED" && !note.trim()) { setActionError(t.reasonRequired); return; } void post("decision", { decision, note: note.trim() }); }}><fieldset disabled={busy || confirmationBusy}><legend className="text-sm">{t.decision}</legend><div className="mt-2 flex flex-wrap gap-4 text-sm">{(detail.status === "SUBMITTED" ? [["APPROVED", t.approve], ["REJECTED", t.reject], ["CORRECTION_REQUIRED", t.requestCorrection]] : [["CORRECTION_REQUIRED", t.requestCorrection]]).map(([value, label]) => <label key={value} className="flex items-center gap-1"><input type="radio" name="decision" checked={decision === value} onChange={() => setDecision(value as typeof decision)} />{label}</label>)}</div></fieldset><label className="block text-sm">{t.note}<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} rows={3} disabled={busy || confirmationBusy} className="mt-1 block w-full rounded-lg border border-border bg-surface px-3 py-2" /></label><button type="submit" disabled={busy || confirmationBusy} className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{t.saveDecision}</button></form>}
+          {detail.reviewer?.id === actorId && !detail.issued && <form className="mt-4 space-y-3" onSubmit={(event) => { event.preventDefault(); if (decision !== "APPROVED" && !note.trim()) { setActionError(t.reasonRequired); return; } const approving = decision === "APPROVED"; void post("decision", { decision, note: note.trim() }).then(done => { if (done && approving) setReveal("preview"); }); }}><fieldset disabled={busy || confirmationBusy}><legend className="text-sm">{t.decision}</legend><div className="mt-2 flex flex-wrap gap-4 text-sm">{(detail.status === "SUBMITTED" ? [["APPROVED", t.approve], ["REJECTED", t.reject], ["CORRECTION_REQUIRED", t.requestCorrection]] : [["CORRECTION_REQUIRED", t.requestCorrection]]).map(([value, label]) => <label key={value} className="flex items-center gap-1"><input type="radio" name="decision" checked={decision === value} onChange={() => setDecision(value as typeof decision)} />{label}</label>)}</div></fieldset><label className="block text-sm">{t.note}<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} rows={3} disabled={busy || confirmationBusy} className="mt-1 block w-full rounded-lg border border-border bg-surface px-3 py-2" /></label><button type="submit" disabled={busy || confirmationBusy} className="rounded-lg bg-brand-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">{t.saveDecision}</button></form>}
           {actionError && <p role="alert" className="mt-3 text-sm text-danger">{actionError}</p>}
         </section>}
         <section className="rounded-2xl border border-border bg-surface p-5"><h3 className="font-semibold">{t.audit}</h3>{!detail.audit.length ? <p className="mt-3 text-sm text-ink-muted">{t.noAudit}</p> : <ol className="mt-3 divide-y divide-border">{detail.audit.map((event) => <li key={event.id} className="py-2 text-sm"><span className="font-medium">{code(translations.codes.audit, event.action)}</span> · {event.actorName} · {date(event.createdAt)}{event.note && <p className="whitespace-pre-wrap text-ink-muted">{event.note}</p>}</li>)}</ol>}</section>

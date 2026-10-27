@@ -8,6 +8,7 @@ import { useLocale, useT } from "@/lib/i18n/context";
 import type { PublicationOverview } from "@/lib/publication/types";
 import { PublicationPreparation } from "./PublicationPreparation";
 import { PublicationCorrection } from "./PublicationCorrection";
+import { RevealStep, useAppeared } from "./RevealStep";
 
 function WalletLoading() {
   const t = useT().publisher;
@@ -61,6 +62,10 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
   const suspended = data?.reservations.some(r => r.status === "CHAIN_SUSPENDED");
   const publication = data?.reservations.find(r => r.confirmationId === confirmation.id && !["CANCELLED", "CHAIN_FAILED", "CHAIN_FAILED_SUSPENDED"].includes(r.status) &&
     r.passportVersion === confirmation.preview.passportVersion && r.payloadHash === confirmation.preview.sha256);
+  const showMint = !!data && !issued && data.reservations.some(r => ["PINNED", "CHAIN_PENDING", "CHAIN_FAILED", "CHAIN_SUSPENDED", "CHAIN_FAILED_SUSPENDED"].includes(r.status));
+  // Bring the mint step and the issued result into view when they appear after an action here,
+  // not when an already pinned or issued record is opened.
+  const revealMint = useAppeared(showMint, !!data), revealIssued = useAppeared(!!issued, !!data);
 
   async function reserve() {
     if (!data?.publisher.canProve || !data.publisher.walletAddress || busy || disabled || loading || cancelled) return;
@@ -89,13 +94,13 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
     {error && <p role="alert" className="text-sm text-danger">{t[error]}</p>}
     <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading || busy || disabled}>{t.refresh}</Button>
     {data && <>
-      {issued ? <div role="status" className="rounded-lg border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900">
+      {issued ? <RevealStep active={revealIssued}><div role="status" className="rounded-lg border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900">
         <p className="font-semibold">{t.issuedTitle} #{issued.tokenId}</p><p className="mt-1">{t.issuedHint}</p>
         {!!issued.previousTokenIds?.length && <p role="alert" className="mt-2 font-medium text-danger">{tm.reprintHint.replace("{token}", issued.previousTokenIds.join(", #"))}</p>}
         <dl className="mt-3 space-y-2"><div><dt className="font-medium">{t.contract}</dt><dd className="break-all font-mono text-xs">{issued.contractAddress}</dd></div>
           <div><dt className="font-medium">{t.transaction}</dt><dd className="break-all font-mono text-xs">{issued.transactionHash}</dd></div></dl>
         <a href={`/passports/${encodeURIComponent(issued.tokenId)}`} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block font-medium text-brand-700 underline">{t.openPublic}</a>
-      </div> : suspended ? <p role="status" className="text-sm">{t.suspended}</p> : !data.publisher.configured ? <p className="text-sm text-ink-muted">{t.notConfigured}</p> : !data.publisher.canProve ? <p className="text-sm text-ink-muted">{t.otherPublisher}</p> : <>
+      </div></RevealStep> : suspended ? <p role="status" className="text-sm">{t.suspended}</p> : !data.publisher.configured ? <p className="text-sm text-ink-muted">{t.notConfigured}</p> : !data.publisher.canProve ? <p className="text-sm text-ink-muted">{t.otherPublisher}</p> : <>
         <div className="text-sm"><p className="font-medium">{t.allowedWallet}</p><code className="mt-1 block break-all">{data.publisher.walletAddress}</code></div>
         {cancelled ? <p role="alert" className="text-sm text-danger">{t.approvalChanged}</p> : blocked ? <p role="status" className="text-sm">{t.blocked}</p> : current?.walletVerifiedAt ? <div role="status" className="rounded-lg border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900"><p className="font-semibold">{t.verified}</p><p className="mt-1">{new Date(current.walletVerifiedAt).toLocaleString(locale === "uk" ? "uk-UA" : "en-US")}</p><p className="mt-2">{t.stillPrivate}</p></div> : current && data.publisher.walletAddress ? <PublisherWallet
           key={current.id} base={base} reservation={current} walletAddress={data.publisher.walletAddress}
@@ -111,8 +116,8 @@ export function PublicationPanel({ passportId, confirmation, disabled }: {
       {data.reservations.some(r => r.status === "PUBLISHED") && <PublicationCorrection base={base} canWrite={data.publisher.canProve} disabled={disabled || busy || loading} />}
       {publication && !issued && !suspended && <PublicationPreparation key={`${publication.id}:${confirmation.id}:${confirmation.preview.sha256}:${data.pinning.target?.configurationSha256}:${data.publisher.canProve}`} base={base}
         confirmation={confirmation} reservation={publication} data={data} disabled={disabled || busy || loading} reload={load} />}
-      {!issued && data.reservations.some(r => ["PINNED", "CHAIN_PENDING", "CHAIN_FAILED", "CHAIN_SUSPENDED", "CHAIN_FAILED_SUSPENDED"].includes(r.status)) &&
-        <PublicationMint passportId={passportId} canWrite={data.publisher.canProve} disabled={disabled || busy || loading} onChanged={load} />}
+      {showMint && <RevealStep active={revealMint}>
+        <PublicationMint passportId={passportId} canWrite={data.publisher.canProve} disabled={disabled || busy || loading} onChanged={load} /></RevealStep>}
     </>}
   </section>;
 }
