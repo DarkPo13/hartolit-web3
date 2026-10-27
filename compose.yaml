@@ -22,7 +22,8 @@ services:
     command: ["daemon", "--migrate=true"]
     ports:
       - "127.0.0.1:5001:5001"
-      - "127.0.0.1:8080:8080"
+      # 8088 on the host: 8080 is often taken by other local projects. Override: HARTOLIT_KUBO_GATEWAY_PORT in .env.db.local.
+      - "127.0.0.1:${HARTOLIT_KUBO_GATEWAY_PORT:-8088}:8080"
       - "4001:4001/tcp"
       - "4001:4001/udp"
     volumes:
