@@ -184,7 +184,7 @@ try {
       await audit(home, `${label} operator draft expanded`);
       if (size === "desktop") await keyboard(home, `${label} operator draft`, 60);
       await home.screenshot({ path: path.join(out, `${size}-${locale}-operator.png`), fullPage: true });
-      for (const route of ["/settings/security", "/feedback"]) { await home.goto(base + route); await home.waitForLoadState("networkidle"); await audit(home, `${label} operator ${route}`); }
+      for (const route of ["/settings/security", "/feedback", "/help"]) { await home.goto(base + route); await home.waitForLoadState("networkidle"); await audit(home, `${label} operator ${route}`); }
       const adminPage = await context(admin);
       await adminPage.goto(`${base}/admin`); await adminPage.waitForLoadState("networkidle");
       await audit(adminPage, `${label} admin queue`);
@@ -206,6 +206,9 @@ try {
       }
       await adminPage.goto(`${base}/admin/feedback`); await adminPage.waitForLoadState("networkidle");
       await audit(adminPage, `${label} admin feedback`);
+      await adminPage.goto(`${base}/admin/help`); await adminPage.waitForLoadState("networkidle");
+      await audit(adminPage, `${label} admin help`);
+      await adminPage.screenshot({ path: path.join(out, `${size}-${locale}-admin-help.png`) });
       for (const opened of browser.contexts()) await opened.close();
     }
   }

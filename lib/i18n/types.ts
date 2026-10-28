@@ -59,6 +59,11 @@ export interface Translations {
     empty: string;
     backToAdmin: string;
   };
+  help: {
+    link: string; navigation: string; backToApp: string; backToAdmin: string; operatorGuide: string; adminGuide: string;
+    contents: string; toContents: string; search: string; found: string; noResults: string; example: string;
+    notes: { info: string; warn: string; tip: string };
+  };
   header: {
     title: string;
     subtitle: string;

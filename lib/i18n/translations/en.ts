@@ -172,6 +172,12 @@ export const en: Translations = {
     empty: "No feedback yet.",
     backToAdmin: "Back to the admin console",
   },
+  help: {
+    link: "Help", navigation: "Help navigation", backToApp: "Back to the app", backToAdmin: "To the admin console",
+    operatorGuide: "Operator guide", adminGuide: "Admin guide",
+    contents: "Contents", toContents: "Back to contents", search: "Search the guide", found: "Sections found: {n}", noResults: "Nothing found. Try another word.", example: "Example",
+    notes: { info: "Note", warn: "Important", tip: "Tip" },
+  },
   header: {
     title: "Hartolit Digital Field Passport",
     subtitle: "Agricultural treatment passport prototype",

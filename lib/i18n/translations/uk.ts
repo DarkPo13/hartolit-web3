@@ -172,6 +172,12 @@ export const uk: Translations = {
     empty: "Відгуків ще немає.",
     backToAdmin: "До консолі адміністратора",
   },
+  help: {
+    link: "Довідка", navigation: "Навігація довідки", backToApp: "Повернутися до застосунку", backToAdmin: "До консолі адміністратора",
+    operatorGuide: "Довідка оператора", adminGuide: "Довідка адміністратора",
+    contents: "Зміст", toContents: "До змісту", search: "Пошук у довідці", found: "Знайдено розділів: {n}", noResults: "Нічого не знайдено. Спробуйте інше слово.", example: "Приклад",
+    notes: { info: "Примітка", warn: "Важливо", tip: "Порада" },
+  },
   header: {
     title: "Hartolit Digital Field Passport",
     subtitle: "Прототип паспорта аграрної обробки",

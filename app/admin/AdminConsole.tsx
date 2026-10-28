@@ -43,6 +43,7 @@ export function AdminConsole({ actorId }: { actorId: string }) {
   const evidenceLabel: Record<string, string> = { METEO: translations.evidence.meteo, CHEMICAL: translations.evidence.chemical, OTHER: translations.evidence.other,
     PENDING: translations.evidence.pending, SCANNING: translations.evidence.scanning, QUARANTINED: translations.evidence.quarantined, READY: translations.evidence.ready, REJECTED: translations.evidence.rejected };
   const feedbackText = useT().feedback;
+  const helpText = useT().help;
   const { locale, setLocale } = useLocale();
   const [overview, setOverview] = useState<Overview | null>(null);
   const [items, setItems] = useState<Item[]>([]);
@@ -179,7 +180,7 @@ export function AdminConsole({ actorId }: { actorId: string }) {
   }
 
   return <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 md:py-12">
-    <Link href="/admin/feedback" className="inline-block text-sm font-medium text-brand-700 underline">{feedbackText.inbox}</Link>
+    <div className="flex flex-wrap gap-x-6 gap-y-2"><Link href="/admin/feedback" className="inline-block text-sm font-medium text-brand-700 underline">{feedbackText.inbox}</Link><Link href="/admin/help" className="inline-block text-sm font-medium text-brand-700 underline">{helpText.adminGuide}</Link></div>
     <header className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-semibold text-ink">{t.adminTitle}</h1><p className="mt-2 text-sm text-ink-muted">{t.adminHint}</p></div><div className="flex items-center gap-4"><button type="button" onClick={() => setLocale(locale === "uk" ? "en" : "uk")} aria-label={locale === "uk" ? "EN, switch to English" : "УКР, перейти на українську"} lang={locale === "uk" ? "en" : "uk"} className="text-sm font-medium text-brand-700 underline">{locale === "uk" ? "EN" : "УКР"}</button><Link href="/" className="text-sm font-medium text-brand-700 underline">{t.operator}</Link></div></header>
     {selectedId ? <>
       <button type="button" onClick={() => { detailRequestId.current += 1; previewRequestId.current += 1; shownDetailId.current = null; setReveal(null); setSelectedId(null); setDetail(null); setPublicPreview(null); setPublicConfirmation(null); setPreviewBusy(false); setActionError(""); void loadQueue(); }} className="text-sm font-medium text-brand-700 underline">{t.backToQueue}</button>

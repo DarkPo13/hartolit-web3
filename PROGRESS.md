@@ -1081,3 +1081,14 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - Upgraded with exact pins: `better-auth`, `auth` and `@better-auth/prisma-adapter` 1.7.14 (all three, so only one `@better-auth/core` is installed; with the direct adapter left at 1.7.5 a second core 1.7.5 stayed in the tree), and `nodemailer` 10.2.1. `npm audit fix` raised `fast-uri` to 3.1.9. `npm audit` reports 0 vulnerabilities for production dependencies and for all dependencies.
 - Validation after the upgrade, unpiped: lint, typecheck, `test:wallet`, `test:chain`, `test:verifier`, `test:i18n`, build, `test:public-boundary`, the drafts, evidence, review and feedback smokes, `security:probe` (141), `browser:acceptance` (46), `auth:smoke` and the actual-Anvil `publication:smoke` (on `hartolit_smoke`, port 3011, because another local project held 3001) all exited 0.
 - The first `auth:smoke` and `browser:acceptance` runs failed on the invitation email: "self-signed certificate". The `mail-tls` Mailpit had been recreated after a Docker restart, which gives it a new certificate, while `.mailpit-tls-ca.pem` still held the old one. After re-running `npm run mail:tls-ca`, a direct send through `nodemailer` 10.2.1 succeeded and both runs passed. README now says to re-export the certificate after recreating the container.
+
+## 2026-10-28 - Operator and admin guides inside the app
+
+The user asked for documentation pages before hosting: an operator guide limited to what an operator needs, and a fuller admin guide with the internals, examples and a clear structure.
+
+- `/help` and `/admin/help` render typed content (`lib/help/*.ts`) through one client component with a sticky contents list (a collapsible one on phones), a section search and notes/examples/FAQ blocks. Inline text supports only bold, code and links, so the content stays data, not markup.
+- Both languages are written out; the app is bilingual and `test:i18n` now fails when the uk/en outlines differ or a link points at a missing page or section. Every quoted button or status was checked against `lib/i18n/translations`; 34 English labels were corrected to match the interface.
+- Guards follow the existing pages: operators and admins may open `/help` (admins only with MFA); `/admin/help` needs an MFA admin. The server page passes only the authorized guide, so admin content never reaches an operator's bundle.
+- Rejected: a separate static docs site (would drift from the app and need its own hosting) and Ukrainian-only content (the interface promises both languages).
+- Not verified: wording with a real operator, and the guides' accuracy after future flow changes (no test can check meaning).
+

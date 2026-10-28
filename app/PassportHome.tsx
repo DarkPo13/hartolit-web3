@@ -136,6 +136,7 @@ function Header({ isAdmin }: { isAdmin: boolean }) {
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && <Link href="/admin" className="text-xs font-medium text-ink hover:text-brand-700">{t.account.admin}</Link>}
+          <Link href="/help" className="text-xs font-medium text-ink hover:text-brand-700">{t.help.link}</Link>
           <LocaleToggle />
           {isDemoMode() && <div className="hidden md:block"><ChainBadge /></div>}
           {isDemoMode() && <ConnectWallet compact />}
@@ -205,6 +206,7 @@ function Footer() {
           {isDemoMode() && <ChainBadge />}
         </div>
         <div className="flex flex-wrap items-center gap-4">
+          <Link href="/help" className="hover:text-ink">{t.help.operatorGuide}</Link>
           <Link href="/feedback" className="hover:text-ink">{t.feedback.leaveFeedback}</Link>
           <a
             href="https://hartolit-agro.com"
