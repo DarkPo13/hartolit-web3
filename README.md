@@ -470,7 +470,7 @@ With demo mode off, the signed-in home page shows durable structured drafts. Pri
 
 ```bash
 docker compose --env-file .env.db.local --profile mail-tls up -d mailpit-tls
-npm run mail:tls-ca   # writes the gitignored .mailpit-tls-ca.pem
+npm run mail:tls-ca   # writes the gitignored .mailpit-tls-ca.pem; run it again whenever the container is recreated (new certificate)
 SMTP_HOST=localhost SMTP_PORT=1026 NODE_EXTRA_CA_CERTS=.mailpit-tls-ca.pem npm start
 MAILPIT_API_URL=http://127.0.0.1:8026 npm run auth:smoke
 ```
