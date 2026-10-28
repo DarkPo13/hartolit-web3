@@ -1092,3 +1092,7 @@ The user asked for documentation pages before hosting: an operator guide limited
 - Rejected: a separate static docs site (would drift from the app and need its own hosting) and Ukrainian-only content (the interface promises both languages).
 - Not verified: wording with a real operator, and the guides' accuracy after future flow changes (no test can check meaning).
 
+## 2026-10-28 - The operator home no longer says issuance is unavailable
+
+The release banner ("Passport issuance is not available yet") and the drafts note predated D68-D76; issuance works on BSC Testnet. The banner now explains the operator's steps, says certificates are pilot records while on Testnet and links the operator guide. Lint, typecheck, `test:i18n`, build and `a11y:audit` (211) exited 0; the phone screenshot shows the new banner. `noDispatch` was left alone: it is shown only when the server has no IPFS dispatch configured, where it is still true.
+

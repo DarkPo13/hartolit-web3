@@ -89,6 +89,7 @@ export function PassportHome({ actorId, isAdmin }: { actorId: string; isAdmin: b
               {t.release.title}
             </h2>
             <p className="mt-3 max-w-2xl text-sm text-ink-muted">{t.release.description}</p>
+            <Link href="/help" className="mt-3 inline-block text-sm font-medium text-brand-700 underline">{t.help.operatorGuide}</Link>
           </section>
           <DraftWorkspace />
           </div>

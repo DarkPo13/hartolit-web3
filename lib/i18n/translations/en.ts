@@ -191,14 +191,14 @@ export const en: Translations = {
     restoringDraft: "Restoring this tab's draft…",
   },
   release: {
-    title: "Passport issuance is not available yet",
-    description: "This service is being prepared for a controlled pilot. Public verification will be available after certificate issuance and the new verifier are implemented.",
+    title: "Pilot on the test network",
+    description: "Fill in the treatment record, add the weather data and a product document, and submit the record for review. Once approved, a Hartolit administrator publishes a certificate with a QR code. While the service runs on the BSC Testnet test network, certificates are pilot records, not production ones.",
   },
   drafts: {
     title: "Passport drafts",
     correctionOf: "Correction of certificate",
     correctionBanner: "This draft is a copy of an issued record for correction. Once reviewed and published it will publicly replace it; until then the public page says a correction is in progress. Upload the evidence again.",
-    description: "Draft details and verified evidence are saved to your account. Issuance is not available yet.",
+    description: "Draft details and verified evidence are saved to your account.",
     newDraft: "New draft",
     empty: "No drafts yet. Create one to begin.",
     loading: "Loading drafts…",
