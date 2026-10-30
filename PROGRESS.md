@@ -1111,3 +1111,8 @@ The user found the single admin page chaotic and asked for a CRM-style layout wi
 - Same day, after the user's review: the account block (name, email, operator workspace, account security, language, sign-out) moved from the bottom of the left menu to a top bar on every width, as a disclosure under an initials button at the top right. Scroll and sticky offsets moved below the 4 rem bar. `a11y:audit` 255 (adds the open account menu), `browser:acceptance` 50.
 - Validation trap: rerunning `browser:acceptance` and `a11y:audit` back to back exhausted the sign-in limit (5 per 15 minutes per IP, stored in the database, so a fresh server does not reset it); the run aborted with 429 before any admin page. After a 16-minute wait the same build passed 48/48.
 - Not verified: the HTTP smokes and CI after this change; use with a real second admin.
+
+## 2026-10-30 - Handoff after the admin console redesign
+
+- STATE now names the redesign as done, the user's reading of the guides as the next input and hosting after it; its "current limits" sentence that still claimed nothing had been pushed since `f94edf9` was corrected. The continuation brief records the leftover `next` process on port 3000 and the sign-in rate-limit spacing between browser runs.
+- Handoff validation, unpiped: lint, typecheck, `test:i18n`, `test:public`, `test:button`, `test:capture`, `test:hash` and `prisma validate` exited 0. `a11y:audit` (255) and `browser:acceptance` (50) had exited 0 on the same code before this docs-only change. Not run locally: the HTTP smokes (they sign in and would collide with the rate limit while the user uses the app); CI runs them on push.

@@ -11,7 +11,9 @@ Keep this file under about 250 lines. Source/config and exact pushed-commit CI o
 
 ## Current goal
 
-**Now (user, 2026-10-27):** the first real BSC Testnet issuance from this machine is done (fictional record, token #1, VALID public page), and the defects it exposed are fixed (D76, fixture isolation, admin scroll). Next comes hosting, prepared with the user step by step (Next steps 3). Fictional data only; no customer data, Mainnet or hosted release exists. The user is not technical: explain plainly and keep `HOW_IT_WORKS.uk.md` current. Earlier direction (2026-10-21, local work before external accounts) is complete; see PROGRESS.
+**Now (user, 2026-10-30):** before hosting the user asked for in-app guides (done 2026-10-28) and a CRM-style admin console (done 2026-10-30: left menu, separate pages, record tabs, account menu at the top right). The user is reading the guides and may send corrections; apply them in both languages and keep `test:i18n` green. Hosting stays next (Next steps 3); the user has not chosen a provider (Hetzner was recommended over AWS for price and simplicity) or confirmed the domain.
+
+**Before (user, 2026-10-27):** the first real BSC Testnet issuance from this machine is done (fictional record, token #1, VALID public page), and the defects it exposed are fixed (D76, fixture isolation, admin scroll). Next comes hosting, prepared with the user step by step (Next steps 3). Fictional data only; no customer data, Mainnet or hosted release exists. The user is not technical: explain plainly and keep `HOW_IT_WORKS.uk.md` current. Earlier direction (2026-10-21, local work before external accounts) is complete; see PROGRESS.
 
 ## Implemented in this checkpoint
 
@@ -93,7 +95,7 @@ No open row above is closed by this checkpoint; S9 is narrowed by the 2026-10-27
 
 ## Validation
 
-**2026-10-30, Windows, Node 24.18.0 (admin console pages):** lint, typecheck, `test:i18n` (6), build, `a11y:audit` (255) and `browser:acceptance` (50) exited 0. Control: a guide link to a missing admin page exits `test:i18n` 1 (the link check now resolves route groups). Not run: the HTTP smokes and CI (not pushed).
+**2026-10-30, Windows, Node 24.18.0 (admin console pages, `a716457`):** lint, typecheck, `test:i18n` (6), build, `a11y:audit` (255) and `browser:acceptance` (50) exited 0; at handoff lint, typecheck, `test:i18n`, `test:public`, `test:button`, `test:capture`, `test:hash` and `prisma validate` exited 0 again. Control: a guide link to a missing admin page exits `test:i18n` 1 (the link check now resolves route groups). Not run: the HTTP smokes and CI (not pushed).
 
 **2026-10-28, Windows, Node 24.18.0 (in-app guides):** lint, typecheck, `test:i18n` (6, including the new guide parity/link test), build and `a11y:audit` (211, with the help pages in UK/EN at 1280/390) exited 0. Controls: a renamed en section id and a link to a missing page each exit `test:i18n` 1; the first audit run exited 1 on the help pages (no `main` landmark) before the fix.
 
@@ -157,7 +159,7 @@ No open row above is closed by this checkpoint; S9 is narrowed by the 2026-10-27
 
 **Verified wallet checkpoints, 2026-10-23, Windows, Node 24.18.0/Anvil 1.8.6:** lint, typecheck, production build and 34 Node regressions exited 0. Migration 30 `db:deploy`, `migrate status` and the read-only `migrate diff --from-config-datasource --to-schema --exit-code` (no difference) exited 0. Default PG/production HTTP `publication:smoke` and the actual owned-Anvil variant exited 0, including all earlier stages; actual Anvil performs two real reorgs re-broadcasting the identical signed mint, invalidating one checkpoint and restarting from the wallet start.
 
-**Current limits:** the installed wallet (MetaMask), a real authenticator app and BSC Testnet were exercised once on 2026-10-27 from this machine only; no hosted provider/finality, real phone acceptance, recurring scheduler, populated migration rehearsal, or CI result for any commit after `f94edf9` (nothing pushed since). Browser passes use temporary scratch scripts with a locally cached Playwright; they are not committed. Smokes and passes delete their fictional records; the 2026-10-02 `review-*@example.invalid` fixture is left alone. Actual Anvil comes from ignored tooling via `ANVIL_BIN`.
+**Current limits:** the installed wallet (MetaMask), a real authenticator app and BSC Testnet were exercised once on 2026-10-27 from this machine only; no hosted provider/finality, real phone acceptance, recurring scheduler or populated migration rehearsal. Pushed-commit CI results are in the header line (corrected 2026-10-30: this sentence still said nothing had been pushed since `f94edf9`). Browser passes use temporary scratch scripts with a locally cached Playwright; they are not committed. Smokes and passes delete their fictional records; the 2026-10-02 `review-*@example.invalid` fixture is left alone. Actual Anvil comes from ignored tooling via `ANVIL_BIN`.
 
 ## Environment and fresh-machine setup
 
@@ -174,11 +176,11 @@ No open row above is closed by this checkpoint; S9 is narrowed by the 2026-10-27
 4. **Agent, in parallel (accepted policy, guide "Accepted policy: mint incidents"):** built locally: TOTP reuse refusal (D73), publishing a cancelled or reverted record again (D74), the incident classes as a two-person reopening (D75; actual-chain smoke for every class except a changed cancellation proof, runbook for a foreign transaction at the nonce). Remaining before real data: an operator walk-through on Testnet or in the browser with two real admins, and the manual database procedure for the cases D75 refuses (re-anchored attempt, record already published again, foreign transaction).
 5. **Later user participation:** a second real admin for the two-person reopening; actual IPFS compatibility/retention for the pilot; hosted/device acceptance; counsel/pilot review; the Mainnet decision. No seed/private key sharing.
 
-## Continuation brief — 2026-10-27
+## Continuation brief — 2026-10-30
 
 - Start with `CLAUDE.md` (imports `AGENTS.md`) and its bootstrap order; no user recap is needed. Pushing still needs the user's explicit word each time; local verified commits are authorized.
-- Next: hosting (Next steps 3). Ask for the user's choices one at a time, in plain Ukrainian, with prices; never ask for a seed phrase or private key; the user edits their own `.env*` files.
-- This machine: the main database holds the real Testnet record (token #1). Run `publication:smoke` only against a separate database (README "Smokes and a real Testnet record"; here `hartolit_smoke` in the same container). App-starting fixtures blank `HARTOLIT_*` themselves. Start the app with `next start -H 127.0.0.1` and the `mail-tls` Mailpit (README "Production mail locally"); the local public Kubo gateway is on 8088 (`ipfs-node` profile).
+- First: any corrections the user sends after reading `/help` and `/admin/help`. Then hosting (Next steps 3). Ask for the user's choices one at a time, in plain Ukrainian, with prices; never ask for a seed phrase or private key; the user edits their own `.env*` files.
+- This machine: the main database holds the real Testnet record (token #1). Run `publication:smoke` only against a separate database (README "Smokes and a real Testnet record"; here `hartolit_smoke` in the same container). App-starting fixtures blank `HARTOLIT_*` themselves. Start the app with `next start -H 127.0.0.1` and the `mail-tls` Mailpit (README "Production mail locally"); the local public Kubo gateway is on 8088 (`ipfs-node` profile). Stopping a backgrounded `npx next start` can leave the `next` child listening on 3000; stop that process before `browser:acceptance`. Back-to-back browser runs exhaust the sign-in limit (5 per 15 minutes, counted from the last attempt, stored in the database); leave 16 quiet minutes between `a11y:audit` and `browser:acceptance` and do not hand the user the app in that window.
 - Fixtures: `scripts/smoke-publication-*.mjs`, `tests/mint-*.test.mjs`; set `PUBLICATION_LOCAL_CHAIN=1` and `ANVIL_BIN` for actual Anvil. Prove each new regression fails without its fix. Local skills/tooling, environment files, generated clients and Foundry binaries are ignored and do not travel through Git.
 
 ## Open questions
