@@ -192,8 +192,22 @@ try {
       await adminPage.getByRole("button", { name: "Fictional A11y admin" }).click();
       await audit(adminPage, `${label} admin account menu`);
       await adminPage.keyboard.press("Escape");
-      if (size === "desktop") await keyboard(adminPage, `${label} admin overview`, 30);
-      else {
+      if (size === "desktop") {
+        await keyboard(adminPage, `${label} admin overview`, 30);
+        // The collapsed menu: icons only, names for screen readers and on hover, remembered across a reload.
+        const asideWidth = async () => (await adminPage.locator("aside").boundingBox())?.width ?? 0;
+        await adminPage.getByRole("button", { name: t.adminShell.collapseMenu }).click();
+        const farmers = adminPage.locator("aside").getByRole("link", { name: t.adminShell.items.farmers });
+        note(await asideWidth() < 100 && await farmers.isVisible(), `${label} admin menu collapses to named icon links (${await asideWidth()}px)`);
+        await farmers.hover();
+        note(await farmers.locator("[aria-hidden]").filter({ hasText: t.adminShell.items.farmers }).isVisible(), `${label} collapsed menu names an icon on hover`);
+        await audit(adminPage, `${label} admin menu collapsed`);
+        await adminPage.screenshot({ path: path.join(out, `${size}-${locale}-admin-collapsed.png`) });
+        await adminPage.reload(); await adminPage.waitForLoadState("networkidle");
+        note(await asideWidth() < 100, `${label} collapsed menu is remembered after a reload`);
+        await adminPage.getByRole("button", { name: t.adminShell.expandMenu }).click();
+        note(await asideWidth() > 200, `${label} admin menu expands again (${await asideWidth()}px)`);
+      } else {
         await adminPage.getByRole("button", { name: t.adminShell.menu }).click();
         await adminPage.getByRole("dialog", { name: t.adminShell.sections }).waitFor();
         await audit(adminPage, `${label} admin menu`);

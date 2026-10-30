@@ -4,12 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BookOpen, ChevronDown, ClipboardCheck, House, LayoutDashboard, LogOut, Map as MapIcon, Menu, MessageSquare, ScrollText, ShieldCheck, Sprout, Stamp, UserCog, Users, X, type LucideIcon } from "lucide-react";
+import { BookOpen, ChevronDown, ClipboardCheck, House, LayoutDashboard, LogOut, Map as MapIcon, Menu, MessageSquare, PanelLeftClose, PanelLeftOpen, ScrollText, ShieldCheck, Sprout, Stamp, UserCog, Users, X, type LucideIcon } from "lucide-react";
 import { LocaleToggle } from "@/components/ui/LocaleToggle";
 import { useT } from "@/lib/i18n/context";
 import { useSignOut } from "@/lib/use-sign-out";
 import { cn } from "@/lib/utils";
 import { AdminOverviewProvider, useAdminOverview } from "./admin-data";
+import { SIDEBAR_COOKIE } from "./sidebar-cookie";
 
 type Item = { href: string; key: keyof ReturnType<typeof useT>["adminShell"]["items"]; icon: LucideIcon };
 const groups: { key: keyof ReturnType<typeof useT>["adminShell"]["groups"]; items: Item[] }[] = [
@@ -22,26 +23,36 @@ const groups: { key: keyof ReturnType<typeof useT>["adminShell"]["groups"]; item
 
 const isActive = (pathname: string, href: string) => href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
-export function AdminShell({ user, children }: { user: { name: string; email: string }; children: ReactNode }) {
-  return <AdminOverviewProvider><Shell user={user}>{children}</Shell></AdminOverviewProvider>;
+export function AdminShell({ user, collapsed, children }: { user: { name: string; email: string }; collapsed: boolean; children: ReactNode }) {
+  return <AdminOverviewProvider><Shell user={user} initiallyCollapsed={collapsed}>{children}</Shell></AdminOverviewProvider>;
 }
 
-function Shell({ user, children }: { user: { name: string; email: string }; children: ReactNode }) {
+function Shell({ user, initiallyCollapsed, children }: { user: { name: string; email: string }; initiallyCollapsed: boolean; children: ReactNode }) {
   const s = useT().adminShell;
   const pathname = usePathname();
   const menu = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(initiallyCollapsed);
+  const toggle = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    document.cookie = `${SIDEBAR_COOKIE}=${next ? "collapsed" : "expanded"}; path=/admin; max-age=31536000; samesite=lax`;
+  };
   const waiting = useAdminOverview().overview?.counts.SUBMITTED ?? 0;
   useEffect(() => { menu.current?.close(); }, [pathname]);
 
-  return <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
+  return <div className={cn("min-h-dvh lg:grid", collapsed ? "lg:grid-cols-[4.5rem_minmax(0,1fr)]" : "lg:grid-cols-[16rem_minmax(0,1fr)]")}>
     <a href="#admin-main" className="sr-only rounded-lg bg-surface px-4 py-2 text-sm font-medium text-ink shadow-lifted focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50">{s.skip}</a>
     <aside className="hidden border-r border-border bg-surface lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col">
-      <Sidebar idPrefix="side" />
+      <Sidebar idPrefix="side" collapsed={collapsed} />
     </aside>
     <div className="min-w-0">
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-canvas/95 px-4 backdrop-blur sm:px-6 lg:justify-end lg:px-10">
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-canvas/95 px-4 backdrop-blur sm:px-6 lg:px-10">
         <div className="lg:hidden"><Brand /></div>
+        <button type="button" onClick={toggle} aria-label={collapsed ? s.expandMenu : s.collapseMenu} title={collapsed ? s.expandMenu : s.collapseMenu}
+          className="-ml-2 hidden rounded-lg p-2 text-ink-muted hover:bg-surface-2 hover:text-ink lg:inline-flex">
+          {collapsed ? <PanelLeftOpen className="h-5 w-5" aria-hidden /> : <PanelLeftClose className="h-5 w-5" aria-hidden />}
+        </button>
         <div className="flex items-center gap-2 sm:gap-3">
           <LocaleToggle className="hidden sm:flex" />
           <button type="button" onClick={() => menu.current?.showModal()} aria-haspopup="dialog" aria-expanded={open} aria-controls="admin-menu"
@@ -65,34 +76,38 @@ function Shell({ user, children }: { user: { name: string; email: string }; chil
   </div>;
 }
 
-function Brand() {
+function Brand({ compact = false }: { compact?: boolean }) {
   const s = useT().adminShell;
   return <Link href="/admin" className="flex min-w-0 items-center gap-2.5 rounded-lg">
-    <Image src="/logo.png" alt="" width={32} height={32} className="rounded-lg" />
-    <span className="min-w-0 leading-tight"><span className="block text-sm font-semibold text-ink">Hartolit</span><span className="block truncate text-xs text-ink-muted">{s.console}</span></span>
+    <Image src="/logo.png" alt="" width={32} height={32} className="shrink-0 rounded-lg" />
+    <span className={cn("min-w-0 leading-tight", compact && "sr-only")}><span className="block text-sm font-semibold text-ink">Hartolit</span><span className="block truncate text-xs text-ink-muted">{s.console}</span></span>
   </Link>;
 }
 
-function Sidebar({ idPrefix }: { idPrefix: string }) {
+/** Collapsed, the menu keeps only icons: the names stay for screen readers and
+ * appear beside an icon on hover or keyboard focus. */
+function Sidebar({ idPrefix, collapsed = false }: { idPrefix: string; collapsed?: boolean }) {
   const s = useT().adminShell;
   const pathname = usePathname();
   const waiting = useAdminOverview().overview?.counts.SUBMITTED ?? 0;
 
   return <>
-    <div className="px-4 pb-2 pt-4"><Brand /></div>
-    <nav aria-label={s.sections} className="flex-1 overflow-y-auto px-3 py-2">
-      {groups.map(group => <div key={group.key} className="mt-4 first:mt-1">
-        <p id={`${idPrefix}-${group.key}`} className="px-2 text-[0.7rem] font-semibold uppercase tracking-wider text-ink-subtle">{s.groups[group.key]}</p>
+    <div className={cn("pb-2 pt-4", collapsed ? "flex justify-center px-2" : "px-4")}><Brand compact={collapsed} /></div>
+    <nav aria-label={s.sections} className={cn("flex-1 px-3 py-2", collapsed ? "overflow-visible" : "overflow-y-auto")}>
+      {groups.map(group => <div key={group.key} className={cn("mt-4 first:mt-1", collapsed && "border-t border-border pt-3 first:border-t-0 first:pt-0")}>
+        <p id={`${idPrefix}-${group.key}`} className={cn("px-2 text-[0.7rem] font-semibold uppercase tracking-wider text-ink-subtle", collapsed && "sr-only")}>{s.groups[group.key]}</p>
         <ul aria-labelledby={`${idPrefix}-${group.key}`} className="mt-1 space-y-0.5">
           {group.items.map(item => {
             const active = isActive(pathname, item.href);
             const Icon = item.icon;
             return <li key={item.href}>
               <Link href={item.href} aria-current={active ? "page" : undefined}
-                className={cn("flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition-colors", active ? "bg-brand-50 font-semibold text-brand-800" : "text-ink-muted hover:bg-surface-2 hover:text-ink")}>
+                className={cn("group relative flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition-colors", collapsed && "justify-center", active ? "bg-brand-50 font-semibold text-brand-800" : "text-ink-muted hover:bg-surface-2 hover:text-ink")}>
                 <Icon className={cn("h-4 w-4 shrink-0", active ? "text-brand-700" : "text-ink-subtle")} aria-hidden />
-                <span className="flex-1">{s.items[item.key]}</span>
-                {item.key === "queue" && waiting > 0 && <><span className="rounded-full bg-brand-700 px-2 py-0.5 text-xs font-semibold text-white" aria-hidden>{waiting}</span><span className="sr-only">{s.waitingCount.replace("{n}", String(waiting))}</span></>}
+                {collapsed
+                  ? <><span className="sr-only">{s.items[item.key]}</span><span aria-hidden className="pointer-events-none absolute left-full top-1/2 z-40 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg bg-ink px-2.5 py-1.5 text-xs font-medium text-canvas shadow-lifted group-hover:block group-focus-visible:block">{s.items[item.key]}</span></>
+                  : <span className="flex-1">{s.items[item.key]}</span>}
+                {item.key === "queue" && waiting > 0 && <><span className={cn("rounded-full bg-brand-700 text-xs font-semibold text-white", collapsed ? "absolute right-0.5 top-0.5 min-w-4 px-1 text-center text-[0.65rem] leading-4" : "px-2 py-0.5")} aria-hidden>{waiting}</span><span className="sr-only">{s.waitingCount.replace("{n}", String(waiting))}</span></>}
               </Link>
             </li>;
           })}

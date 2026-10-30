@@ -178,7 +178,7 @@ export const en: Translations = {
     notes: { info: "Note", warn: "Important", tip: "Tip" },
   },
   adminShell: {
-    console: "Administration", sections: "Administration sections", skip: "Skip to content", menu: "Menu", closeMenu: "Close menu", waitingCount: "Waiting for review: {n}",
+    console: "Administration", sections: "Administration sections", skip: "Skip to content", menu: "Menu", closeMenu: "Close menu", collapseMenu: "Collapse menu", expandMenu: "Expand menu", waitingCount: "Waiting for review: {n}",
     groups: { work: "Work", registry: "Registry", people: "Access", logs: "Logs", support: "Support" },
     items: { overview: "Overview", queue: "Review queue", farmers: "Farmers", fields: "Fields", publications: "Publications", users: "Users", audit: "Event log", adminActions: "Admin actions", feedback: "Feedback", help: "Help" },
     operatorView: "Operator workspace", security: "Account security", signedInAs: "Signed in as",

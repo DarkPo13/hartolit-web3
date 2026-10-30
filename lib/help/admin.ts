@@ -137,7 +137,7 @@ export const adminHelp: HelpDocs = {
             id: "registry",
             title: "Реєстр: фермери, поля, користувачі, публікації, аудит",
             blocks: [
-              { p: "Реєстр і журнали — окремі сторінки в меню ліворуч (на телефоні меню відкриває кнопка **«Меню»** вгорі):" },
+              { p: "Реєстр і журнали — окремі сторінки в меню ліворуч (на телефоні меню відкриває кнопка **«Меню»** вгорі; на комп'ютері кнопка в лівому верхньому куті **згортає меню до значків** і розгортає його знову, а назва пункту з'являється, коли навести на значок):" },
               { table: { head: ["Сторінка меню", "Що там"], rows: [
                 ["Фермери", "господарства: назва, реєстраційний номер, контакти; кількість полів і паспортів"],
                 ["Поля", "назва поля, площа, GPS, кадастровий номер, культура"],
@@ -767,7 +767,7 @@ export const adminHelp: HelpDocs = {
             id: "registry",
             title: "Records: farmers, fields, users, publications, audit",
             blocks: [
-              { p: "The registry and logs are separate pages in the left menu (on a phone the **Menu** button at the top opens it):" },
+              { p: "The registry and logs are separate pages in the left menu (on a phone the **Menu** button at the top opens it; on a computer the button in the top left corner **collapses the menu to icons** and expands it again, and an item's name appears when you point at its icon):" },
               { table: { head: ["Menu page", "What it holds"], rows: [
                 ["Farmers", "farms: name, registration number, contacts; numbers of fields and passports"],
                 ["Fields", "field name, area, GPS, cadastral number, crop"],

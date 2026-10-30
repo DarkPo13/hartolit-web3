@@ -178,7 +178,7 @@ export const uk: Translations = {
     notes: { info: "Примітка", warn: "Важливо", tip: "Порада" },
   },
   adminShell: {
-    console: "Адміністрування", sections: "Розділи адміністрування", skip: "Перейти до змісту", menu: "Меню", closeMenu: "Закрити меню", waitingCount: "Чекають на перевірку: {n}",
+    console: "Адміністрування", sections: "Розділи адміністрування", skip: "Перейти до змісту", menu: "Меню", closeMenu: "Закрити меню", collapseMenu: "Згорнути меню", expandMenu: "Розгорнути меню", waitingCount: "Чекають на перевірку: {n}",
     groups: { work: "Робота", registry: "Реєстр", people: "Доступ", logs: "Журнали", support: "Підтримка" },
     items: { overview: "Огляд", queue: "Черга перевірки", farmers: "Фермери", fields: "Поля", publications: "Публікації", users: "Користувачі", audit: "Журнал подій", adminActions: "Дії адміністраторів", feedback: "Відгуки", help: "Довідка" },
     operatorView: "Кабінет оператора", security: "Безпека акаунта", signedInAs: "Ви увійшли як",

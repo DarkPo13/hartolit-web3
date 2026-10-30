@@ -1116,3 +1116,10 @@ The user found the single admin page chaotic and asked for a CRM-style layout wi
 
 - STATE now names the redesign as done, the user's reading of the guides as the next input and hosting after it; its "current limits" sentence that still claimed nothing had been pushed since `f94edf9` was corrected. The continuation brief records the leftover `next` process on port 3000 and the sign-in rate-limit spacing between browser runs.
 - Handoff validation, unpiped: lint, typecheck, `test:i18n`, `test:public`, `test:button`, `test:capture`, `test:hash` and `prisma validate` exited 0. `a11y:audit` (255) and `browser:acceptance` (50) had exited 0 on the same code before this docs-only change. Not run locally: the HTTP smokes (they sign in and would collide with the rate limit while the user uses the app); CI runs them on push.
+
+## 2026-10-30 - Collapsible admin menu
+
+- At the user's request the desktop admin menu collapses to an icon rail (4.5 rem) and expands again from a button at the left of the top bar. Collapsed, group names become screen-reader text with dividers between groups, each link keeps its name as screen-reader text and shows it in a tooltip on hover or keyboard focus, and the waiting count becomes a small badge on the queue icon. The phone menu is unchanged.
+- The choice is a cookie (`hartolit-admin-sidebar`, path `/admin`, one year), read by the server layout so a collapsed menu renders collapsed on the first paint; localStorage (as the language uses) would flash the wide menu first. No width animation: the rail needs visible overflow for the tooltips, and clipping it for a transition would hide them.
+- Found by the new check: the cookie name was first exported from the `"use client"` shell and imported by the server layout, where it arrives as a client reference, not a string, so the cookie was never read and "remembered after a reload" failed. It now lives in `sidebar-cookie.ts`.
+- Validation: lint, typecheck, `test:i18n`, build and `a11y:audit` (267, up from 255) exited 0. Not run: `browser:acceptance` and the HTTP smokes.

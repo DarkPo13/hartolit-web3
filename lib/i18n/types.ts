@@ -64,7 +64,7 @@ export interface Translations {
     notes: { info: string; warn: string; tip: string };
   };
   adminShell: {
-    console: string; sections: string; skip: string; menu: string; closeMenu: string; waitingCount: string;
+    console: string; sections: string; skip: string; menu: string; closeMenu: string; collapseMenu: string; expandMenu: string; waitingCount: string;
     groups: { work: string; registry: string; people: string; logs: string; support: string };
     items: { overview: string; queue: string; farmers: string; fields: string; publications: string; users: string; audit: string; adminActions: string; feedback: string; help: string };
     operatorView: string; security: string; signedInAs: string;
