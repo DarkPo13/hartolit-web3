@@ -58,12 +58,12 @@ export function HelpDocument({ docs, kind, isAdmin }: { docs: HelpDocs; kind: "o
     </header>
 
     <div className="mt-8 grid gap-8 lg:grid-cols-[17rem_minmax(0,1fr)]">
-      <div id="contents" className="scroll-mt-20 lg:scroll-mt-4">
+      <div id="contents" className={embedded ? "scroll-mt-20" : "scroll-mt-4"}>
         <details className="rounded-2xl border border-border bg-surface p-4 lg:hidden">
           <summary className="cursor-pointer font-semibold text-ink">{t.contents}</summary>
           <nav aria-label={t.contents} className="mt-4">{contents}</nav>
         </details>
-        <nav aria-label={t.contents} className="hidden lg:sticky lg:top-6 lg:block lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto lg:pr-2">
+        <nav aria-label={t.contents} className={`hidden lg:sticky lg:block lg:overflow-y-auto lg:pr-2 ${embedded ? "lg:top-24 lg:max-h-[calc(100dvh-7rem)]" : "lg:top-6 lg:max-h-[calc(100dvh-3rem)]"}`}>
           <h2 className="mb-4 text-xs font-semibold uppercase tracking-wide text-ink-muted">{t.contents}</h2>
           {contents}
         </nav>
@@ -72,7 +72,7 @@ export function HelpDocument({ docs, kind, isAdmin }: { docs: HelpDocs; kind: "o
       <div className="min-w-0 space-y-10">
         {parts.map(part => <div key={part.title} className="space-y-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">{part.title}</p>
-          {part.sections.map(section => <section key={section.id} id={section.id} aria-labelledby={`${section.id}-title`} className="scroll-mt-20 lg:scroll-mt-4 rounded-2xl border border-border bg-surface p-5 sm:p-7">
+          {part.sections.map(section => <section key={section.id} id={section.id} aria-labelledby={`${section.id}-title`} className={`${embedded ? "scroll-mt-20" : "scroll-mt-4"} rounded-2xl border border-border bg-surface p-5 sm:p-7`}>
             <h2 id={`${section.id}-title`} className="text-xl font-semibold text-ink sm:text-2xl">{section.title}</h2>
             <div className="mt-4 space-y-4 text-sm leading-relaxed text-ink sm:text-[0.95rem]">
               {section.blocks.map((block, index) => <Fragment key={index}>{renderBlock(block, t)}</Fragment>)}

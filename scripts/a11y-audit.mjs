@@ -189,6 +189,9 @@ try {
       await adminPage.goto(`${base}/admin`); await adminPage.waitForLoadState("networkidle");
       await audit(adminPage, `${label} admin overview`);
       await adminPage.screenshot({ path: path.join(out, `${size}-${locale}-admin-overview.png`), fullPage: true });
+      await adminPage.getByRole("button", { name: "Fictional A11y admin" }).click();
+      await audit(adminPage, `${label} admin account menu`);
+      await adminPage.keyboard.press("Escape");
       if (size === "desktop") await keyboard(adminPage, `${label} admin overview`, 30);
       else {
         await adminPage.getByRole("button", { name: t.adminShell.menu }).click();

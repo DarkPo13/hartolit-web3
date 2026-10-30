@@ -131,6 +131,10 @@ try {
   await admin.getByRole("heading", { name: uk.adminShell.items.overview, level: 1 }).waitFor();
   note(true, "admin signs in with password and TOTP through the UI");
   const adminMenu = admin.getByRole("navigation", { name: uk.adminShell.sections });
+  await admin.getByRole("button", { name: "Fictional Browser Admin" }).click();
+  note(await admin.getByRole("link", { name: uk.adminShell.security }).isVisible() && await admin.getByText(adminEmail).isVisible(), "the account menu at the top right shows the email and account security");
+  await admin.keyboard.press("Escape");
+  note(!(await admin.getByRole("link", { name: uk.adminShell.security }).isVisible()), "Escape closes the account menu");
 
   // 2. Invite the operator through the admin console.
   await adminMenu.getByRole("link", { name: uk.adminShell.items.users }).click();

@@ -30,5 +30,5 @@ export function RevealStep({ active, children }: { active: boolean; children: Re
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     box.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
   }, [active]);
-  return <div ref={ref} className="scroll-mt-4">{children}</div>;
+  return <div ref={ref} className="scroll-mt-20">{children}</div>;
 }

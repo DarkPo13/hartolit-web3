@@ -214,7 +214,7 @@ export function PassportDetail({ id, actorId }: { id: string; actorId: string })
           <Panel level={3} title={t.chemical}><Fields values={[[t.product, detail.chemical?.product], [t.activeSubstance, detail.chemical?.activeSubstance], [t.dose, detail.chemical?.dosePerHa], [t.doseUnit, code(translations.codes.doseUnit, detail.chemical?.doseUnit)], [t.volume, detail.chemical?.workingVolume], [t.manufacturer, detail.chemical?.manufacturer], [t.registration, detail.chemical?.registrationNo], [t.supplier, detail.chemical?.supplierName]]} /></Panel>
         </div>
       </div>
-      <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+      <div className="space-y-6 xl:sticky xl:top-24 xl:self-start">
         {decisionPanel}
         {detail.reviewNote && <Panel level={3} title={t.note}><p className="whitespace-pre-wrap text-sm">{detail.reviewNote}</p></Panel>}
       </div>

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { BookOpen, ClipboardCheck, House, LayoutDashboard, LogOut, Map as MapIcon, Menu, MessageSquare, ScrollText, ShieldCheck, Sprout, Stamp, UserCog, Users, X, type LucideIcon } from "lucide-react";
+import { BookOpen, ChevronDown, ClipboardCheck, House, LayoutDashboard, LogOut, Map as MapIcon, Menu, MessageSquare, ScrollText, ShieldCheck, Sprout, Stamp, UserCog, Users, X, type LucideIcon } from "lucide-react";
 import { LocaleToggle } from "@/components/ui/LocaleToggle";
 import { useT } from "@/lib/i18n/context";
 import { useSignOut } from "@/lib/use-sign-out";
@@ -37,16 +37,20 @@ function Shell({ user, children }: { user: { name: string; email: string }; chil
   return <div className="min-h-dvh lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
     <a href="#admin-main" className="sr-only rounded-lg bg-surface px-4 py-2 text-sm font-medium text-ink shadow-lifted focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50">{s.skip}</a>
     <aside className="hidden border-r border-border bg-surface lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col">
-      <Sidebar user={user} idPrefix="side" />
+      <Sidebar idPrefix="side" />
     </aside>
     <div className="min-w-0">
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border bg-canvas/95 px-4 py-2.5 backdrop-blur lg:hidden">
-        <Brand />
-        <button type="button" onClick={() => menu.current?.showModal()} aria-haspopup="dialog" aria-expanded={open} aria-controls="admin-menu"
-          className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-ink">
-          <Menu className="h-4 w-4" aria-hidden />{s.menu}
-          {waiting > 0 && <><span className="rounded-full bg-brand-700 px-1.5 text-xs text-white" aria-hidden>{waiting}</span><span className="sr-only">{s.waitingCount.replace("{n}", String(waiting))}</span></>}
-        </button>
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-border bg-canvas/95 px-4 backdrop-blur sm:px-6 lg:justify-end lg:px-10">
+        <div className="lg:hidden"><Brand /></div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <LocaleToggle className="hidden sm:flex" />
+          <button type="button" onClick={() => menu.current?.showModal()} aria-haspopup="dialog" aria-expanded={open} aria-controls="admin-menu"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-ink lg:hidden">
+            <Menu className="h-4 w-4" aria-hidden />{s.menu}
+            {waiting > 0 && <><span className="rounded-full bg-brand-700 px-1.5 text-xs text-white" aria-hidden>{waiting}</span><span className="sr-only">{s.waitingCount.replace("{n}", String(waiting))}</span></>}
+          </button>
+          <AccountMenu user={user} />
+        </div>
       </header>
       <main id="admin-main" tabIndex={-1} className="mx-auto w-full max-w-6xl px-4 py-6 focus:outline-none sm:px-6 lg:px-10 lg:py-10">{children}</main>
     </div>
@@ -55,7 +59,7 @@ function Shell({ user, children }: { user: { name: string; email: string }; chil
       className="m-0 h-dvh max-h-dvh w-[min(18rem,85vw)] max-w-none bg-surface p-0 text-ink shadow-deep backdrop:bg-ink/40 lg:hidden">
       <div className="flex h-full flex-col">
         <button type="button" onClick={() => menu.current?.close()} aria-label={s.closeMenu} className="absolute right-2 top-3 rounded-lg p-2 text-ink-muted hover:bg-surface-2 hover:text-ink"><X className="h-5 w-5" aria-hidden /></button>
-        <Sidebar user={user} idPrefix="drawer" />
+        <Sidebar idPrefix="drawer" />
       </div>
     </dialog>
   </div>;
@@ -69,12 +73,10 @@ function Brand() {
   </Link>;
 }
 
-function Sidebar({ user, idPrefix }: { user: { name: string; email: string }; idPrefix: string }) {
-  const t = useT();
-  const s = t.adminShell;
+function Sidebar({ idPrefix }: { idPrefix: string }) {
+  const s = useT().adminShell;
   const pathname = usePathname();
   const waiting = useAdminOverview().overview?.counts.SUBMITTED ?? 0;
-  const { signOut, pending, failed } = useSignOut();
 
   return <>
     <div className="px-4 pb-2 pt-4"><Brand /></div>
@@ -97,21 +99,54 @@ function Sidebar({ user, idPrefix }: { user: { name: string; email: string }; id
         </ul>
       </div>)}
     </nav>
-    <div className="space-y-3 border-t border-border p-4 text-sm">
-      <div className="min-w-0">
+  </>;
+}
+
+/** The signed-in admin at the top right: a disclosure with the email, the
+ * operator workspace, account security, the language on phones and sign-out.
+ */
+function AccountMenu({ user }: { user: { name: string; email: string } }) {
+  const t = useT();
+  const s = t.adminShell;
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const { signOut, pending, failed } = useSignOut();
+  const initials = (user.name || user.email).split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join("");
+  useEffect(() => { setOpen(false); }, [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => { if (!box.current?.contains(event.target as Node)) setOpen(false); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { setOpen(false); button.current?.focus(); } };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, [open]);
+  const item = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-surface-2";
+
+  return <div ref={box} className="relative">
+    <button ref={button} type="button" onClick={() => setOpen(value => !value)} aria-expanded={open} aria-controls="admin-account"
+      className="flex items-center gap-2 rounded-full border border-border bg-surface p-1 text-sm font-medium text-ink hover:bg-surface-2 sm:pr-3">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-700 text-xs font-semibold text-white" aria-hidden>{initials}</span>
+      <span className="sr-only sm:not-sr-only sm:max-w-40 sm:truncate">{user.name || user.email}</span>
+      <ChevronDown className={cn("hidden h-4 w-4 text-ink-subtle transition-transform sm:block", open && "rotate-180")} aria-hidden />
+    </button>
+    <div id="admin-account" hidden={!open} className="absolute right-0 top-full z-40 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-border bg-surface p-2 shadow-deep">
+      <div className="border-b border-border px-3 pb-3 pt-2">
         <p className="text-xs text-ink-subtle">{s.signedInAs}</p>
         <p className="truncate font-medium text-ink">{user.name}</p>
-        <p className="truncate text-xs text-ink-muted" title={user.email}>{user.email}</p>
+        <p className="break-all text-xs text-ink-muted">{user.email}</p>
       </div>
-      <ul className="space-y-0.5">
-        <li><Link href="/" className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-ink-muted hover:bg-surface-2 hover:text-ink"><House className="h-4 w-4 text-ink-subtle" aria-hidden />{s.operatorView}</Link></li>
-        <li><Link href="/settings/security" className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-ink-muted hover:bg-surface-2 hover:text-ink"><ShieldCheck className="h-4 w-4 text-ink-subtle" aria-hidden />{s.security}</Link></li>
+      <ul className="space-y-0.5 py-2">
+        <li><Link href="/" className={item}><House className="h-4 w-4 text-ink-subtle" aria-hidden />{s.operatorView}</Link></li>
+        <li><Link href="/settings/security" className={item}><ShieldCheck className="h-4 w-4 text-ink-subtle" aria-hidden />{s.security}</Link></li>
       </ul>
-      <div className="flex items-center justify-between gap-2">
-        <LocaleToggle />
-        <button type="button" onClick={() => void signOut()} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-2 hover:text-ink disabled:opacity-50"><LogOut className="h-4 w-4" aria-hidden />{t.account.signOut}</button>
+      <div className="flex items-center justify-between gap-2 border-t border-border px-1 pt-2">
+        <LocaleToggle className="sm:hidden" />
+        <button type="button" onClick={() => void signOut()} disabled={pending} className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-ink-muted hover:bg-surface-2 hover:text-ink disabled:opacity-50"><LogOut className="h-4 w-4" aria-hidden />{t.account.signOut}</button>
       </div>
-      {failed && <p role="alert" className="text-xs text-danger">{t.account.signOutError}</p>}
+      {failed && <p role="alert" className="px-3 pb-2 text-xs text-danger">{t.account.signOutError}</p>}
     </div>
-  </>;
+  </div>;
 }
