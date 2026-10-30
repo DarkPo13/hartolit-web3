@@ -128,11 +128,15 @@ try {
   await admin.getByRole("button", { name: uk.account.verify }).click();
   await admin.waitForURL(url => url.pathname !== "/two-factor", { timeout: 15_000 });
   await admin.goto(`${base}/admin`);
-  await admin.getByRole("heading", { name: uk.review.adminTitle }).waitFor();
+  await admin.getByRole("heading", { name: uk.adminShell.items.overview, level: 1 }).waitFor();
   note(true, "admin signs in with password and TOTP through the UI");
+  const adminMenu = admin.getByRole("navigation", { name: uk.adminShell.sections });
 
   // 2. Invite the operator through the admin console.
-  await admin.getByRole("button", { name: uk.review.usersTab }).click();
+  await adminMenu.getByRole("link", { name: uk.adminShell.items.users }).click();
+  await admin.getByRole("heading", { name: uk.adminShell.items.users, level: 1 }).waitFor();
+  note(new URL(admin.url()).pathname === "/admin/users" && await adminMenu.getByRole("link", { name: uk.adminShell.items.users }).getAttribute("aria-current") === "page",
+    "the admin menu opens the users page and marks it as current");
   await admin.getByLabel(uk.management.inviteName).fill("Fictional Browser Operator");
   await admin.getByLabel(uk.management.inviteEmail).fill(operatorEmail);
   await admin.getByRole("button", { name: uk.management.invite }).click();
@@ -268,11 +272,13 @@ try {
   note(true, "submitted passport appears as submitted");
 
   // 7. Admin: claim, approve from the keyboard, confirm the exact public snapshot.
-  await admin.getByRole("button", { name: uk.review.refresh }).first().click();
+  await adminMenu.getByRole("link", { name: uk.adminShell.items.queue }).click();
   const queued = admin.locator("li").filter({ hasText: marker });
   await queued.waitFor({ timeout: 15_000 });
   note((await queued.innerText()).includes(uk.crops.sunflower), "admin queue shows the localized crop");
-  await queued.getByRole("button", { name: uk.review.details }).click();
+  await queued.getByRole("link").first().click();
+  await admin.waitForURL(url => /^\/admin\/passports\/[^/]+$/.test(url.pathname), { timeout: 15_000 });
+  note(true, "a queued record opens on its own page");
   await admin.getByRole("button", { name: uk.review.claim }).click();
   const approve = admin.getByRole("radio", { name: uk.review.approve });
   await approve.waitFor({ timeout: 15_000 });
@@ -293,7 +299,11 @@ try {
   await confirmCheck.check(); await confirmButton.click();
   await admin.getByText(uk.review.publicPreview.confirmedTitle).waitFor({ timeout: 15_000 });
   note(await admin.getByText(uk.publisher.title).count() > 0, "confirmed snapshot leads to the publication step");
-  const detailText = await admin.locator("main").innerText();
+  let detailText = "";
+  for (const tab of [uk.adminShell.tabs.data, uk.adminShell.tabs.evidence, uk.adminShell.tabs.history]) {
+    await admin.getByRole("tab", { name: tab }).click();
+    detailText += await admin.locator("main").innerText();
+  }
   note(detailText.includes(uk.codes.audit.PASSPORT_SUBMITTED) && detailText.includes(uk.treatmentTypes.herbicide) && !/PASSPORT SUBMITTED|\bherbicide\b|· (READY|METEO)\b/.test(detailText),
     "admin detail shows localized audit actions, treatment type and evidence states");
   note(await overflow(admin) <= 0, "admin detail: no overflow");

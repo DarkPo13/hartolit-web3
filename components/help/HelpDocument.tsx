@@ -29,15 +29,19 @@ export function HelpDocument({ docs, kind, isAdmin }: { docs: HelpDocs; kind: "o
     </li>)}
   </ol>;
 
-  return <main className="mx-auto max-w-6xl px-4 py-6 sm:py-10">
-    <nav className="mb-6 flex flex-wrap items-center justify-between gap-3 text-sm" aria-label={t.navigation}>
-      <Link href={kind === "admin" ? "/admin" : "/"} className="font-medium text-brand-700 underline">{kind === "admin" ? t.backToAdmin : t.backToApp}</Link>
+  // The admin guide sits inside the admin console, which already provides the
+  // page landmark, the way back and the language switch.
+  const embedded = kind === "admin";
+  const Wrapper = embedded ? "div" : "main";
+  return <Wrapper className={embedded ? "" : "mx-auto max-w-6xl px-4 py-6 sm:py-10"}>
+    {embedded ? <nav className="mb-4 flex justify-end text-sm" aria-label={t.navigation}><Link href="/help" className="font-medium text-brand-700 underline">{t.operatorGuide}</Link></nav>
+      : <nav className="mb-6 flex flex-wrap items-center justify-between gap-3 text-sm" aria-label={t.navigation}>
+      <Link href="/" className="font-medium text-brand-700 underline">{t.backToApp}</Link>
       <div className="flex flex-wrap items-center gap-4">
-        {kind === "admin" ? <Link href="/help" className="font-medium text-brand-700 underline">{t.operatorGuide}</Link>
-          : isAdmin && <Link href="/admin/help" className="font-medium text-brand-700 underline">{t.adminGuide}</Link>}
+        {isAdmin && <Link href="/admin/help" className="font-medium text-brand-700 underline">{t.adminGuide}</Link>}
         <button type="button" onClick={() => setLocale(locale === "uk" ? "en" : "uk")} aria-label={locale === "uk" ? "EN, switch to English" : "УКР, перейти на українську"} lang={locale === "uk" ? "en" : "uk"} className="font-medium text-brand-700 underline">{locale === "uk" ? "EN" : "УКР"}</button>
       </div>
-    </nav>
+    </nav>}
 
     <header className="rounded-2xl border border-border bg-gradient-to-br from-brand-50 via-surface to-surface p-6 sm:p-8">
       <BookOpen className="mb-3 h-8 w-8 text-brand-700" aria-hidden />
@@ -54,7 +58,7 @@ export function HelpDocument({ docs, kind, isAdmin }: { docs: HelpDocs; kind: "o
     </header>
 
     <div className="mt-8 grid gap-8 lg:grid-cols-[17rem_minmax(0,1fr)]">
-      <div id="contents" className="scroll-mt-4">
+      <div id="contents" className="scroll-mt-20 lg:scroll-mt-4">
         <details className="rounded-2xl border border-border bg-surface p-4 lg:hidden">
           <summary className="cursor-pointer font-semibold text-ink">{t.contents}</summary>
           <nav aria-label={t.contents} className="mt-4">{contents}</nav>
@@ -68,7 +72,7 @@ export function HelpDocument({ docs, kind, isAdmin }: { docs: HelpDocs; kind: "o
       <div className="min-w-0 space-y-10">
         {parts.map(part => <div key={part.title} className="space-y-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">{part.title}</p>
-          {part.sections.map(section => <section key={section.id} id={section.id} aria-labelledby={`${section.id}-title`} className="scroll-mt-4 rounded-2xl border border-border bg-surface p-5 sm:p-7">
+          {part.sections.map(section => <section key={section.id} id={section.id} aria-labelledby={`${section.id}-title`} className="scroll-mt-20 lg:scroll-mt-4 rounded-2xl border border-border bg-surface p-5 sm:p-7">
             <h2 id={`${section.id}-title`} className="text-xl font-semibold text-ink sm:text-2xl">{section.title}</h2>
             <div className="mt-4 space-y-4 text-sm leading-relaxed text-ink sm:text-[0.95rem]">
               {section.blocks.map((block, index) => <Fragment key={index}>{renderBlock(block, t)}</Fragment>)}
@@ -78,7 +82,7 @@ export function HelpDocument({ docs, kind, isAdmin }: { docs: HelpDocs; kind: "o
         </div>)}
       </div>
     </div>
-  </main>;
+  </Wrapper>;
 }
 
 type Chrome = ReturnType<typeof useT>["help"];

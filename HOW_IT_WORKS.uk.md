@@ -235,7 +235,8 @@ MetaMask просить **підписати повідомлення**. Це н
 | Що | Адреса |
 |---|---|
 | Застосунок, вхід | http://localhost:3000/login |
-| Адмінка | http://localhost:3000/admin |
+| Адмінка (меню ліворуч: огляд, черга, реєстр, журнали) | http://localhost:3000/admin |
+| Черга перевірки | http://localhost:3000/admin/passports |
 | Довідка оператора | http://localhost:3000/help |
 | Довідка адміністратора | http://localhost:3000/admin/help |
 | Публічна сторінка токена №1 | http://localhost:3000/passports/1 |

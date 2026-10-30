@@ -187,7 +187,7 @@ export async function mine(ownerId: string) {
 export async function adminQueue(status: "ALL" | "ISSUED" | PassportStatus, page: number, search: string) {
   const where: Prisma.PassportWhereInput = { ...(status === "ISSUED" ? { status: { not: "DRAFT" }, publications: { some: { status: "PUBLISHED", tokenId: { not: null } } } } : { status: status === "ALL" ? { not: "DRAFT" } : status }), ...(search ? { OR: [{ farmer: { legalName: { contains: search, mode: "insensitive" } } }, { owner: { email: { contains: search, mode: "insensitive" } } }] } : {}) };
   const [rows, total] = await Promise.all([
-    getDb().passport.findMany({ where, orderBy: [{ submittedAt: "desc" }, { id: "desc" }], skip: page * 20, take: 20, select: { id: true, status: true, version: true, submittedAt: true, reviewedAt: true, owner: { select: { name: true, email: true } }, reviewer: { select: { name: true } }, farmer: { select: { legalName: true } }, field: { select: { crop: true } }, ...passportMarksSelect } }),
+    getDb().passport.findMany({ where, orderBy: [{ submittedAt: "desc" }, { id: "desc" }], skip: page * 20, take: 20, select: { id: true, status: true, version: true, submittedAt: true, reviewedAt: true, owner: { select: { name: true, email: true } }, reviewer: { select: { id: true, name: true } }, farmer: { select: { legalName: true } }, field: { select: { crop: true } }, ...passportMarksSelect } }),
     getDb().passport.count({ where }),
   ]);
   return { total, page, items: rows.map(({ publications, correctionOf, supersededBy, ...row }) => ({ ...row, marks: passportMarks({ publications, correctionOf, supersededBy }), submittedAt: row.submittedAt?.toISOString() ?? null, reviewedAt: row.reviewedAt?.toISOString() ?? null })) };

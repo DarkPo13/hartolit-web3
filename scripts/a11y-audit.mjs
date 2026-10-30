@@ -187,19 +187,32 @@ try {
       for (const route of ["/settings/security", "/feedback", "/help"]) { await home.goto(base + route); await home.waitForLoadState("networkidle"); await audit(home, `${label} operator ${route}`); }
       const adminPage = await context(admin);
       await adminPage.goto(`${base}/admin`); await adminPage.waitForLoadState("networkidle");
+      await audit(adminPage, `${label} admin overview`);
+      await adminPage.screenshot({ path: path.join(out, `${size}-${locale}-admin-overview.png`), fullPage: true });
+      if (size === "desktop") await keyboard(adminPage, `${label} admin overview`, 30);
+      else {
+        await adminPage.getByRole("button", { name: t.adminShell.menu }).click();
+        await adminPage.getByRole("dialog", { name: t.adminShell.sections }).waitFor();
+        await audit(adminPage, `${label} admin menu`);
+        await adminPage.keyboard.press("Escape");
+      }
+      await adminPage.goto(`${base}/admin/passports`); await adminPage.waitForLoadState("networkidle");
       await audit(adminPage, `${label} admin queue`);
-      if (size === "desktop") await keyboard(adminPage, `${label} admin queue`, 30);
+      await adminPage.screenshot({ path: path.join(out, `${size}-${locale}-admin-queue.png`), fullPage: true });
       const row = adminPage.locator("li").filter({ hasText: "Fictional A11y Farm" });
       if (await row.count()) {
-        await row.first().getByRole("button", { name: t.review.details }).click();
-        await adminPage.getByRole("region", { name: t.holds.title }).waitFor({ timeout: 15_000 });
-        await audit(adminPage, `${label} admin detail`);
+        await row.first().getByRole("link").first().click();
+        for (const tab of ["data", "evidence", "publication", "history"]) {
+          await adminPage.getByRole("tab", { name: t.adminShell.tabs[tab] }).click();
+          if (tab === "evidence") await adminPage.getByRole("region", { name: t.holds.title }).waitFor({ timeout: 15_000 });
+          await adminPage.waitForTimeout(300);
+          await audit(adminPage, `${label} admin detail ${tab}`);
+          if (tab === "data") await adminPage.screenshot({ path: path.join(out, `${size}-${locale}-admin-detail.png`), fullPage: true });
+        }
       } else note(false, `${label}: the admin queue lists the submitted record`);
-      await adminPage.goto(`${base}/admin`); await adminPage.waitForLoadState("networkidle");
-      for (const tab of [t.review.farmers, t.review.fields, t.review.usersTab, t.review.publications, t.review.auditTab, t.management.actions]) {
-        const button = adminPage.getByRole("button", { name: tab, exact: true }).and(adminPage.locator("[aria-pressed]"));
-        if (!(await button.count())) { note(false, `${label} register tab ${tab} exists`); continue; }
-        await button.first().click(); await adminPage.waitForLoadState("networkidle"); await adminPage.waitForTimeout(800);
+      for (const [route, name] of [["farmers", "farmers"], ["fields", "fields"], ["users", "users"], ["publications", "publications"], ["audit", "audit"], ["admin-actions", "adminActions"]]) {
+        const tab = t.adminShell.items[name];
+        await adminPage.goto(`${base}/admin/${route}`); await adminPage.waitForLoadState("networkidle"); await adminPage.waitForTimeout(800);
         await audit(adminPage, `${label} admin register ${tab}`);
         const raw = (await adminPage.locator("main").innerText()).match(/\b[A-Z]{3,}(?:_[A-Z]+)+\b|\b(?:ACTIVE|ARCHIVED|BANNED)\b|\d+ (?:fields|passports)\b/g) ?? [];
         note(raw.length === 0, `${label} register ${tab}: stored codes shown as words (${[...new Set(raw)].slice(0, 5).join(", ")})`);

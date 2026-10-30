@@ -57,12 +57,23 @@ export interface Translations {
     inbox: string;
     inboxHint: string;
     empty: string;
-    backToAdmin: string;
   };
   help: {
-    link: string; navigation: string; backToApp: string; backToAdmin: string; operatorGuide: string; adminGuide: string;
+    link: string; navigation: string; backToApp: string; operatorGuide: string; adminGuide: string;
     contents: string; toContents: string; search: string; found: string; noResults: string; example: string;
     notes: { info: string; warn: string; tip: string };
+  };
+  adminShell: {
+    console: string; sections: string; skip: string; menu: string; closeMenu: string; waitingCount: string;
+    groups: { work: string; registry: string; people: string; logs: string; support: string };
+    items: { overview: string; queue: string; farmers: string; fields: string; publications: string; users: string; audit: string; adminActions: string; feedback: string; help: string };
+    operatorView: string; security: string; signedInAs: string;
+    overviewHint: string; waiting: string; waitingEmpty: string; allQueue: string; activityEmpty: string; assignedToYou: string;
+    quick: string; inviteOperator: string; readGuide: string; queueHint: string; statusFilter: string;
+    hints: { farmers: string; fields: string; publications: string; users: string; audit: string; adminActions: string };
+    tabs: { label: string; data: string; evidence: string; publication: string; history: string };
+    publicationLocked: string;
+    steps: { label: string; submitted: string; decided: string; snapshot: string; issued: string; done: string; current: string };
   };
   header: {
     title: string;
@@ -139,7 +150,7 @@ export interface Translations {
     submitted: string; approved: string; rejected: string; correctionRequired: string;
     publishing: string; published: string; failed: string;
     required: Record<string, string>;
-    adminTitle: string; adminHint: string; queue: string; search: string;
+    queue: string; search: string;
     searchPlaceholder: string; filter: string; all: string; emptyQueue: string;
     previous: string; next: string; resultCount: string; details: string;
     backToQueue: string; owner: string; reviewer: string; unassigned: string;
@@ -147,7 +158,7 @@ export interface Translations {
     note: string; reasonRequired: string; approve: string; reject: string; issuedDecision: string; publicationStarted: string;
     issuedBadge: string; correctsBadge: string; correctionOpenBadge: string; issuedFilter: string;
     requestCorrection: string; saveDecision: string; actionError: string;
-    changed: string; detailsError: string; dashboard: string; activity: string;
+    changed: string; detailsError: string; activity: string;
     farmerField: string; treatment: string; meteo: string; chemical: string;
     evidence: string; audit: string; noEvidence: string; noAudit: string;
     download: string; submittedAt: string; reviewedAt: string;
@@ -159,7 +170,7 @@ export interface Translations {
     activeSubstance: string; dose: string; doseUnit: string; volume: string; manufacturer: string;
     supplier: string; users: string;
     records: string; farmers: string; fields: string; publications: string;
-    usersTab: string; auditTab: string; role: string; mfa: string;
+    role: string; mfa: string;
     active: string; banned: string; created: string; noRecords: string;
     passports: string; status: string; yes: string; no: string;
     publicPreview: {

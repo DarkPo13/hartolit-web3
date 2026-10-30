@@ -11,8 +11,8 @@ type RecordDetail = {
   duplicateCount: number; passports: { id: string; status: string }[];
 };
 
-export function RecordEditor({ kind, id, onClose, onChanged, onOpenPassport }: {
-  kind: Kind; id: string; onClose: () => void; onChanged: () => void; onOpenPassport: (id: string) => void;
+export function RecordEditor({ kind, id, onChanged, onOpenPassport }: {
+  kind: Kind; id: string; onChanged: () => void; onOpenPassport: (id: string) => void;
 }) {
   const t = useT();
   const m = t.management;
@@ -62,8 +62,8 @@ export function RecordEditor({ kind, id, onClose, onChanged, onOpenPassport }: {
     void mutate(`/api/admin/records/${kind}/${id}`, "POST", { updatedAt: record.updatedAt, archived: !record.archivedAt }, record.archivedAt ? m.restored : m.archived);
   }
 
-  return <section className="mt-5 rounded-xl border border-border bg-surface p-4" aria-labelledby="record-detail-heading">
-    <div className="flex flex-wrap items-center justify-between gap-2"><h3 id="record-detail-heading" className="font-semibold">{m.editTitle}</h3><button type="button" onClick={onClose} className="text-sm text-brand-700 underline">{m.close}</button></div>
+  return <section aria-labelledby="record-detail-heading">
+    <h2 id="record-detail-heading" className="pr-10 text-lg font-semibold">{m.editTitle}</h2>
     {loading ? <p role="status" className="mt-3 text-sm">{t.review.loading}</p> : !record ? <button type="button" onClick={() => setRevision((value) => value + 1)} className="mt-3 text-sm text-brand-700 underline">{t.review.refresh}</button> : <>
       <p className="mt-2 break-all text-sm text-ink-muted">{m.owner}: {record.owner.name} ({record.owner.email}){record.farmerName ? ` · ${record.farmerName}` : ""}</p>
       {record.duplicateCount > 0 && <p role="status" className="mt-3 rounded-lg border border-amber-300 p-3 text-sm">{m.duplicate} {record.duplicateCount}</p>}
@@ -72,7 +72,7 @@ export function RecordEditor({ kind, id, onClose, onChanged, onOpenPassport }: {
         {editable && <button type="submit" disabled={busy} className="rounded-lg bg-brand-700 px-4 py-2 text-sm text-white disabled:opacity-50">{m.save}</button>}
       </form>
       {canArchive && <button type="button" onClick={archive} disabled={busy} className="mt-3 rounded-lg border border-border px-4 py-2 text-sm disabled:opacity-50">{record.archivedAt ? m.restore : m.archive}</button>}
-      <h4 className="mt-5 text-sm font-semibold">{m.linkedPassports}</h4>
+      <h3 className="mt-5 text-sm font-semibold">{m.linkedPassports}</h3>
       {!record.passports.length ? <p className="text-sm text-ink-muted">{t.review.noRecords}</p> : <ul className="mt-2 space-y-2">{record.passports.map((passport) => <li key={passport.id} className="flex flex-wrap items-center gap-2 text-sm"><button type="button" onClick={() => onOpenPassport(passport.id)} className="break-all text-brand-700 underline">{passport.id}</button><span>{t.codes.passportStatus[passport.status] ?? passport.status}</span></li>)}</ul>}
     </>}
     {error && <p role="alert" className="mt-3 text-sm text-danger">{error === "load" ? t.review.loadError : m.saveError}</p>}

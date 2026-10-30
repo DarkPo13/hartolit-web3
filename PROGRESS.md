@@ -130,6 +130,8 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - **2026-10-21 — Bind readback to a deterministic raw CID and persist a separate pin receipt (D32).** Use a bounded raw CIDv1 profile rather than guessing a provider's JSON/UnixFS layout. Require matching provider pin status and exact gateway bytes/hash/CID; perform reads outside transactions and recheck the commitment before storing `VERIFIED`/`PINNED`. Unknown/empty results never reopen dispatch. Recovery remains possible after a user ban and rereads concurrent verification before reporting a stale negative result. No upload or issued certificate is enabled.
 - **2026-10-21 — Bind upload configuration and prove the protocol offline (D33).** Save the server-owned provider/account/endpoint/profile fingerprint before dispatch; reject changed or historical unbound targets at dispatch/readback. Consume one command, upload strict public bytes, then verify storage even after a lost acknowledgement. Use production-disabled loopback Kubo with an internal offline Docker network and temporary test-only tunnels; this does not select or accept a hosted service. Keep user-facing publication consent and real dispatch disabled until their separate gates.
 
+- **2026-10-30 — Admin pages share a layout but keep their own guard.** Each page calls `requireAdmin()`, because a shared layout is not re-rendered on client navigation; tab and queue state live in the URL via the native history API to avoid a server round trip per click.
+
 ---
 
 ## Open questions
@@ -1096,3 +1098,15 @@ The user asked for documentation pages before hosting: an operator guide limited
 
 The release banner ("Passport issuance is not available yet") and the drafts note predated D68-D76; issuance works on BSC Testnet. The banner now explains the operator's steps, says certificates are pilot records while on Testnet and links the operator guide. Lint, typecheck, `test:i18n`, build and `a11y:audit` (211) exited 0; the phone screenshot shows the new banner. `noDispatch` was left alone: it is shown only when the server has no IPFS dispatch configured, where it is still true.
 
+## 2026-10-30 - The admin console became separate pages with a menu
+
+The user found the single admin page chaotic and asked for a CRM-style layout with a menu and separate pages.
+
+- `app/admin/(console)/layout.tsx` wraps every admin page in a left menu grouped as Work (overview, review queue with a waiting count), Registry (farmers, fields, publications), Access (users), Logs (event log, admin actions) and Support (feedback, help), with the signed-in admin, operator workspace, account security, language and sign-out at the bottom. On phones the same menu opens in a native modal dialog from a "Menu" button.
+- New overview page: status tiles that open the filtered queue, the five newest records waiting for review and recent activity. The queue keeps status, search and page in the URL (`history.pushState`), so Back returns to the same list. A record has its own URL with a stage strip (submitted, decision, snapshot confirmed, issued) and ARIA tabs; all tab panels stay mounted (hidden), so publication state survives a tab switch, and an approval moves to the Publication tab before revealing the preview.
+- Guards: the layout and each page call `requireAdmin()`. The layout alone would not suffice because Next does not re-render a layout on client navigation. Certificate and verification views stay outside the group (they are documents and keep their own back links).
+- The registry editor opens in a side drawer instead of below a paginated list. The admin queue rows now include the reviewer id ("assigned to you").
+- `LocaleToggle` and the sign-out logic were extracted for reuse by the operator header and the admin menu. The admin guide was updated to the new navigation; it also corrected two earlier inaccuracies: invitations live on Users, not Admin actions, and the "Audit" tab description belonged to Admin actions.
+- Rejected: tabs inside one page again (the original problem) and moving the admin console to a separate app.
+- Validation trap: rerunning `browser:acceptance` and `a11y:audit` back to back exhausted the sign-in limit (5 per 15 minutes per IP, stored in the database, so a fresh server does not reset it); the run aborted with 429 before any admin page. After a 16-minute wait the same build passed 48/48.
+- Not verified: the HTTP smokes and CI after this change; use with a real second admin.

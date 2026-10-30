@@ -119,12 +119,12 @@ export const adminHelp: HelpDocs = {
             blocks: [
               { h: "Запросити оператора" },
               { ol: [
-                "У консолі відкрийте **«Дії адміністратора»** → **«Запросити оператора»**.",
+                "У меню ліворуч відкрийте сторінку **«Користувачі»** — форма **«Запросити оператора»** вгорі (або **«Запросити оператора»** на сторінці «Огляд»).",
                 "Введіть ім'я та пошту, натисніть **«Надіслати запрошення»**.",
                 "Оператор отримає лист із посиланням для встановлення пароля (діє 1 годину).",
               ] },
               { note: "Пише «Обліковий запис створено, але не вдалося запросити лист»? Обліковий запис існує; перевірте налаштування пошти (SMTP) і попросіть оператора скористатися «Забули пароль?» на сторінці входу.", tone: "info" },
-              { h: "Керування доступом (вкладка «Користувачі»)" },
+              { h: "Керування доступом (сторінка «Користувачі»)" },
               { table: { head: ["Кнопка", "Що робить"], rows: [
                 ["Вимкнути", "блокує вхід і завершує всі сеанси оператора. Його картки лишаються"],
                 ["Увімкнути", "повертає доступ"],
@@ -137,17 +137,17 @@ export const adminHelp: HelpDocs = {
             id: "registry",
             title: "Реєстр: фермери, поля, користувачі, публікації, аудит",
             blocks: [
-              { p: "Розділ **«Записи»** у консолі має вкладки:" },
-              { table: { head: ["Вкладка", "Що там"], rows: [
+              { p: "Реєстр і журнали — окремі сторінки в меню ліворуч (на телефоні меню відкриває кнопка **«Меню»** вгорі):" },
+              { table: { head: ["Сторінка меню", "Що там"], rows: [
                 ["Фермери", "господарства: назва, реєстраційний номер, контакти; кількість полів і паспортів"],
                 ["Поля", "назва поля, площа, GPS, кадастровий номер, культура"],
                 ["Користувачі", "оператори й адміністратори, роль, MFA, стан доступу"],
                 ["Публікації", "спроби публікації та їхні статуси"],
-                ["Аудит", "дії адміністраторів у реєстрі"],
-                ["Дії адміністратора", "запрошення оператора"],
+                ["Журнал подій", "кожна дія з картками: хто, що і коли зробив"],
+                ["Дії адміністраторів", "дії адміністраторів із фермерами, полями й доступом користувачів, зокрема запрошення"],
               ] } },
               { ul: [
-                "**«Керувати»** відкриває деталі запису для редагування. Дані поданих і перевірених паспортів **заблоковано**: так історія лишається чесною.",
+                "**«Керувати»** відкриває запис у бічній панелі праворуч (закривається хрестиком, клавішею Esc або кліком поза панеллю). Дані поданих і перевірених паспортів **заблоковано**: так історія лишається чесною.",
                 "**«Архівувати»** приховує запис із робочих списків, але зберігає його в історичних паспортах. **«Відновити»** повертає його.",
                 "Система попереджає **«Можливі дублікати з таким самим ідентифікатором»**, якщо два господарства мають однаковий реєстраційний номер.",
                 "Фільтр **«Від дати / До дати»** працює в UTC.",
@@ -163,13 +163,13 @@ export const adminHelp: HelpDocs = {
             id: "queue",
             title: "Черга перевірки",
             blocks: [
-              { p: "Головна сторінка консолі — **«Черга перевірки»**. Пошук працює за назвою фермера або поштою оператора. Фільтр **«Статус»** звужує список; фільтр **«Видані»** показує записи з уже випущеним токеном." },
+              { p: "Сторінка **«Черга перевірки»** в меню показує надіслані картки. Кнопки статусів над списком звужують його (поруч — кількість карток); **«Видані»** показує записи з уже випущеним токеном, **«Усі статуси»** — усе разом. Пошук працює за назвою фермера або поштою оператора. Вибраний фільтр зберігається в адресі сторінки, тож кнопка «Назад» у браузері повертає до того самого списку." },
               { table: { head: ["Позначка в черзі", "Що означає"], rows: [
                 ["Видано · токен #N", "сертифікат випущено; посилання відкриває публічну сторінку"],
                 ["Виправляє токен #N", "ця картка — виправлення раніше виданого сертифіката"],
                 ["Відкрито виправлення", "для цього виданого запису відкрито виправлення"],
               ] } },
-              { p: "Блок **«Огляд»** показує кількість карток за статусами, **«Останні дії»** — свіжі записи журналу." },
+              { p: "Сторінка **«Огляд»** (перша в меню) показує кількість карток за статусами (плитка відкриває відповідний список), п'ять найновіших карток, що чекають на перевірку, і **«Останні дії»**. Число біля «Черги перевірки» в меню — скільки карток чекає на перевірку." },
             ],
           },
           {
@@ -177,10 +177,10 @@ export const adminHelp: HelpDocs = {
             title: "Перевірка картки та рішення",
             blocks: [
               { ol: [
-                "Натисніть **«Відкрити деталі»**.",
+                "Натисніть назву картки в черзі. Картка відкриється окремою сторінкою: угорі етапи (Надіслано → Рішення → Знімок підтверджено → Видано), нижче вкладки **«Дані»**, **«Докази»**, **«Публікація»** й **«Історія»**.",
                 "Натисніть **«Призначити мені»** (або виберіть іншого адміністратора з MFA). Рішення може ухвалити лише призначений перевіряльник.",
-                "Перевірте розділи «Фермер і поле», «Обробка», «Метео», «Препарат» і завантажте кожен доказ.",
-                "Виберіть рішення й натисніть **«Зберегти рішення»**.",
+                "На вкладці «Дані» перевірте «Фермер і поле», «Обробка», «Метео», «Препарат»; на вкладці «Докази» завантажте кожен доказ.",
+                "У панелі **«Рішення»** (на широкому екрані праворуч, на телефоні під даними) виберіть рішення й натисніть **«Зберегти рішення»**. Після схвалення сторінка сама перейде на вкладку «Публікація».",
               ] },
               { h: "Що перевіряти" },
               { table: { head: ["Перевірка", "Приклад проблеми"], rows: [
@@ -204,7 +204,7 @@ export const adminHelp: HelpDocs = {
             id: "snapshot",
             title: "Публічний знімок: що побачить світ",
             blocks: [
-              { p: "Після схвалення з'являється **«Попередній перегляд публічного сертифіката»**. Тут вирішується, що саме стане публічним назавжди." },
+              { p: "Після схвалення на вкладці **«Публікація»** з'являється **«Попередній перегляд публічного сертифіката»**. Тут вирішується, що саме стане публічним назавжди." },
               { ol: [
                 "Виберіть один перевірений **метеофайл** і один перевірений **файл щодо препарату**. Їхні SHA-256 стануть публічними; самі файли — ні.",
                 "Натисніть **«Показати публічні дані»** і перегляньте кожне значення та точний JSON.",
@@ -233,7 +233,7 @@ export const adminHelp: HelpDocs = {
             id: "publication-stages",
             title: "Етапи публікації одним поглядом",
             blocks: [
-              { p: "Публікацію виконує лише призначений видавець, у розділі публікації під підтвердженим знімком. Кожен крок має окрему згоду, щоб нічого не опублікувати випадково." },
+              { p: "Публікацію виконує лише призначений видавець, на вкладці «Публікація» під підтвердженим знімком. Кожен крок має окрему згоду, щоб нічого не опублікувати випадково." },
               { table: { head: ["Крок", "Кнопка", "Статус публікації", "Можна скасувати?"], rows: [
                 ["1. Підготувати запис", "«Підготувати запис»", "Зарезервовано", "так"],
                 ["2. Довести володіння гаманцем", "«Підписати повідомлення»", "Зарезервовано", "так"],
@@ -504,7 +504,7 @@ export const adminHelp: HelpDocs = {
             id: "audit",
             title: "Журнал дій і відгуки",
             blocks: [
-              { p: "Кожна картка має **«Історію дій»**: створення, зміни, докази, надсилання, призначення, рішення, підтвердження знімка, кожен крок публікації, інциденти, доступ до доказів, утримання. Кожен запис має час і виконавця. Вкладка **«Аудит»** у реєстрі показує дії адміністраторів із фермерами, полями й користувачами." },
+              { p: "Кожна картка має **«Історію дій»**: створення, зміни, докази, надсилання, призначення, рішення, підтвердження знімка, кожен крок публікації, інциденти, доступ до доказів, утримання. Кожен запис має час і виконавця. Її показує вкладка **«Історія»** на сторінці картки. Сторінка меню **«Журнал подій»** показує ці записи по всіх картках, а **«Дії адміністраторів»** — дії з фермерами, полями й користувачами." },
               { p: "Сторінка [Відгуки про застосунок](/admin/feedback) показує останні 50 приватних відгуків операторів: оцінку від 1 до 5 і коментар. Відгуки — головне джерело ідей для наступних змін." },
             ],
           },
@@ -749,12 +749,12 @@ export const adminHelp: HelpDocs = {
             blocks: [
               { h: "Invite an operator" },
               { ol: [
-                "In the console open **Admin actions** → **Invite operator**.",
+                "In the left menu open the **Users** page — the **Invite an operator** form is at the top (or use **Invite an operator** on the Overview page).",
                 "Enter the name and email and choose **Send invitation**.",
                 "The operator receives an email with a set-password link (valid for 1 hour).",
               ] },
               { note: "It says the account was created but the email could not be requested? The account exists; check the email (SMTP) settings and ask the operator to use “Forgot password?” on the sign-in page.", tone: "info" },
-              { h: "Managing access (Users tab)" },
+              { h: "Managing access (Users page)" },
               { table: { head: ["Button", "What it does"], rows: [
                 ["Disable", "blocks sign-in and ends all the operator's sessions. Their records stay"],
                 ["Enable", "restores access"],
@@ -767,17 +767,17 @@ export const adminHelp: HelpDocs = {
             id: "registry",
             title: "Records: farmers, fields, users, publications, audit",
             blocks: [
-              { p: "The console's **Records** area has tabs:" },
-              { table: { head: ["Tab", "What it holds"], rows: [
+              { p: "The registry and logs are separate pages in the left menu (on a phone the **Menu** button at the top opens it):" },
+              { table: { head: ["Menu page", "What it holds"], rows: [
                 ["Farmers", "farms: name, registration number, contacts; numbers of fields and passports"],
                 ["Fields", "field name, area, GPS, cadastral number, crop"],
                 ["Users", "operators and administrators, role, MFA, access state"],
                 ["Publications", "publication attempts and their statuses"],
-                ["Audit", "administrators' actions in the records"],
-                ["Admin actions", "inviting an operator"],
+                ["Event log", "every action on records: who did what, and when"],
+                ["Admin actions", "administrators' actions on farmers, fields and user access, including invitations"],
               ] } },
               { ul: [
-                "**Manage** opens a record for editing. The data of submitted and reviewed passports is **locked** to keep history honest.",
+                "**Manage** opens the record in a side panel on the right (close it with the cross, the Esc key or a click outside). The data of submitted and reviewed passports is **locked** to keep history honest.",
                 "**Archive** hides a record from working lists but keeps it in historical passports. **Restore** brings it back.",
                 "The system warns about **possible duplicates with the same identifier** when two farms share a registration number.",
                 "The **From date / To date** filter works in UTC.",
@@ -793,13 +793,13 @@ export const adminHelp: HelpDocs = {
             id: "queue",
             title: "The review queue",
             blocks: [
-              { p: "The console's main page is the **Review queue**. Search works by farmer name or operator email. The **Status** filter narrows the list; the **Issued** filter shows records whose token is already issued." },
+              { p: "The **Review queue** page in the menu lists submitted records. The status buttons above the list narrow it (with the number of records next to each); **Issued** shows records whose token is already issued, **All statuses** shows everything. Search works by farmer name or operator email. The chosen filter is kept in the page address, so the browser's Back button returns to the same list." },
               { table: { head: ["Queue mark", "Meaning"], rows: [
                 ["Issued · token #N", "the certificate is issued; the link opens the public page"],
                 ["Corrects token #N", "this record corrects a previously issued certificate"],
                 ["Correction opened", "a correction was opened for this issued record"],
               ] } },
-              { p: "The **Dashboard** block shows counts by status; **Recent activity** shows the latest log entries." },
+              { p: "The **Overview** page (first in the menu) shows counts by status (a tile opens that list), the five newest records waiting for review and **Recent activity**. The number next to “Review queue” in the menu is how many records are waiting." },
             ],
           },
           {
@@ -807,10 +807,10 @@ export const adminHelp: HelpDocs = {
             title: "Reviewing a record and deciding",
             blocks: [
               { ol: [
-                "Choose **Open details**.",
+                "Choose the record name in the queue. The record opens on its own page: the stages at the top (Submitted → Decision → Snapshot confirmed → Issued), then the **Data**, **Evidence**, **Publication** and **History** tabs.",
                 "Choose **Assign to me** (or pick another MFA administrator). Only the assigned reviewer can decide.",
-                "Check “Farmer and field”, “Treatment”, “Weather”, “Chemical” and download each piece of evidence.",
-                "Pick a decision and choose **Save decision**.",
+                "On the Data tab check “Farmer and field”, “Treatment”, “Weather”, “Chemical”; on the Evidence tab download each piece of evidence.",
+                "In the **Decision** panel (on the right on a wide screen, below the data on a phone) pick a decision and choose **Save decision**. After an approval the page moves to the Publication tab by itself.",
               ] },
               { h: "What to check" },
               { table: { head: ["Check", "Example problem"], rows: [
@@ -834,7 +834,7 @@ export const adminHelp: HelpDocs = {
             id: "snapshot",
             title: "The public snapshot: what the world will see",
             blocks: [
-              { p: "After approval the **Public certificate preview** appears. This is where you decide exactly what becomes public for good." },
+              { p: "After approval the **Public certificate preview** appears on the **Publication** tab. This is where you decide exactly what becomes public for good." },
               { ol: [
                 "Choose one verified **weather file** and one verified **product file**. Their SHA-256 becomes public; the files do not.",
                 "Choose **Show public preview** and review every value and the exact JSON.",
@@ -863,7 +863,7 @@ export const adminHelp: HelpDocs = {
             id: "publication-stages",
             title: "Publication stages at a glance",
             blocks: [
-              { p: "Only the designated publisher publishes, in the publication area under the confirmed snapshot. Every step has its own consent so nothing is published by accident." },
+              { p: "Only the designated publisher publishes, on the Publication tab under the confirmed snapshot. Every step has its own consent so nothing is published by accident." },
               { table: { head: ["Step", "Button", "Publication status", "Can it be undone?"], rows: [
                 ["1. Prepare the record", "“Prepare record”", "Reserved", "yes"],
                 ["2. Prove wallet ownership", "“Sign message”", "Reserved", "yes"],
@@ -1134,7 +1134,7 @@ export const adminHelp: HelpDocs = {
             id: "audit",
             title: "Activity log and feedback",
             blocks: [
-              { p: "Every record has an **Audit history**: creation, edits, evidence, submission, assignment, decisions, snapshot confirmation, every publication step, incidents, evidence access and holds. Each entry has a time and an actor. The **Audit** tab in the records shows administrators' actions on farmers, fields and users." },
+              { p: "Every record has an **Audit history**: creation, edits, evidence, submission, assignment, decisions, snapshot confirmation, every publication step, incidents, evidence access and holds. Each entry has a time and an actor. The **History** tab on the record page shows it. The **Event log** menu page shows these entries across all records, and **Admin actions** shows actions on farmers, fields and users." },
               { p: "The [Application feedback](/admin/feedback) page shows the latest 50 private operator feedback entries: a rating from 1 to 5 and a comment. Feedback is the main source of ideas for the next changes." },
             ],
           },

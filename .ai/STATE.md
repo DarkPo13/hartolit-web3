@@ -1,6 +1,6 @@
 # STATE — the frontier
 
-- **Last updated:** 2026-10-28
+- **Last updated:** 2026-10-30
 - **Branch:** `master`
 - **Commit workflow:** standing user instruction authorizes separate verified local functional commits; push still requires an explicit request (granted 2026-10-24 for this work).
 - **Checkpoint:** handoff of 2026-10-26 pushes the 2026-10-25/26 commits (testing pass, accessibility, localization, busy-database 503, recovery codes, D70-D72, CSP, audit/probe commands) to `origin/master` with the user's permission. Pushed `c6bdf7a..4e73262`, then `4e73262..2c6d8b3` (D73, D74, Testnet preparation). GitHub CLI is absent on this machine; CI status was read from the public GitHub API. If Git Credential Manager hangs on an account picker, a command-local `credential.https://github.com.username` selector with `credential.interactive=false` pushes without changing global settings (PROGRESS 2026-10-21, 2026-10-24).
@@ -59,7 +59,8 @@ Keep this file under about 250 lines. Source/config and exact pushed-commit CI o
 - **Admin issued state (D62):** issued token/contract/transaction and public-page link replace preparation, decision form and private unissued views; suspended records show a notice. Browser checkpoints `issued`/`withdrawal` for `publication:smoke`. A recall refused after publication started names the reason (D63). Lists mark issued records, open corrections and correction drafts; the queue has an Issued filter (D64). Workspace dates, units and crops are localized; the legacy verifier link is demo-only (D65).
 - **Domain error identity (D47, 0333474):** server-only branded WorkflowError preserves existing service exports and instanceof semantics across duplicate loaders while rejecting unbranded status-bearing errors. Fixed a reproducible monitor expiry misclassification without weakening the lease check. Focused isolated-loader negative control and unweakened full integration pass.
 
-- **In-app guides (2026-10-28, user request before hosting):** `/help` (operator guide, any signed-in user; admins need MFA) and `/admin/help` (admin guide, MFA admins). Content lives in `lib/help/operator.ts` and `lib/help/admin.ts` (uk and en, same section ids), rendered by `components/help/HelpDocument.tsx` with contents, search and plain inline marks; the server page passes only the guide it authorized. Links: operator header and footer, admin console. Keep both guides current when the flow changes, as with `HOW_IT_WORKS.uk.md`.
+- **In-app guides (2026-10-28, user request before hosting):** `/help` (operator guide, any signed-in user; admins need MFA) and `/admin/help` (admin guide, MFA admins). Content lives in `lib/help/operator.ts` and `lib/help/admin.ts` (uk and en, same section ids), rendered by `components/help/HelpDocument.tsx` with contents, search and plain inline marks; the server page passes only the guide it authorized. Links: operator header and footer, admin menu. Keep both guides current when the flow changes, as with `HOW_IT_WORKS.uk.md`.
+- **Admin console as separate pages (2026-10-30, user request):** `app/admin/(console)/` has a shared layout with a left menu (a modal dialog on phones) and its own pages: `/admin` overview, `/admin/passports` queue (status, search and page in the URL), `/admin/passports/{id}` record with stages and Data/Evidence/Publication/History tabs (`?tab=`), `/admin/farmers`, `/fields`, `/publications`, `/users`, `/audit`, `/admin-actions`, `/feedback`, `/help`. The layout and every page call `requireAdmin()`; certificate/verification views stay outside the group without the menu. Review/publication logic moved unchanged from the removed `AdminConsole.tsx` into `PassportDetail.tsx`.
 
 ## Still absent / intentionally disabled
 
@@ -91,6 +92,8 @@ Real provider/profile compatibility, remote identity/account attestation, pin re
 No open row above is closed by this checkpoint; S9 is narrowed by the 2026-10-27 Testnet run. Public field scope is approved, but integrity does not prove agronomic correctness, legal recognition or entitlement to compensation. Readers/farmers need no wallet or account for the public QR verifier (D21/D29, D53).
 
 ## Validation
+
+**2026-10-30, Windows, Node 24.18.0 (admin console pages):** lint, typecheck, `test:i18n` (6), build, `a11y:audit` (247) and `browser:acceptance` (48) exited 0. Control: a guide link to a missing admin page exits `test:i18n` 1 (the link check now resolves route groups). Not run: the HTTP smokes and CI (not pushed).
 
 **2026-10-28, Windows, Node 24.18.0 (in-app guides):** lint, typecheck, `test:i18n` (6, including the new guide parity/link test), build and `a11y:audit` (211, with the help pages in UK/EN at 1280/390) exited 0. Controls: a renamed en section id and a link to a missing page each exit `test:i18n` 1; the first audit run exited 1 on the help pages (no `main` landmark) before the fix.
 

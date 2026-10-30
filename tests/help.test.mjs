@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { test } from "node:test";
 import { createJiti } from "jiti";
 
@@ -17,7 +17,10 @@ const shape = block => {
   return k;
 };
 const texts = value => typeof value === "string" ? [value] : Object.values(value).flatMap(texts);
-const pageFor = route => `app${route === "/" ? "" : route}/page.tsx`;
+// Routes of every app/**/page.tsx; a "(group)" folder is not part of the URL.
+const routes = new Set(readdirSync(new URL("../app", import.meta.url), { recursive: true })
+  .map(file => file.replaceAll("\\", "/")).filter(file => file === "page.tsx" || file.endsWith("/page.tsx"))
+  .map(file => `/${file.split("/").slice(0, -1).filter(part => !/^\(.+\)$/.test(part)).join("/")}`));
 
 for (const [name, docs] of [["operator", operatorHelp], ["admin", adminHelp]]) {
   test(`${name} guide has the same structure in uk and en`, () => {
@@ -34,7 +37,7 @@ for (const [name, docs] of [["operator", operatorHelp], ["admin", adminHelp]]) {
       for (const text of texts(docs[locale])) {
         for (const [, href] of text.matchAll(/\]\(([^)\s]+)\)/g)) {
           if (href.startsWith("#")) assert.ok(ids.has(href.slice(1)), `${locale}: unknown section ${href}`);
-          else if (href.startsWith("/")) assert.ok(existsSync(new URL(`../${pageFor(href)}`, import.meta.url)), `${locale}: no page for ${href}`);
+          else if (href.startsWith("/")) assert.ok(routes.has(href), `${locale}: no page for ${href}`);
           else assert.match(href, /^https:\/\//, `${locale}: ${href}`);
         }
         assert.equal((text.match(/\*\*/g) ?? []).length % 2, 0, `${locale}: unbalanced bold in ${text.slice(0, 60)}`);

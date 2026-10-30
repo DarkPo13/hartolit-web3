@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BookOpen, FileSearch, Github, Wand2 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
@@ -12,11 +11,10 @@ import { StepsNav } from "@/components/wizard/StepsNav";
 import { Step1Form } from "@/components/wizard/Step1Form";
 import { DraftWorkspace } from "@/components/drafts/DraftWorkspace";
 import { useWizardStore } from "@/lib/store";
-import { useLocale, useT } from "@/lib/i18n/context";
-import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/context";
 import { isDemoMode } from "@/lib/demo-mode";
-import { authClient } from "@/lib/auth-client";
-import type { Locale } from "@/lib/i18n/types";
+import { useSignOut } from "@/lib/use-sign-out";
+import { LocaleToggle } from "@/components/ui/LocaleToggle";
 
 const Step2Blockchain = dynamic(
   () => import("@/components/wizard/Step2Blockchain").then((m) => m.Step2Blockchain),
@@ -102,29 +100,7 @@ export function PassportHome({ actorId, isAdmin }: { actorId: string; isAdmin: b
 
 function Header({ isAdmin }: { isAdmin: boolean }) {
   const t = useT();
-  const router = useRouter();
-  const [signOutPending, setSignOutPending] = useState(false);
-  const [signOutError, setSignOutError] = useState(false);
-  async function signOut() {
-    if (signOutPending) return;
-    setSignOutPending(true);
-    setSignOutError(false);
-    const result = await authClient.signOut().catch(() => null);
-    if (!result || result.error) {
-      setSignOutError(true);
-      setSignOutPending(false);
-      return;
-    }
-    useWizardStore.getState().reset();
-    try {
-      sessionStorage.removeItem("hartolit-wizard-session");
-      sessionStorage.removeItem("hartolit-draft-owner");
-    } catch {
-      // Browser storage may be unavailable; the server session is already closed.
-    }
-    router.replace("/login");
-    router.refresh();
-  }
+  const { signOut, pending: signOutPending, failed: signOutError } = useSignOut();
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-canvas/80 glass">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
@@ -146,30 +122,6 @@ function Header({ isAdmin }: { isAdmin: boolean }) {
       </div>
       {signOutError && <p role="alert" className="mx-auto max-w-6xl px-4 pb-2 text-xs text-danger">{t.account.signOutError}</p>}
     </header>
-  );
-}
-
-function LocaleToggle() {
-  const { locale, setLocale } = useLocale();
-  return (
-    <div className="flex items-center rounded-lg border border-border bg-surface-2/60 p-0.5 text-xs font-medium">
-      {(["uk", "en"] as Locale[]).map((l) => (
-        <button
-          key={l}
-          type="button"
-          onClick={() => setLocale(l)}
-          aria-pressed={locale === l}
-          className={cn(
-            "rounded-md px-2.5 py-1 transition-colors",
-            locale === l
-              ? "bg-brand-700 text-white shadow-soft"
-              : "text-ink-muted hover:text-ink",
-          )}
-        >
-          {l.toUpperCase()}
-        </button>
-      ))}
-    </div>
   );
 }
 
