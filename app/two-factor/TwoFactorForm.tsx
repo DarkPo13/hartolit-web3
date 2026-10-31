@@ -30,7 +30,7 @@ export function TwoFactorForm() {
         setError(true);
         return;
       }
-      router.replace(recovery ? "/settings/security" : "/");
+      router.replace(recovery ? "/settings/security" : "/start");
       router.refresh();
     } catch {
       setError(true);

@@ -126,8 +126,8 @@ try {
   await nextWindow(admin);
   await admin.getByLabel(uk.account.code).fill(totp(totpUri));
   await admin.getByRole("button", { name: uk.account.verify }).click();
-  await admin.waitForURL(url => url.pathname !== "/two-factor", { timeout: 15_000 });
-  await admin.goto(`${base}/admin`);
+  await admin.waitForURL(url => !["/two-factor", "/start"].includes(url.pathname), { timeout: 15_000 });
+  note(new URL(admin.url()).pathname === "/admin", `an admin lands in the console after sign-in (${new URL(admin.url()).pathname})`);
   await admin.getByRole("heading", { name: uk.adminShell.items.overview, level: 1 }).waitFor();
   note(true, "admin signs in with password and TOTP through the UI");
   const adminMenu = admin.getByRole("navigation", { name: uk.adminShell.sections });

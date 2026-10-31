@@ -132,6 +132,7 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 
 - **2026-10-30 — Admin pages share a layout but keep their own guard.** Each page calls `requireAdmin()`, because a shared layout is not re-rendered on client navigation; tab and queue state live in the URL via the native history API to avoid a server round trip per click.
 - **2026-10-30 — The collapsed admin menu is a cookie, not localStorage.** The server layout reads it so the first paint is already collapsed; its name lives in a plain module because a value exported from a `"use client"` file reaches a server component as a client reference, not the value.
+- **2026-10-31 — The home-screen app has no service worker.** Signed-in pages hold private records and are `no-store`; Chrome installs without offline support. Admins start at `/admin` through `/start`.
 
 ---
 
@@ -1128,3 +1129,12 @@ The user found the single admin page chaotic and asked for a CRM-style layout wi
 ## 2026-10-31 - Handoff after the collapsible admin menu
 
 - STATE names the collapsible menu in the goal and the admin console bullet. Handoff validation, unpiped: lint, typecheck, `test:i18n`, `test:public`, `test:button`, `test:capture`, `test:hash` and `prisma validate` exited 0; `a11y:audit` (267) and build had exited 0 on the same code. Not run locally: `browser:acceptance` and the HTTP smokes; CI runs the smokes on push.
+
+## 2026-10-31 - Home-screen web app
+
+- At the user's request operators and admins can add the app to a phone's home screen. `app/manifest.ts` (standalone, `start_url` `/start`, icons 192/512 including a maskable entry) and `app/apple-icon.png` plus `appleWebApp` metadata for iPhone. The icons are the existing 192 px logo, with 512/180 resized from it; the logo sits inside the maskable safe zone on its full-bleed background.
+- `/start` sends an admin to `/admin` and everyone else to `/`; sign-in, the TOTP step and a signed-in visit to `/login` now go there too, so an admin lands in the console instead of the operator workspace. The recovery-code path still goes to account security.
+- No service worker: signed-in pages carry private records and every response is `no-store`, and Chrome no longer needs offline support to offer installation. An offline-capable start would need its own decision about what may be cached on a device.
+- Validation: Chrome's own verdict over DevTools (`Page.getInstallabilityErrors`) is empty in a normal profile; an incognito Playwright context reports only `in-incognito`, so the a11y audit uses a persistent profile. Control: the manifest served without icons gives `manifest-missing-suitable-icon` and `no-acceptable-icon`. `browser:acceptance` 51 (adds the admin landing) and `a11y:audit` 268 (adds installability) exited 0, as did lint, typecheck, `test:i18n` and build.
+- Trap: the Mailpit TLS container makes a new self-signed certificate on every start, so after a Docker restart run `npm run mail:tls-ca` before `browser:acceptance`, or the invitation email fails with "TLS handshake failed".
+- Not verified: an actual install on a phone; Android and iOS install as a standalone app only over HTTPS, so it waits for hosting.

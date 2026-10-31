@@ -31,6 +31,7 @@ export const metadata: Metadata = {
     "Private agricultural treatment drafts, evidence, and review. " +
     "Public passport issuance is being prepared for a controlled pilot.",
   applicationName: "Hartolit Field Passport",
+  appleWebApp: { capable: true, title: "Hartolit", statusBarStyle: "default" },
   authors: [{ name: "VANTREXIS" }],
   keywords: [
     "Hartolit",

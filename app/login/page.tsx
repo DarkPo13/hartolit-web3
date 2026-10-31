@@ -7,6 +7,6 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Sign in", robots: { index: false, follow: false } };
 
 export default async function LoginPage() {
-  if (await getActor()) redirect("/");
+  if (await getActor()) redirect("/start");
   return <LoginForm />;
 }

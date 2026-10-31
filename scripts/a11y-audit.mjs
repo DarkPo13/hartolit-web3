@@ -12,7 +12,7 @@ import { spawn } from "node:child_process";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { createServer as createHttpsServer } from "node:https";
 import { request as httpRequest } from "node:http";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import nextEnv from "@next/env";
 import { createJiti } from "jiti";
@@ -249,6 +249,20 @@ try {
   await zoomed.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
   const overflow = await zoomed.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   note(overflow <= 0, `text at 200% in a 640px window: no horizontal overflow (${overflow}px)`);
+  // Home-screen install: Chrome's own verdict, in a normal (not incognito) profile.
+  if (engine === "chromium" && !tlsDir) {
+    const profile = await mkdtemp(path.join(os.tmpdir(), "hartolit-install-"));
+    const installed = await playwright.chromium.launchPersistentContext(profile, { headless: true, ...(process.env.BROWSER_EXECUTABLE ? { executablePath: process.env.BROWSER_EXECUTABLE } : { channel: process.env.BROWSER_CHANNEL ?? "chrome" }) });
+    try {
+      const page = installed.pages()[0] ?? await installed.newPage();
+      await page.goto(`${base}/login`); await page.waitForLoadState("networkidle");
+      const cdp = await installed.newCDPSession(page);
+      const { errors } = await cdp.send("Page.getAppManifest");
+      const { installabilityErrors } = await cdp.send("Page.getInstallabilityErrors");
+      const problems = [...errors.map(e => e.message), ...installabilityErrors.map(e => e.errorId)];
+      note(problems.length === 0, `Chrome can install the app to a home screen (${problems.join(", ") || "no errors"})`);
+    } finally { await installed.close(); await rm(profile, { recursive: true, force: true }); }
+  }
 } catch (error) {
   note(false, `aborted: ${error.message.split("\n")[0]}`);
 } finally {

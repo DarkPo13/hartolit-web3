@@ -98,6 +98,7 @@ export const adminHelp: HelpDocs = {
                 ["Повторне використання того самого коду MFA", "заборонено: код, який уже спрацював, удруге не прийметься"],
               ] } },
               { note: "Увійшли резервним кодом — одразу замініть автентифікатор («Замінити автентифікатор»). До завершення заміни доступ адміністратора призупинено, а старі резервні коди перестають діяти.", tone: "warn" },
+              { p: "Після входу адміністратор потрапляє одразу на сторінку **«Огляд»** адмінки. Застосунок можна додати на головний екран телефона (як — у [довідці оператора](/help), розділ «Вхід і обліковий запис»); значок теж відкриває адмінку." },
             ],
           },
           {
@@ -728,6 +729,7 @@ export const adminHelp: HelpDocs = {
                 ["Reusing the same MFA code", "refused: a code that already worked is not accepted twice"],
               ] } },
               { note: "Signed in with a recovery code? Replace the authenticator straight away (“Replace authenticator”). Until that is finished, admin access is suspended and the old recovery codes stop working.", tone: "warn" },
+              { p: "After sign-in an administrator lands straight on the console's **Overview** page. The app can be added to a phone's home screen (see the [operator guide](/help), section “Signing in and your account”); the icon opens the console too." },
             ],
           },
           {

@@ -36,7 +36,7 @@ export function LoginForm() {
         router.replace("/two-factor");
         return;
       }
-      router.replace("/");
+      router.replace("/start");
       router.refresh();
     } catch {
       setError(true);
