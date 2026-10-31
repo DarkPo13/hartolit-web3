@@ -131,6 +131,7 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - **2026-10-21 — Bind upload configuration and prove the protocol offline (D33).** Save the server-owned provider/account/endpoint/profile fingerprint before dispatch; reject changed or historical unbound targets at dispatch/readback. Consume one command, upload strict public bytes, then verify storage even after a lost acknowledgement. Use production-disabled loopback Kubo with an internal offline Docker network and temporary test-only tunnels; this does not select or accept a hosted service. Keep user-facing publication consent and real dispatch disabled until their separate gates.
 
 - **2026-10-30 — Admin pages share a layout but keep their own guard.** Each page calls `requireAdmin()`, because a shared layout is not re-rendered on client navigation; tab and queue state live in the URL via the native history API to avoid a server round trip per click.
+- **2026-10-30 — The collapsed admin menu is a cookie, not localStorage.** The server layout reads it so the first paint is already collapsed; its name lives in a plain module because a value exported from a `"use client"` file reaches a server component as a client reference, not the value.
 
 ---
 
@@ -1123,3 +1124,7 @@ The user found the single admin page chaotic and asked for a CRM-style layout wi
 - The choice is a cookie (`hartolit-admin-sidebar`, path `/admin`, one year), read by the server layout so a collapsed menu renders collapsed on the first paint; localStorage (as the language uses) would flash the wide menu first. No width animation: the rail needs visible overflow for the tooltips, and clipping it for a transition would hide them.
 - Found by the new check: the cookie name was first exported from the `"use client"` shell and imported by the server layout, where it arrives as a client reference, not a string, so the cookie was never read and "remembered after a reload" failed. It now lives in `sidebar-cookie.ts`.
 - Validation: lint, typecheck, `test:i18n`, build and `a11y:audit` (267, up from 255) exited 0. Not run: `browser:acceptance` and the HTTP smokes.
+
+## 2026-10-31 - Handoff after the collapsible admin menu
+
+- STATE names the collapsible menu in the goal and the admin console bullet. Handoff validation, unpiped: lint, typecheck, `test:i18n`, `test:public`, `test:button`, `test:capture`, `test:hash` and `prisma validate` exited 0; `a11y:audit` (267) and build had exited 0 on the same code. Not run locally: `browser:acceptance` and the HTTP smokes; CI runs the smokes on push.
