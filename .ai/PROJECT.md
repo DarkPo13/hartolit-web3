@@ -60,7 +60,7 @@ Versions reflect `package.json` on 2026-10-04. "Pinned" means an exact version i
 
 | Layer | Choice | Why / prohibition / expiry |
 |---|---|---|
-| Web framework | Next.js 16.4.3 (App Router, Turbopack), React 19.2 | APIs differ from older Next; read `node_modules/next/dist/docs/` before writing Next code. `proxy.ts` is the Next 16 name for middleware. |
+| Web framework | Next.js 16.4.6 (App Router, Turbopack), React 19.2 | APIs differ from older Next; read `node_modules/next/dist/docs/` before writing Next code. `proxy.ts` is the Next 16 name for middleware. AWS builds use `@opennextjs/aws` 4.1.16 through `npx`, not as a dependency, with `open-next.config.ts` (D77). |
 | Language | TypeScript 5.9, `strict` + `noUncheckedIndexedAccess` | `allowJs` is false, so `scripts/*.mjs` are not type-checked (see AGENTS → Validation). |
 | Database | PostgreSQL 17.6 (local image), Prisma ORM 7.10.0 pinned, driver adapter `@prisma/adapter-pg` | Do not upgrade to Prisma 8 while it is a release candidate (D10). Expiry: re-evaluate when Prisma 8 is stable. |
 | Auth | Better Auth 1.7.5 pinned, with `admin` and `twoFactor` plugins and its Prisma adapter | Use its maintained password, session, rate-limit and TOTP facilities; do not hand-roll password or session cryptography. |
@@ -106,7 +106,7 @@ Versions reflect `package.json` on 2026-10-04. "Pinned" means an exact version i
 | WalletConnect / Reown | Removed (D66); browser-injected wallets only. |
 | SMTP provider | Local Mailpit only; no hosted provider chosen. |
 | S3-compatible bucket + ClamAV | Local SeaweedFS + ClamAV only; no hosted provider chosen. |
-| Hosting | README names Vercel and `dapp.hartolit-agro.com` as targets. Nothing in the repository confirms a live deployment. |
+| Hosting | Planned (user, 2026-11-13): AWS Lambda in eu-central-1 through OpenNext (D77); a local OpenNext build passed, no AWS resource exists. README still names Vercel and `dapp.hartolit-agro.com`. Nothing in the repository confirms a live deployment. |
 | Diia (Ukrainian qualified e-signature) | Deferred until after the core MVP. No API documentation is in this repository; do not reconstruct it. |
 | GitHub Actions | The `CI` workflow runs on every push. Job logs need repository-admin login. |
 
