@@ -111,7 +111,8 @@ try {
     ["GET", `/api/admin/passports/${draftA}/public-preview`], ["POST", `/api/admin/passports/${draftA}/public-confirmation`, {}], ["DELETE", `/api/admin/passports/${draftA}/public-confirmation`, {}],
     ["GET", `/api/admin/passports/${draftA}/publication`], ["POST", `/api/admin/passports/${draftA}/publication/correction`, {}], ["POST", `/api/admin/passports/${draftA}/publication/withdrawal`, {}],
     ["POST", `/api/admin/passports/${draftA}/publication/wallet-challenge`, {}], ["POST", `/api/admin/passports/${draftA}/publication/wallet-proof`, {}],
-    ["POST", `/api/admin/passports/${draftA}/publication/pin-attempts`, {}], ["DELETE", `/api/admin/passports/${draftA}/publication/pin-attempts`, {}],
+    ["POST", `/api/admin/passports/${draftA}/publication/pin-attempts`, {}], ["POST", `/api/admin/passports/${draftA}/publication/pin-attempts/cancel`, {}],
+    ["POST", `/api/admin/passports/${draftA}/evidence-access/revoke`, {}], ["POST", `/api/admin/passports/${draftA}/holds/release`, {}],
     ["POST", `/api/admin/passports/${draftA}/publication/pin-attempts/upload`, {}], ["POST", `/api/admin/passports/${draftA}/publication/pin-attempts/readback`, {}],
     ["GET", `/api/admin/passports/${draftA}/publication/mint`], ["POST", `/api/admin/passports/${draftA}/publication/mint/preparation`, {}], ["POST", `/api/admin/passports/${draftA}/publication/mint/dispatch`, {}],
     ["POST", `/api/admin/passports/${draftA}/publication/mint/report`, {}], ["POST", `/api/admin/passports/${draftA}/publication/mint/check`, {}],
@@ -127,6 +128,22 @@ try {
     }
     note(true, `admin route ${method} ${p.replace(draftA, "{A}").replace(fake, "{f}")} denied (${statuses.join(", ")})`);
   }
+  // 2b. The reversals that used to be DELETE with a body (D80): exact refusals on their POST
+  // paths (not a 404/405 that would hide a missing check), and the old DELETE answers 405
+  // even for a fully verified admin with a well-formed body, so it is no second way in.
+  for (const [newPath, oldPath, body] of [
+    [`/api/admin/passports/${draftA}/evidence-access/revoke`, `/api/admin/passports/${draftA}/evidence-access`, { grantId: fake }],
+    [`/api/admin/passports/${draftA}/holds/release`, `/api/admin/passports/${draftA}/holds`, { holdId: fake, note: "Fictional probe", acknowledgement: "RELEASE_PRESERVATION_HOLD" }],
+    [`/api/admin/passports/${draftA}/publication/pin-attempts/cancel`, `/api/admin/passports/${draftA}/publication/pin-attempts`, { publicationId: fake, attemptId: fake }]]) {
+    const anon = (await api(newPath, { method: "POST", body })).status, operator = (await api(newPath, { user: a, method: "POST", body })).status;
+    const pending = (await api(newPath, { user: halfAdmin, method: "POST", body })).status;
+    const foreign = (await api(newPath, { user: admin, method: "POST", body, origin: "https://evil.example.invalid" })).status;
+    const oldDelete = await api(oldPath, { user: admin, method: "DELETE", body });
+    note(anon === 401 && operator === 403 && [401, 403].includes(pending) && foreign === 403,
+      `POST ${newPath.replace(draftA, "{A}")} refuses anonymous ${anon}, operator ${operator}, MFA pending ${pending}, foreign origin ${foreign}`);
+    note(oldDelete.status === 405 && !/DELETE/.test(oldDelete.headers.get("allow") ?? ""), `old DELETE ${oldPath.replace(draftA, "{A}")} → ${oldDelete.status} (Allow: ${oldDelete.headers.get("allow") ?? "-"})`);
+  }
+
   const usersStatus = (await api(`/api/admin/users`, { user: admin })).status, invited = await db.user.count({ where: { email: `x-${suffix}@example.invalid` } });
   note(invited === 0, `no user was invited by the unauthorized probes (admin users list ${usersStatus}, invited ${invited})`);
 

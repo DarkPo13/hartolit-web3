@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { draftResponse, unexpectedFailure } from "@/lib/drafts/http";
 import { EvidenceError } from "@/lib/evidence/service";
-import { evidenceGrantRevokeSchema, evidenceGrantSchema, grantEvidenceAccess, listEvidenceAccess, revokeEvidenceAccess } from "@/lib/evidence/access";
+import { evidenceGrantSchema, grantEvidenceAccess, listEvidenceAccess } from "@/lib/evidence/access";
 import { reviewActor, reviewBody } from "@/lib/review/http";
 
 type Context = { params: Promise<{ id: string }> };
@@ -33,12 +33,4 @@ export async function POST(request: NextRequest, context: Context) {
   try { return draftResponse({ grant: await grantEvidenceAccess(actor.id, id, body) }, 201); } catch (error) { return failure(error); }
 }
 
-export async function DELETE(request: NextRequest, context: Context) {
-  const actor = await reviewActor(request, true, true);
-  if (actor instanceof NextResponse) return actor;
-  const id = await passportId(context);
-  if (!id) return draftResponse({ error: "Invalid passport ID" }, 400);
-  const body = await reviewBody(request, evidenceGrantRevokeSchema);
-  if (body instanceof NextResponse) return body;
-  try { return draftResponse({ grant: await revokeEvidenceAccess(actor.id, id, body) }); } catch (error) { return failure(error); }
-}
+// Revocation is POST .../evidence-access/revoke (D80); DELETE answers 405.

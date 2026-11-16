@@ -7,8 +7,8 @@ const days = n => new Date(Date.now() + n * 86_400_000);
 /** Issued records release private evidence to staff only under an active,
  * recorded grant; every admin download is audited, before and after issuance.
  */
-export async function smokeEvidenceAccess({ api, db, publisher, issuedPassportId, unissuedPassportId }) {
-  const access = `/api/admin/passports/${issuedPassportId}/evidence-access`;
+export async function smokeEvidenceAccess({ api, db, publisher, operator, issuedPassportId, unissuedPassportId }) {
+  const access = `/api/admin/passports/${issuedPassportId}/evidence-access`, revoke = `${access}/revoke`;
   const files = await db.evidenceFile.findMany({ where: { passportId: issuedPassportId, status: "READY" }, select: { id: true } });
   assert.ok(files.length >= 1);
   const download = (fileId, grantId, passportId = issuedPassportId) => api(`/api/admin/passports/${passportId}/evidence/${fileId}/preview${grantId ? `?grantId=${grantId}` : ""}`, { user: publisher });
@@ -45,9 +45,23 @@ export async function smokeEvidenceAccess({ api, db, publisher, issuedPassportId
     await db.evidenceAccessGrant.update({ where: { id: mapping.grant.id }, data: { grantedAt: days(-3), expiresAt: days(-1), scope: "EVIDENCE" } });
     assert.equal((await download(files[0].id, mapping.grant.id)).status, 403, "an expired grant does not release files");
 
-    assert.equal((await api(access, { user: publisher, method: "DELETE", body: { grantId } })).status, 200);
+    // Revocation is POST .../revoke (D80): the same checks as before, and the old DELETE is gone.
+    const active = async () => (await db.evidenceAccessGrant.findUniqueOrThrow({ where: { id: grantId } })).revokedAt === null;
+    assert.equal((await api(access, { user: publisher, method: "DELETE", body: { grantId } })).status, 405, "the old DELETE revocation is not routed");
+    for (const [label, options, status] of [["anonymous", {}, 401], ["operator", { user: operator }, 403],
+      ["foreign origin", { user: publisher, origin: "https://evil.example.invalid" }, 403], ["missing origin", { user: publisher, origin: null }, 403],
+      ["unknown field", { user: publisher, body: { grantId, extra: true } }, 400], ["not a UUID", { user: publisher, body: { grantId: "x" } }, 400],
+      ["invalid passport", { user: publisher, path: `/api/admin/passports/not-a-uuid/evidence-access/revoke` }, 400]]) {
+      const { path = revoke, ...rest } = options;
+      const response = await api(path, { method: "POST", body: { grantId }, ...rest });
+      assert.equal(response.status, status, `revoke, ${label}`);
+    }
+    assert.ok(await active(), "refused revocations leave the grant active");
+    assert.ok([302, 307].includes((await download(files[0].id, grantId)).status), "still released before the real revocation");
+    assert.equal((await api(revoke, { user: publisher, method: "POST", body: { grantId } })).status, 200);
     assert.equal((await download(files[0].id, grantId)).status, 403, "a revoked grant does not release files");
-    assert.equal((await api(access, { user: publisher, method: "DELETE", body: { grantId } })).status, 409);
+    assert.equal((await api(revoke, { user: publisher, method: "POST", body: { grantId } })).status, 409, "a repeated revocation is refused");
+    assert.equal(await db.auditLog.count({ where: { passportId: issuedPassportId, action: "EVIDENCE_ACCESS_REVOKED" } }), 1, "one audit row per revocation");
     const after = await (await api(access, { user: publisher })).json();
     assert.ok(after.grants.every(row => !row.active)); assert.equal(after.grants.length, 2);
 

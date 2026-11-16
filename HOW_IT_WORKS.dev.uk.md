@@ -648,7 +648,7 @@ curl -s "http://127.0.0.1:8088/ipfs/bafkreifetgy5dil6b6jcmd75qiwuwe7lvlb7av33huh
 | Чисті модулі | `test:hash`, `test:upload`, `test:chain`, `test:verifier`, `test:wallet`, `test:ipfs`, `test:i18n`… | канонізація, CID, кодування транзакцій, підписи, переклади |
 | Контракт | `contracts:test` (Foundry, 22 тести), `chain:smoke` (власний Anvil) | soulbound, дублі, пауза, ролі, реорги |
 | Живі смоуки | `drafts:smoke`, `evidence:smoke`, `review:smoke`, `auth:smoke`, `publication:smoke`, `verifier:smoke`… | справжні HTTP-запити до запущеного застосунку з БД, S3, ClamAV, Anvil |
-| Браузер | `browser:acceptance` (51), `a11y:audit` (268), `security:probe` (141) | UI, доступність, відмови доступу |
+| Браузер | `browser:acceptance` (51), `a11y:audit` (268), `security:probe` (149) | UI, доступність, відмови доступу |
 | CI | `.github/workflows/ci.yml` на кожен push | усе, крім браузерних перевірок і хостингу |
 
 Правила: PASS означає код виходу самого валідатора, без пайпа. Кожну перевірку спершу доводять до провалу, а потім довіряють її мовчанню. `publication:smoke` запускається лише на окремій базі `hartolit_smoke`, бо в основній лежить справжній токен №1.

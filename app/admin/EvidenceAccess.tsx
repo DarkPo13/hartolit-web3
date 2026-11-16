@@ -35,12 +35,14 @@ export function EvidenceAccess({ passportId }: { passportId: string }) {
   }, [base]);
   useEffect(() => { alive.current = true; void load(); return () => { alive.current = false; }; }, [load]);
 
-  async function mutate(method: "POST" | "DELETE", body: object) {
+  // Both are POST: a revocation has its own path because a DELETE body is not signed behind CloudFront (D80).
+  async function mutate(action: "grant" | "revoke", body: object) {
     setBusy(true); setError(null);
     try {
-      const response = await fetch(`${base}/evidence-access`, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const path = action === "grant" ? `${base}/evidence-access` : `${base}/evidence-access/revoke`;
+      const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!response.ok) throw new Error();
-      if (method === "POST" && alive.current) { setChecked(false); setForm(current => ({ ...current, organization: "", basisReference: "", purpose: "" })); }
+      if (action === "grant" && alive.current) { setChecked(false); setForm(current => ({ ...current, organization: "", basisReference: "", purpose: "" })); }
     } catch { if (alive.current) setError("actionError"); }
     finally { if (alive.current) { setBusy(false); await load(); } }
   }
@@ -59,7 +61,7 @@ export function EvidenceAccess({ passportId }: { passportId: string }) {
       {grant.active && <div className="flex flex-wrap items-center gap-3">
         {grant.scope !== "MAPPING" && data.files.map(file => <a key={file.id} href={`${base}/evidence/${file.id}/preview?grantId=${grant.id}`} target="_blank" rel="noopener noreferrer"
           className="text-brand-700 underline">{t.download}: {file.filename} ({file.kind})</a>)}
-        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void mutate("DELETE", { grantId: grant.id })}>{t.revoke}</Button>
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void mutate("revoke", { grantId: grant.id })}>{t.revoke}</Button>
       </div>}
     </li>)}</ul> : <p className="text-ink-muted">{t.none}</p>}
     <details><summary className="cursor-pointer font-medium text-brand-700">{t.create}</summary>
@@ -74,7 +76,7 @@ export function EvidenceAccess({ passportId }: { passportId: string }) {
         <label>{t.days}<input type="number" min={1} max={30} value={form.days} onChange={event => setForm({ ...form, days: Math.min(30, Math.max(1, Number(event.target.value) || 1)) })} className={input} /></label>
       </div>
       <label className="mt-3 flex items-start gap-2"><input type="checkbox" className="mt-1 accent-brand-600" checked={checked} onChange={event => setChecked(event.target.checked)} /><span>{t.consent}</span></label>
-      <Button type="button" className="mt-3" disabled={!valid || busy} onClick={() => void mutate("POST", { ...form, organization: form.organization.trim(),
+      <Button type="button" className="mt-3" disabled={!valid || busy} onClick={() => void mutate("grant", { ...form, organization: form.organization.trim(),
         basisReference: form.basisReference.trim(), purpose: form.purpose.trim(), acknowledgement: "RECORD_EVIDENCE_ACCESS_BASIS" })}>{t.record}</Button>
     </details>
   </section>;

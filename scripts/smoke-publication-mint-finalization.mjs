@@ -136,8 +136,8 @@ export async function smokeMintFinalization({ api, base: appBase, publisher, ope
     await checkMarks();
     if (chain && uploaded) await smokeIssuedPublicPage({ publication: published, passportId, chain, uploaded, correctionPending: true });
   } });
-  await smokeEvidenceAccess({ api, db, publisher, issuedPassportId: passportId, unissuedPassportId: probe.passportId });
-  await smokePreservationHolds({ api, db, publisherId, publisher, issuedPassportId: passportId });
+  await smokeEvidenceAccess({ api, db, publisher, operator, issuedPassportId: passportId, unissuedPassportId: probe.passportId });
+  await smokePreservationHolds({ api, db, publisherId, publisher, operator, issuedPassportId: passportId });
   const repeats = await Promise.all([finalize(), finalize()]);
   assert.ok(repeats.every(row => row.status === "SUPERSEDED" || row.publicationStatus === "PUBLISHED"));
   assert.equal((await attempt()).finalizedObservationId, first.observationId, "first finalization proof never changes on replay");

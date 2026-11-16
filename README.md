@@ -531,7 +531,7 @@ The interface is available in Ukrainian and English. Local Chromium checks used 
 
 ### Durable pinning boundary — internal foundation
 
-Apply all migrations with `npm run db:deploy`, including `20261021185106_publication_upload_target`. The MFA-admin panel can now save or cancel a **private preparation** through `POST`/`DELETE /api/admin/passports/{id}/publication/pin-attempts`. Since D67 the designated publisher can send a prepared attempt through `POST .../pin-attempts/upload` (see **Send the prepared snapshot to IPFS**); there is still no Server Action, worker or automatic retry. An internal upload driver and an offline-only Kubo fixture exercise that separate boundary locally. Ownership signing alone is insufficient: preparation requires separate acknowledgement of the exact confirmation ID, version, data hash and server-owned target fingerprint.
+Apply all migrations with `npm run db:deploy`, including `20261021185106_publication_upload_target`. The MFA-admin panel can now save or cancel a **private preparation** through `POST /api/admin/passports/{id}/publication/pin-attempts` and `POST .../pin-attempts/cancel` (a DELETE with a body until D80). Since D67 the designated publisher can send a prepared attempt through `POST .../pin-attempts/upload` (see **Send the prepared snapshot to IPFS**); there is still no Server Action, worker or automatic retry. An internal upload driver and an offline-only Kubo fixture exercise that separate boundary locally. Ownership signing alone is insufficient: preparation requires separate acknowledgement of the exact confirmation ID, version, data hash and server-owned target fingerprint.
 
 | Attempt state | Meaning | Permitted recovery |
 |---|---|---|

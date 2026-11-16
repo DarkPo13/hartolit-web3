@@ -41,8 +41,9 @@ export function PublicationPreparation({ base, confirmation, reservation, data, 
     if (!cancel) requestId.current ??= crypto.randomUUID();
     const operationRequestId = requestId.current;
     try {
-      const response = await fetch(`${base}/pin-attempts`, {
-        method: cancel ? "DELETE" : "POST", headers: { "Content-Type": "application/json" },
+      // Cancellation has its own POST path: a DELETE body is not signed behind CloudFront (D80).
+      const response = await fetch(cancel ? `${base}/pin-attempts/cancel` : `${base}/pin-attempts`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cancel ? { publicationId: reservation.id, attemptId: active!.id } : {
           publicationId: reservation.id, requestId: operationRequestId, confirmationId: confirmation.id,
           passportVersion: confirmation.preview.passportVersion, expectedSha256: confirmation.preview.sha256,

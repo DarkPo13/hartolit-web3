@@ -18,8 +18,8 @@ const pruneCount = async () => Number((await run(process.execPath, ["scripts/pru
 /** Holds block deletion/purging at the application and database layers and
  * are released explicitly. Cleans up its own draft and releases its own holds.
  */
-export async function smokePreservationHolds({ api, db, publisherId, publisher, issuedPassportId }) {
-  const route = `/api/admin/passports/${issuedPassportId}/holds`;
+export async function smokePreservationHolds({ api, db, publisherId, publisher, operator, issuedPassportId }) {
+  const route = `/api/admin/passports/${issuedPassportId}/holds`, release = `${route}/release`;
   const hold = { reference: "FICTIONAL-CLAIM-1", reason: "Fictional dispute about the treatment record", acknowledgement: "PLACE_PRESERVATION_HOLD" };
   const owner = (await db.passport.findUniqueOrThrow({ where: { id: issuedPassportId }, select: { ownerId: true } })).ownerId;
   let draftId;
@@ -74,8 +74,23 @@ export async function smokePreservationHolds({ api, db, publisherId, publisher, 
     await removeEvidence(owner, draftId, file.id);
     assert.equal((await db.evidenceFile.findUniqueOrThrow({ where: { id: file.id } })).rejectionCode, "REMOVED", "removal works again after release");
 
-    const released = await api(route, { user: publisher, method: "DELETE", body: { holdId, note: "Fictional claim settled", acknowledgement: "RELEASE_PRESERVATION_HOLD" } });
+    // Release is POST .../release (D80): the same checks as before, and the old DELETE is gone.
+    const releaseBody = { holdId, note: "Fictional claim settled", acknowledgement: "RELEASE_PRESERVATION_HOLD" };
+    const stillActive = async () => (await db.preservationHold.findUniqueOrThrow({ where: { id: holdId } })).releasedAt === null;
+    assert.equal((await api(route, { user: publisher, method: "DELETE", body: releaseBody })).status, 405, "the old DELETE release is not routed");
+    for (const [label, options, status] of [["anonymous", {}, 401], ["operator", { user: operator }, 403],
+      ["foreign origin", { user: publisher, origin: "https://evil.example.invalid" }, 403], ["missing origin", { user: publisher, origin: null }, 403],
+      ["no acknowledgement", { user: publisher, body: { ...releaseBody, acknowledgement: undefined } }, 400],
+      ["short note", { user: publisher, body: { ...releaseBody, note: "x" } }, 400], ["unknown field", { user: publisher, body: { ...releaseBody, extra: true } }, 400],
+      ["invalid passport", { user: publisher, path: "/api/admin/passports/not-a-uuid/holds/release" }, 400]]) {
+      const { path = release, ...rest } = options;
+      assert.equal((await api(path, { method: "POST", body: releaseBody, ...rest })).status, status, `release, ${label}`);
+    }
+    assert.ok(await stillActive(), "refused releases leave the hold active");
+    const released = await api(release, { user: publisher, method: "POST", body: releaseBody });
     assert.equal(released.status, 200);
+    assert.equal((await released.json()).hold.stillHeld, false);
+    assert.equal((await api(release, { user: publisher, method: "POST", body: releaseBody })).status, 409, "a repeated release is refused");
     assert.equal(await db.auditLog.count({ where: { passportId: issuedPassportId, action: { in: ["PRESERVATION_HOLD_PLACED", "PRESERVATION_HOLD_RELEASED"] } } }), 2);
     process.stdout.write("Preservation holds passed: audited place/release, database guards on passport/evidence deletion and purge marks, held-draft evidence removal refused, prune exclusion while held, strict input.\n");
   } finally {

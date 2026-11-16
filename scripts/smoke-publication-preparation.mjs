@@ -18,7 +18,7 @@ const fingerprint = target => createHash("sha256").update(JSON.stringify({ accou
 export async function smokePublicationPreparation({ api, db, fixture, confirm, ownerId, publisherId, publisher, other, unverified, operator, signingAccount, restart, base }) {
   const row = await fixture(ownerId, publisherId), id = row.passport.id;
   const confirmation = await confirm(publisher, row);
-  const root = `/api/admin/passports/${id}/publication`, path = `${root}/pin-attempts`;
+  const root = `/api/admin/passports/${id}/publication`, path = `${root}/pin-attempts`, cancelPath = `${path}/cancel`;
   const reserved = await api(root, { user: publisher, method: "POST", body: {
     confirmationId: confirmation.id, passportVersion: 4, expectedSha256: confirmation.preview.sha256, walletAddress: signingAccount.address.toLowerCase(),
   } });
@@ -60,7 +60,7 @@ export async function smokePublicationPreparation({ api, db, fixture, confirm, o
   // A browser run can prepare/cancel this fixture; reset only its own PREPARED
   // intent through the real API so the deterministic HTTP assertions start fresh.
   for (const attempt of (await overview()).pinning.attempts.filter(a => a.status === "PREPARED")) {
-    assert.equal((await api(path, { user: publisher, method: "DELETE", body: { publicationId, attemptId: attempt.id } })).status, 200);
+    assert.equal((await api(cancelPath, { user: publisher, method: "POST", body: { publicationId, attemptId: attempt.id } })).status, 200);
   }
   const priorPreparedAudit = await db.auditLog.count({ where: { publicationId, action: "PUBLICATION_PIN_PREPARED" } });
   const results = await Promise.all([post(), post(), post()]);
@@ -75,17 +75,22 @@ export async function smokePublicationPreparation({ api, db, fixture, confirm, o
   const visible = await overview(other);
   assert.equal(visible.publisher.canProve, false); assert.equal(visible.pinning.attempts.find(a => a.id === attemptId).status, "PREPARED");
   assert.equal("canonicalJson" in visible.pinning.attempts[0], false);
+  // Cancellation is POST .../cancel (D80): the same checks as before, and the old DELETE is gone.
   const cancellation = { publicationId, attemptId };
+  assert.equal((await api(path, { user: publisher, method: "DELETE", body: cancellation })).status, 405, "the old DELETE cancellation is not routed");
   for (const [actor, status] of [[undefined, 401], [operator, 403], [unverified, 403], [other, 403]]) {
-    assert.equal((await api(path, { user: actor, method: "DELETE", body: cancellation })).status, status);
+    assert.equal((await api(cancelPath, { user: actor, method: "POST", body: cancellation })).status, status);
   }
-  assert.equal((await api(path, { user: publisher, method: "DELETE", origin: "https://evil.invalid", body: cancellation })).status, 403);
-  assert.equal((await api(path, { user: publisher, method: "DELETE", body: { ...cancellation, attemptId: randomUUID() } })).status, 404);
+  assert.equal((await api(cancelPath, { user: publisher, method: "POST", origin: "https://evil.invalid", body: cancellation })).status, 403);
+  assert.equal((await api(cancelPath, { user: publisher, method: "POST", origin: null, body: cancellation })).status, 403);
+  assert.equal((await api(cancelPath, { user: publisher, method: "POST", body: { ...cancellation, extra: true } })).status, 400);
+  assert.equal((await api(cancelPath, { user: publisher, method: "POST", body: { ...cancellation, attemptId: randomUUID() } })).status, 404);
+  assert.equal((await db.publicationPinAttempt.findUniqueOrThrow({ where: { id: attemptId } })).status, "PREPARED", "refused cancellations leave the attempt prepared");
   const changed = { ...configured, scope: "changed-account" };
   await restart(changed);
   assert.equal((await post()).status, 409, "stale consent cannot bind a new server target");
   assert.equal((await post({ expectedTargetSha256: fingerprint(changed) })).status, 409, "existing attempt is never rebound");
-  for (let i = 0; i < 2; i++) assert.equal((await api(path, { user: publisher, method: "DELETE", body: cancellation })).status, 200);
+  for (let i = 0; i < 2; i++) assert.equal((await api(cancelPath, { user: publisher, method: "POST", body: cancellation })).status, 200);
   assert.equal((await db.publicationPinAttempt.findUniqueOrThrow({ where: { id: attemptId } })).status, "CANCELLED");
   body = { ...body, requestId: randomUUID(), expectedTargetSha256: fingerprint(changed) };
   assert.equal((await post()).status, 201);

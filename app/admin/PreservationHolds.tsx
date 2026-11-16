@@ -34,12 +34,13 @@ export function PreservationHolds({ passportId }: { passportId: string }) {
   }, [base]);
   useEffect(() => { alive.current = true; void load(); return () => { alive.current = false; }; }, [load]);
 
-  async function mutate(method: "POST" | "DELETE", body: object) {
+  // Both are POST: a release has its own path because a DELETE body is not signed behind CloudFront (D80).
+  async function mutate(action: "place" | "release", body: object) {
     setBusy(true); setError(null);
     try {
-      const response = await fetch(base, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const response = await fetch(action === "place" ? base : `${base}/release`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!response.ok) throw new Error();
-      if (alive.current && method === "POST") { setReference(""); setReason(""); setPlaceChecked(false); }
+      if (alive.current && action === "place") { setReference(""); setReason(""); setPlaceChecked(false); }
     } catch { if (alive.current) setError("actionError"); }
     finally { if (alive.current) { setBusy(false); await load(); } }
   }
@@ -59,7 +60,7 @@ export function PreservationHolds({ passportId }: { passportId: string }) {
       {hold.active && <div className="flex flex-wrap items-end gap-2">
         <label className="min-w-56 flex-1">{t.releaseNote}<input value={notes[hold.id] ?? ""} maxLength={500} onChange={event => setNotes({ ...notes, [hold.id]: event.target.value })} className={input} /></label>
         <Button type="button" variant="outline" size="sm" disabled={busy || (notes[hold.id] ?? "").trim().length < 3}
-          onClick={() => void mutate("DELETE", { holdId: hold.id, note: (notes[hold.id] ?? "").trim(), acknowledgement: "RELEASE_PRESERVATION_HOLD" })}>{t.release}</Button>
+          onClick={() => void mutate("release", { holdId: hold.id, note: (notes[hold.id] ?? "").trim(), acknowledgement: "RELEASE_PRESERVATION_HOLD" })}>{t.release}</Button>
       </div>}
     </li>)}</ul>}
     <details className="mt-3"><summary className="cursor-pointer font-medium text-brand-700">{t.place}</summary>
@@ -69,7 +70,7 @@ export function PreservationHolds({ passportId }: { passportId: string }) {
       </div>
       <label className="mt-3 flex items-start gap-2"><input type="checkbox" className="mt-1 accent-brand-600" checked={placeChecked} onChange={event => setPlaceChecked(event.target.checked)} /><span>{t.consent}</span></label>
       <Button type="button" className="mt-3" disabled={busy || !placeChecked || reference.trim().length < 2 || reason.trim().length < 3}
-        onClick={() => void mutate("POST", { reference: reference.trim(), reason: reason.trim(), acknowledgement: "PLACE_PRESERVATION_HOLD" })}>{t.placeButton}</Button>
+        onClick={() => void mutate("place", { reference: reference.trim(), reason: reason.trim(), acknowledgement: "PLACE_PRESERVATION_HOLD" })}>{t.placeButton}</Button>
     </details>
   </section>;
 }
