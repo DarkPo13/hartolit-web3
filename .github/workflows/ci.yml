@@ -89,6 +89,7 @@ jobs:
       - run: npm run test:capture
       - run: npm run test:i18n
       - run: npm run test:client-ip
+      - run: npm run test:sst
       - name: Build with isolated test-only auth configuration
         run: npm run build
       - run: npm run db:deploy

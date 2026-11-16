@@ -65,13 +65,36 @@ test("the local mode keeps today's single-value X-Forwarded-For for loopback dev
   assert.equal(ipOf(local, { [CLOUDFRONT_CLIENT_IP_HEADER]: "198.18.0.5" }), null, "CloudFront's header means nothing outside the cloudfront source");
 });
 
-test("the CloudFront Function injection overwrites whatever the viewer sent", () => {
-  assert.equal(CLOUDFRONT_CLIENT_IP_INJECTION, 'event.request.headers["x-hartolit-client-ip"] = { value: event.viewer.ip };');
+// What CloudFront forwards for a header a viewer-request function changed, following the
+// documented rules ("Duplicate query strings, headers, and cookies", CloudFront Functions
+// event structure): a modified `multiValue` array wins; otherwise the new `value` replaces
+// only the first of the viewer's duplicates and the rest stay. A model of AWS's documented
+// behaviour; the staging checklist sends real duplicates through CloudFront.
+function forwardedValues(sent, after) {
+  if (!after) return [];
+  if (after.multiValue && JSON.stringify(after.multiValue) !== JSON.stringify(sent?.multiValue)) return after.multiValue.map(entry => entry.value);
+  const rest = (sent?.multiValue ?? []).slice(1).map(entry => entry.value);
+  return [after.value, ...rest];
+}
+
+test("the CloudFront Function injection leaves exactly CloudFront's address, whatever the viewer sent", () => {
+  assert.equal(CLOUDFRONT_CLIENT_IP_INJECTION,
+    'event.request.headers["x-hartolit-client-ip"] = { value: event.viewer.ip, multiValue: [{ value: event.viewer.ip }] };');
   const run = new Function("event", CLOUDFRONT_CLIENT_IP_INJECTION);
-  for (const sent of [undefined, { value: "203.0.113.9" }, { value: "203.0.113.9", multiValue: [{ value: "203.0.113.9" }, { value: "203.0.113.10" }] }]) {
-    const event = { viewer: { ip: "2001:db8::7" }, request: { headers: { host: { value: "staging.example.invalid" }, ...(sent ? { [CLOUDFRONT_CLIENT_IP_HEADER]: sent } : {}) } } };
+  const duplicates = { value: "203.0.113.9", multiValue: [{ value: "203.0.113.9" }, { value: "203.0.113.10" }] };
+  for (const sent of [undefined, { value: "203.0.113.9" }, duplicates]) {
+    const event = { viewer: { ip: "198.51.100.7" }, request: { headers: { host: { value: "staging.example.invalid" }, ...(sent ? { [CLOUDFRONT_CLIENT_IP_HEADER]: structuredClone(sent) } : {}) } } };
     run(event);
-    assert.deepEqual(event.request.headers[CLOUDFRONT_CLIENT_IP_HEADER], { value: "2001:db8::7" }, JSON.stringify(sent));
+    assert.deepEqual(forwardedValues(sent, event.request.headers[CLOUDFRONT_CLIENT_IP_HEADER]), ["198.51.100.7"], JSON.stringify(sent));
     assert.deepEqual(event.request.headers.host, { value: "staging.example.invalid" });
+    assert.equal(viaCloudFront(forwardedValues(sent, event.request.headers[CLOUDFRONT_CLIENT_IP_HEADER]).join(", ")), "198.51.100.7");
   }
+  // Control: setting only `value` would let a viewer's second header through. Even then the
+  // origin gets two values, which Better Auth refuses, so the viewer still picks no address.
+  const valueOnly = new Function("event", `event.request.headers["${CLOUDFRONT_CLIENT_IP_HEADER}"] = { value: event.viewer.ip };`);
+  const event = { viewer: { ip: "198.51.100.7" }, request: { headers: { [CLOUDFRONT_CLIENT_IP_HEADER]: structuredClone(duplicates) } } };
+  valueOnly(event);
+  const leaked = forwardedValues(duplicates, event.request.headers[CLOUDFRONT_CLIENT_IP_HEADER]);
+  assert.deepEqual(leaked, ["198.51.100.7", "203.0.113.10"]);
+  assert.equal(viaCloudFront(leaked.join(", ")), null);
 });

@@ -20,7 +20,7 @@ const config = [
     },
   },
   {
-    ignores: ["contracts/**", ".next/**", "generated/**", "node_modules/**", "next-env.d.ts"],
+    ignores: ["contracts/**", ".next/**", "generated/**", "node_modules/**", "next-env.d.ts", ".sst/**", ".open-next/**", "sst-env.d.ts"],
   },
 ];
 

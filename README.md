@@ -897,6 +897,24 @@ This is real-world utility for a population that genuinely needs decentralized t
 
 ---
 
+## AWS staging (SST)
+
+`sst.config.ts` describes one stage, `staging`, in eu-central-1 (D79): the Next.js app on Lambda (Node.js 24, arm64, 1024 MB, 60 s) built by OpenNext 4.1.16, its own CloudFront distribution with origin access control and a Lambda@Edge body signer, the CloudFront client-IP function (D78), an S3 bucket for static files and SST's ISR helpers (a FIFO queue, a DynamoDB table and their functions). There is no VPC, NAT gateway, load balancer, container, database or warmer. SST 4.17.2 and the AWS provider 7.20.0 are pinned. Nothing has been deployed.
+
+**Where to deploy from.** A clean Linux checkout (CI, WSL or a container): OpenNext does not support Windows, and the config refuses to deploy when `.env`, `.env.local`, `.env.production` or `.env.production.local` exists or the shell sets a `NEXT_PUBLIC_*` variable it does not set itself, because `next build` would inline local values into the browser bundle. Use short-lived AWS credentials (IAM Identity Center), never root keys. `npx sst install` downloads the providers without contacting AWS; `npm run sst:typecheck` then checks the config against them.
+
+**Secrets** (stored encrypted in the SST state bucket, passed to the build and to the Lambda environment). Pipe values in so they stay out of shell history and the repository:
+
+```bash
+node -e "process.stdout.write(require('crypto').randomBytes(32).toString('hex'))" | npx sst secret set BetterAuthSecret --stage staging
+npx sst secret set DatabaseUrl --stage staging < database-url.txt   # a staging database with TLS, never production data
+printf 'https://staging.example.invalid' | npx sst secret set SiteUrl --stage staging
+```
+
+The CloudFront address exists only after the first deploy. Deploy once with the placeholder `SiteUrl` (sign-in is refused because the Origin does not match), set `SiteUrl` to the printed `https://….cloudfront.net` and deploy again. Apply migrations from the same trusted machine with `DATABASE_URL` set for that one command (`npm run db:deploy`).
+
+**After each deploy, on staging:** a direct request to the Lambda function URL (GET and POST) answers 403 from AWS; sign-in, TOTP and draft autosave POSTs work through CloudFront; sending `X-Hartolit-Client-Ip` or `X-Forwarded-For` yourself, also twice, never becomes the rate-limit key (the `rateLimit` row holds your real address); the Lambda log has no Better Auth "could not determine a client IP" warning; page headers match `next start` (D77); log groups keep 7 days (server, ISR) or 3 days (images). `npx sst remove --stage staging` deletes everything; the Lambda@Edge replicas take a while to go.
+
 ## Production Deployment Checklist
 
 - [ ] Smart contract audited (at minimum, internal review with OpenZeppelin patterns)

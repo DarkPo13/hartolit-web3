@@ -8,15 +8,16 @@ export const CLOUDFRONT_CLIENT_IP_HEADER = "x-hartolit-client-ip";
 
 /**
  * CloudFront Function code for SST `edge.viewerRequest.injection`. `event.viewer.ip` is
- * the address of whoever opened the connection to CloudFront. The assignment replaces
- * the value a viewer sent under this name. Should a duplicate header a viewer sent
- * survive, the origin sees two values, which Better Auth does not accept as an IP (the
- * shared bucket below), so a viewer cannot choose its own address. Trusting the header
- * also needs the Lambda origin to refuse requests that did not come through this
- * distribution (SST `protection: "oac-with-edge-signing"`).
+ * the address of whoever opened the connection to CloudFront. CloudFront Functions keep
+ * a viewer's duplicate headers unless the function changes the `multiValue` array, so
+ * the code sets both: the origin receives exactly one value, CloudFront's. Should a
+ * duplicate still arrive, the origin sees two values, which Better Auth does not accept
+ * as an IP (the shared bucket below), so a viewer still cannot choose its own address.
+ * Trusting the header also needs the Lambda origin to refuse requests that did not come
+ * through this distribution (SST `protection: "oac-with-edge-signing"`).
  */
 export const CLOUDFRONT_CLIENT_IP_INJECTION =
-  `event.request.headers["${CLOUDFRONT_CLIENT_IP_HEADER}"] = { value: event.viewer.ip };`;
+  `event.request.headers["${CLOUDFRONT_CLIENT_IP_HEADER}"] = { value: event.viewer.ip, multiValue: [{ value: event.viewer.ip }] };`;
 
 export type ClientIpAddressOptions = { ipAddressHeaders: string[]; ipv6Subnet: number };
 
