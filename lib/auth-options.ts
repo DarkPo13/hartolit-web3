@@ -1,15 +1,18 @@
 import { admin, twoFactor } from "better-auth/plugins";
 import { loadEnvConfig } from "@next/env";
 import { after } from "next/server";
+import { clientIpAddressOptions } from "./client-ip";
 import { sendPasswordResetEmail } from "./reset-email";
 import { refuseReusedTotp } from "./totp-replay";
 
 loadEnvConfig(process.cwd());
 
+const baseURL = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+
 // Shared between the application and the Better Auth schema generator.
 export const authOptions = {
   appName: "Hartolit Field Passport",
-  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+  baseURL,
   emailAndPassword: {
     enabled: true,
     disableSignUp: true,
@@ -46,6 +49,8 @@ export const authOptions = {
     },
   },
   advanced: {
+    // The address the rate limits above count by (D78).
+    ipAddress: clientIpAddressOptions(baseURL),
     defaultCookieAttributes: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,
