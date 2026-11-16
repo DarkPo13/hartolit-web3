@@ -404,6 +404,12 @@ The local inbox captures password reset emails. For hosting, configure a managed
 
 **Client IP for the sign-in limits (D78).** Better Auth limits sign-in, TOTP, recovery-code and reset attempts per client address, so the address must come from something a client cannot write. `HARTOLIT_CLIENT_IP_SOURCE=cloudfront` (AWS) reads only `x-hartolit-client-ip`, which a CloudFront viewer-request function sets from the connection address (`CLOUDFRONT_CLIENT_IP_INJECTION` in `lib/client-ip.ts`, for SST `edge.viewerRequest.injection`). X-Forwarded-For is ignored, and requests without a valid address share one limited bucket. That header can be trusted only when the Lambda function URL refuses requests that bypass CloudFront (SST `protection: "oac-with-edge-signing"`; plain `"oac"` refuses every browser POST that lacks a body hash). `forwarded-for` trusts a single-value X-Forwarded-For and is meant only for a reverse proxy that overwrites that header. Left unset, the app uses X-Forwarded-For only while `BETTER_AUTH_URL` is loopback (local development, CI, smokes) and otherwise refuses auth requests; on AWS Lambda only `cloudfront` is accepted. `npm run client-ip:smoke` checks this against production servers it starts.
 
+**Password reset and invitation emails (D81).** A reset request writes one row to the `PasswordResetOutbox` table and returns. The row holds the link encrypted with `BETTER_AUTH_SECRET` and bound to its id, never the address. An unknown address writes the same kind of row as a decoy. The answer and its timing are therefore the same whether or not the account exists, and no email is sent while the client waits. `HARTOLIT_PASSWORD_RESET_WORKER` selects who sends:
+- blank: a long-running `next start` sends right after each response;
+- `external`: a separate worker sends, by running `npm run mail:outbox` or its AWS equivalent. Each attempt is bounded by SMTP timeouts; a failure is retried after 30 s, 2, 10 and 30 minutes (five attempts within the link's hour); the row is deleted once sent, expired or given up.
+
+On AWS Lambda nothing reliable runs after the response, so reset and invitations stay off (503) unless the variable is `external`. Leave SMTP unset on Lambda until that worker exists. `npm run reset:smoke` checks both addresses, the timing behind a deliberately slow SMTP relay, delivery through Mailpit, the retry and the off states.
+
 Edit `.env.local`:
 
 ```env

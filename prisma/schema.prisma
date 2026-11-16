@@ -47,9 +47,29 @@ model User {
   evidenceGrantsRevoked EvidenceAccessGrant[] @relation("EvidenceGrantRevoker")
   holdsPlaced PreservationHold[] @relation("HoldPlacer")
   holdsReleased PreservationHold[] @relation("HoldReleaser")
+  passwordResetEmails PasswordResetOutbox[]
 
   @@unique([email])
   @@map("user")
+}
+
+/// Password reset and invitation emails waiting for delivery (D81). A request only writes a
+/// row (the same insert for an unknown address, as a decoy with no user), so its timing does
+/// not depend on whether the account exists. The link is encrypted with the auth secret and
+/// bound to the row id; the address is read from `user` at send time. Rows are deleted once
+/// sent, given up, expired or decoy.
+model PasswordResetOutbox {
+  id            String    @id @db.Uuid
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkSealed    String
+  expiresAt     DateTime
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now())
+  leaseUntil    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([nextAttemptAt])
 }
 
 model Session {

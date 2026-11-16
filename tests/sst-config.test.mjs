@@ -11,6 +11,8 @@ import { createJiti } from "jiti";
 const jiti = createJiti(import.meta.url, { alias: { "@": process.cwd().replaceAll("\\", "/") } });
 const { CLOUDFRONT_CLIENT_IP_INJECTION } = await jiti.import("../lib/client-ip.ts");
 
+const { isPasswordResetAvailable } = await jiti.import("../lib/reset-email.ts");
+
 let created;
 globalThis.$config = (config) => config;
 // Every `sst.aws.<Component>` the config touches is recorded, so a VPC, an Aurora cluster, a
@@ -86,6 +88,9 @@ test("variables: the client IP source for build and runtime, secrets only from S
     NEXT_PUBLIC_DEMO_MODE: "false",
     NEXT_TELEMETRY_DISABLED: "1",
   });
+  // No mail on staging: with these values on Lambda, password reset and invitations answer 503 (D81).
+  assert.ok(!Object.keys(args.environment).some(key => key.startsWith("SMTP_") || key === "HARTOLIT_PASSWORD_RESET_WORKER"), "no mail settings");
+  assert.equal(isPasswordResetAvailable({ ...args.environment, AWS_LAMBDA_FUNCTION_NAME: "fictional-server" }), false, "reset stays off on the staging Lambda");
   const source = fs.readFileSync("sst.config.ts", "utf8");
   assert.doesNotMatch(source, /postgres(ql)?:\/\/|AKIA[0-9A-Z]{12,}|-----BEGIN/, "no connection string, access key or private key in the config");
 });

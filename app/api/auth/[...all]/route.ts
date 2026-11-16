@@ -2,7 +2,7 @@ import { toNextJsHandler } from "better-auth/next-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { getActor } from "@/lib/auth-guard";
-import { isResetEmailConfigured } from "@/lib/reset-email";
+import { isPasswordResetAvailable } from "@/lib/reset-email";
 import { getDb } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -11,7 +11,7 @@ export const maxDuration = 30;
 const handler = toNextJsHandler(auth);
 
 async function guardAdminRoute(request: NextRequest): Promise<NextResponse | null> {
-  if (request.nextUrl.pathname === "/api/auth/request-password-reset" && !isResetEmailConfigured()) {
+  if (request.nextUrl.pathname === "/api/auth/request-password-reset" && !isPasswordResetAvailable()) {
     return NextResponse.json({ error: "Password reset is not configured" }, { status: 503 });
   }
   if (!request.nextUrl.pathname.startsWith("/api/auth/admin/")) return null;

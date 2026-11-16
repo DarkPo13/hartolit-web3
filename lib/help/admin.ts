@@ -600,7 +600,7 @@ export const adminHelp: HelpDocs = {
               { qa: [
                 ["Адмінка перекидає на сторінку безпеки.", "Для адміністратора не ввімкнено MFA або ви ввійшли резервним кодом і ще не замінили автентифікатор. Завершіть налаштування на сторінці безпеки."],
                 ["«Не вдалося увійти» після кількох спроб.", "Спрацювало обмеження: 5 спроб за 15 хвилин з однієї адреси. Зачекайте 15 хвилин."],
-                ["Запрошення не дійшло.", "Перевірте налаштування SMTP і спам. Обліковий запис уже створено: оператор може скористатися «Забули пароль?»."],
+                ["Запрошення не дійшло.", "Лист іде з черги одразу після запиту; якщо пошта недоступна, система повторює спробу ще 4 рази протягом години. Перевірте налаштування SMTP і спам. Обліковий запис уже створено: оператор може скористатися «Забули пароль?»."],
                 ["Не вдається схвалити картку.", "Рішення ухвалює лише призначений перевіряльник. Натисніть «Призначити мені» або попросіть призначеного колегу."],
                 ["Кнопок публікації немає, видно «Перегляд стану».", "Ви не призначений видавець, або на сервері не задано `HARTOLIT_PUBLISHER_*`, IPFS чи налаштування випуску."],
                 ["Гаманець пише «Ця адреса не збігається з дозволеною».", "У MetaMask вибрано інший обліковий запис. Перемкніть на адресу видавця або відключіть і підключіть знову."],
@@ -1231,7 +1231,7 @@ export const adminHelp: HelpDocs = {
               { qa: [
                 ["The admin pages send me to the security page.", "MFA is not enabled for this administrator, or you signed in with a recovery code and have not replaced the authenticator yet. Finish the setup on the security page."],
                 ["“Could not sign in” after a few attempts.", "The limit kicked in: 5 attempts per 15 minutes from one address. Wait 15 minutes."],
-                ["The invitation did not arrive.", "Check the SMTP settings and spam. The account already exists: the operator can use “Forgot password?”."],
+                ["The invitation did not arrive.", "The email leaves a queue right after the request; if the mail server is unavailable, the system tries 4 more times within the hour. Check the SMTP settings and spam. The account already exists: the operator can use “Forgot password?”."],
                 ["I cannot approve a record.", "Only the assigned reviewer decides. Choose “Assign to me” or ask the assigned colleague."],
                 ["No publication buttons, only a read-only view.", "You are not the designated publisher, or the server lacks `HARTOLIT_PUBLISHER_*`, IPFS or mint settings."],
                 ["The wallet says the address does not match the allowed one.", "Another account is selected in MetaMask. Switch to the publisher address or disconnect and connect again."],

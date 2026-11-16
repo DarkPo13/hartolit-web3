@@ -107,6 +107,7 @@
 - Адміністратор без TOTP не потрапить ні в `/admin`, ні в API чернеток (403).
 - Ліміти зберігаються в БД: 5 спроб входу і 5 TOTP-кодів за 15 хвилин з однієї адреси. Повторне використання того самого TOTP-коду відхиляється (`lib/totp-replay.ts`, D73).
 - «Адреса» для цих лімітів має братися з того, що клієнт не може підробити (D78, [lib/client-ip.ts](lib/client-ip.ts)). Заголовок `X-Forwarded-For` клієнт може надіслати сам, і Next.js його не перезаписує. Тому на AWS адресу ставить CloudFront у власний заголовок `x-hartolit-client-ip` (`HARTOLIT_CLIENT_IP_SOURCE=cloudfront`), а Lambda приймає лише запити, що пройшли через CloudFront. Локально, коли `BETTER_AUTH_URL` указує на цей комп'ютер, лишається `X-Forwarded-For`: так смоуки імітують різних клієнтів. Сервер з публічною адресою без цього налаштування відповідає на запити входу помилкою 500, а не рахує ліміти за підробленими адресами.
+- Скидання пароля і запрошення не надсилають лист під час запиту (D81, [lib/password-reset-outbox.ts](lib/password-reset-outbox.ts)). Запит лише додає рядок у таблицю `PasswordResetOutbox`: посилання в ньому зашифроване, адреси немає. Для неіснуючої адреси додається такий самий «порожній» рядок. Тому відповідь і її тривалість однакові, і за часом не можна дізнатися, чи є такий обліковий запис. Лист надсилає `next start` одразу після відповіді або окремий обробник (`npm run mail:outbox`). Якщо пошта недоступна, відправлення повторюється до п'яти разів протягом години. На AWS Lambda робота після відповіді ненадійна, тож там скидання вимкнене, доки не з'явиться окремий обробник (`HARTOLIT_PASSWORD_RESET_WORKER=external`).
 - Cookie: `HttpOnly`, `SameSite=Lax`, у production `Secure`. Тому production-збірка не дає увійти через `http://192.168.x.x`: браузер просто не надішле `Secure`-cookie без https.
 - Після входу всі йдуть на `/start` ([app/start/page.tsx](app/start/page.tsx)), а він відправляє адміністратора в `/admin`, оператора на `/`. Цією ж адресою відкривається значок на головному екрані (PWA, [app/manifest.ts](app/manifest.ts)).
 
@@ -628,6 +629,7 @@ curl -s "http://127.0.0.1:8088/ipfs/bafkreifetgy5dil6b6jcmd75qiwuwe7lvlb7av33huh
 | Основа | `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` | застосунок не збереться чи не запуститься |
 | Адреса клієнта | `HARTOLIT_CLIENT_IP_SOURCE` (`cloudfront` на AWS) | локально нічого; на сервері з публічною адресою вхід відповідає 500 (D78) |
 | Пошта | `SMTP_*` | запрошення і скидання пароля дають 503 |
+| Хто надсилає листи | `HARTOLIT_PASSWORD_RESET_WORKER` (`external` для окремого обробника) | `next start` надсилає сам після відповіді; на AWS Lambda без `external` скидання вимкнене (D81) |
 | Докази | `EVIDENCE_S3_*`, `CLAMAV_*` | файли не стають `READY` |
 | Видавець | `HARTOLIT_PUBLISHER_USER_ID`, `HARTOLIT_PUBLISHER_WALLET` | публікація недоступна |
 | IPFS-ціль | `HARTOLIT_PUBLICATION_TARGET_KEY`, `…_SCOPE`, `…_API_ORIGIN`, `…_GATEWAY_ORIGIN`, `…_API_TOKEN` | вивантаження недоступне |

@@ -1,8 +1,7 @@
 import { admin, twoFactor } from "better-auth/plugins";
 import { loadEnvConfig } from "@next/env";
-import { after } from "next/server";
 import { clientIpAddressOptions } from "./client-ip";
-import { sendPasswordResetEmail } from "./reset-email";
+import { afterPasswordResetRequest, enqueuePasswordResetEmail, RESET_LINK_SECONDS } from "./password-reset-outbox";
 import { refuseReusedTotp } from "./totp-replay";
 
 loadEnvConfig(process.cwd());
@@ -19,17 +18,11 @@ export const authOptions = {
     minPasswordLength: 12,
     maxPasswordLength: 128,
     revokeSessionsOnPasswordReset: true,
-    resetPasswordTokenExpiresIn: 60 * 60,
-    sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) => {
-      // Keep response timing independent of SMTP delivery while allowing the
-      // platform to finish the send after the response is returned.
-      after(async () => {
-        try {
-          await sendPasswordResetEmail(user.email, url);
-        } catch (error) {
-          console.error("Password reset email delivery failed", error instanceof Error ? error.name : "unknown");
-        }
-      });
+    resetPasswordTokenExpiresIn: RESET_LINK_SECONDS,
+    // Only a durable outbox row while the client waits; the email is sent outside this
+    // request, and an unknown address writes the same kind of row (D81).
+    sendResetPassword: async ({ user, url }: { user: { id: string }; url: string }, request?: Request) => {
+      await enqueuePasswordResetEmail(user.id, url, request);
     },
   },
   session: {
@@ -57,6 +50,6 @@ export const authOptions = {
       sameSite: "lax" as const,
     },
   },
-  hooks: { before: refuseReusedTotp },
+  hooks: { before: refuseReusedTotp, after: afterPasswordResetRequest },
   plugins: [admin(), twoFactor({ issuer: "Hartolit" })],
 };

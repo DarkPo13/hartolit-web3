@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { isResetEmailConfigured } from "@/lib/reset-email";
+import { isPasswordResetAvailable } from "@/lib/reset-email";
 import { WorkflowError } from "./service";
 
 const text = (max: number) => z.string().trim().max(max);
@@ -95,7 +95,7 @@ export async function archiveRecord(actorId: string, kind: Kind, id: string, inp
 }
 
 export async function inviteOperator(actorId: string, input: z.infer<typeof inviteInput>) {
-  if (!isResetEmailConfigured()) throw new WorkflowError(422, "Configure password reset email before inviting operators");
+  if (!isPasswordResetAvailable()) throw new WorkflowError(422, "Configure password reset email before inviting operators");
   const email = input.email.trim().toLowerCase();
   if (await getDb().user.findUnique({ where: { email }, select: { id: true } })) throw new WorkflowError(409, "An account with this email already exists");
   // Nobody receives this credential. The invited person creates their own password using the emailed reset link.
