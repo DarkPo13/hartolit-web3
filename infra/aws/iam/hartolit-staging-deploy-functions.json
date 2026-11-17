@@ -1,0 +1,212 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WhoAmI",
+      "Effect": "Allow",
+      "Action": "sts:GetCallerIdentity",
+      "Resource": "*"
+    },
+    {
+      "Sid": "SstState",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:ListBucketVersions",
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:DeleteObjectVersion"
+      ],
+      "Resource": ["arn:aws:s3:::sst-state-*", "arn:aws:s3:::sst-state-*/*"]
+    },
+    {
+      "Sid": "SstFunctionCode",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetObject",
+        "s3:GetObjectTagging",
+        "s3:PutObject",
+        "s3:PutObjectTagging",
+        "s3:DeleteObject"
+      ],
+      "Resource": ["arn:aws:s3:::sst-asset-*", "arn:aws:s3:::sst-asset-*/*"]
+    },
+    {
+      "Sid": "SstBootstrapRead",
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter", "ssm:GetParameters", "ecr:DescribeRepositories"],
+      "Resource": [
+        "arn:aws:ssm:eu-central-1:ACCOUNT_ID:parameter/sst/bootstrap",
+        "arn:aws:ssm:eu-central-1:ACCOUNT_ID:parameter/sst/bootstrap/*",
+        "arn:aws:ssm:eu-central-1:ACCOUNT_ID:parameter/sst/passphrase/hartolit-field-passport/staging",
+        "arn:aws:ecr:eu-central-1:ACCOUNT_ID:repository/sst-asset"
+      ]
+    },
+    {
+      "Sid": "LambdaFunctions",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:CreateFunction",
+        "lambda:DeleteFunction",
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:GetFunctionCodeSigningConfig",
+        "lambda:GetRuntimeManagementConfig",
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
+        "lambda:PublishVersion",
+        "lambda:ListVersionsByFunction",
+        "lambda:GetPolicy",
+        "lambda:RemovePermission",
+        "lambda:GetFunctionUrlConfig",
+        "lambda:DeleteFunctionUrlConfig",
+        "lambda:TagResource",
+        "lambda:UntagResource",
+        "lambda:ListTags"
+      ],
+      "Resource": [
+        "arn:aws:lambda:eu-central-1:ACCOUNT_ID:function:hartolit-field-pa*-staging-Web*",
+        "arn:aws:lambda:eu-central-1:ACCOUNT_ID:function:s-WebRevalidationEventsSubscriber*",
+        "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hartolit-field-passport-staging-WebEdgeFn-*"
+      ]
+    },
+    {
+      "Sid": "LambdaUrlIamAuthOnly",
+      "Effect": "Allow",
+      "Action": ["lambda:CreateFunctionUrlConfig", "lambda:UpdateFunctionUrlConfig"],
+      "Resource": "arn:aws:lambda:eu-central-1:ACCOUNT_ID:function:hartolit-field-pa*-staging-Web*",
+      "Condition": { "StringEquals": { "lambda:FunctionUrlAuthType": "AWS_IAM" } }
+    },
+    {
+      "Sid": "LambdaInvokeOnlyFromCloudFront",
+      "Effect": "Allow",
+      "Action": "lambda:AddPermission",
+      "Resource": "arn:aws:lambda:eu-central-1:ACCOUNT_ID:function:hartolit-field-pa*-staging-Web*",
+      "Condition": { "StringEquals": { "lambda:Principal": "cloudfront.amazonaws.com" } }
+    },
+    {
+      "Sid": "RunRevalidationSeeder",
+      "Effect": "Allow",
+      "Action": "lambda:InvokeFunction",
+      "Resource": "arn:aws:lambda:eu-central-1:ACCOUNT_ID:function:hartolit-field-pa*-staging-WebRevalidationSeeder*"
+    },
+    {
+      "Sid": "LambdaEdgeReplication",
+      "Effect": "Allow",
+      "Action": ["lambda:EnableReplication*", "lambda:DisableReplication*", "lambda:GetFunction"],
+      "Resource": [
+        "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hartolit-field-passport-staging-WebEdgeFn-*",
+        "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:hartolit-field-passport-staging-WebEdgeFn-*:*"
+      ]
+    },
+    {
+      "Sid": "QueueTriggerCreate",
+      "Effect": "Allow",
+      "Action": "lambda:CreateEventSourceMapping",
+      "Resource": "*",
+      "Condition": {
+        "ArnLike": {
+          "lambda:FunctionArn": "arn:aws:lambda:eu-central-1:ACCOUNT_ID:function:s-WebRevalidationEventsSubscriber*"
+        }
+      }
+    },
+    {
+      "Sid": "QueueTriggerManage",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:GetEventSourceMapping",
+        "lambda:UpdateEventSourceMapping",
+        "lambda:DeleteEventSourceMapping",
+        "lambda:TagResource",
+        "lambda:UntagResource",
+        "lambda:ListTags"
+      ],
+      "Resource": "arn:aws:lambda:eu-central-1:ACCOUNT_ID:event-source-mapping:*"
+    },
+    {
+      "Sid": "QueueTriggerList",
+      "Effect": "Allow",
+      "Action": "lambda:ListEventSourceMappings",
+      "Resource": "*"
+    },
+    {
+      "Sid": "FunctionRolesReadTagDelete",
+      "Effect": "Allow",
+      "Action": [
+        "iam:GetRole",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:ListInstanceProfilesForRole",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:DeleteRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::ACCOUNT_ID:role/hartolit-field-pa*-staging-Web*",
+        "arn:aws:iam::ACCOUNT_ID:role/stagi-WebRevalidationEventsSubscriber*"
+      ]
+    },
+    {
+      "Sid": "FunctionRolesOnlyInsideBoundary",
+      "Effect": "Allow",
+      "Action": ["iam:CreateRole", "iam:PutRolePolicy", "iam:DeleteRolePolicy"],
+      "Resource": [
+        "arn:aws:iam::ACCOUNT_ID:role/hartolit-field-pa*-staging-Web*",
+        "arn:aws:iam::ACCOUNT_ID:role/stagi-WebRevalidationEventsSubscriber*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PermissionsBoundary": "arn:aws:iam::ACCOUNT_ID:policy/hartolit-staging-lambda-boundary"
+        }
+      }
+    },
+    {
+      "Sid": "FunctionRolesOnlyBasicLogging",
+      "Effect": "Allow",
+      "Action": ["iam:AttachRolePolicy", "iam:DetachRolePolicy"],
+      "Resource": [
+        "arn:aws:iam::ACCOUNT_ID:role/hartolit-field-pa*-staging-Web*",
+        "arn:aws:iam::ACCOUNT_ID:role/stagi-WebRevalidationEventsSubscriber*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PermissionsBoundary": "arn:aws:iam::ACCOUNT_ID:policy/hartolit-staging-lambda-boundary"
+        },
+        "ArnEquals": {
+          "iam:PolicyARN": "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        }
+      }
+    },
+    {
+      "Sid": "PassFunctionRolesToLambdaOnly",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": [
+        "arn:aws:iam::ACCOUNT_ID:role/hartolit-field-pa*-staging-Web*",
+        "arn:aws:iam::ACCOUNT_ID:role/stagi-WebRevalidationEventsSubscriber*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": ["lambda.amazonaws.com", "edgelambda.amazonaws.com"]
+        }
+      }
+    },
+    {
+      "Sid": "LambdaEdgeServiceLinkedRoles",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": [
+        "arn:aws:iam::ACCOUNT_ID:role/aws-service-role/replicator.lambda.amazonaws.com/AWSServiceRoleForLambdaReplicator",
+        "arn:aws:iam::ACCOUNT_ID:role/aws-service-role/logger.cloudfront.amazonaws.com/AWSServiceRoleForCloudFrontLogger"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:AWSServiceName": ["replicator.lambda.amazonaws.com", "logger.cloudfront.amazonaws.com"]
+        }
+      }
+    }
+  ]
+}

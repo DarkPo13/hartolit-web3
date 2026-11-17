@@ -5,6 +5,10 @@
 // VPC, NAT, load balancer, container, database or warmer. Every value below was checked
 // against the installed SST 4.17.2 platform source (`.sst/platform`, from `sst install`).
 // Secrets are set per stage with `sst secret set <Name> --stage staging`; none live here.
+
+// The customer-managed policy every role below is bounded by (D82, infra/aws/iam).
+const LAMBDA_BOUNDARY_POLICY = "hartolit-staging-lambda-boundary";
+
 export default $config({
   app(input) {
     return {
@@ -39,6 +43,17 @@ export default $config({
     const publicNames = ["NEXT_PUBLIC_APP_URL", "NEXT_PUBLIC_CHAIN_ID", "NEXT_PUBLIC_CONTRACT_ADDRESS", "NEXT_PUBLIC_DEMO_MODE"];
     const strayPublic = Object.keys(process.env).filter((key) => key.startsWith("NEXT_PUBLIC_") && !publicNames.includes(key));
     if (strayPublic.length) throw new Error(`Unset ${strayPublic.join(", ")} before deploying.`);
+
+    // Every IAM role SST creates here (server, image optimizer, ISR revalidation subscriber,
+    // ISR table seeder, and the Lambda@Edge signer in us-east-1) gets this permissions
+    // boundary (D82). An administrator creates the policy by hand in the AWS console from
+    // infra/aws/iam; SST never manages it, and the deploy role may create roles only with
+    // it and cannot change it, so no role's inline policy reaches past it. Registered
+    // before any component: SST applies it to every role created afterwards.
+    const accountId = aws.getCallerIdentityOutput({}).accountId;
+    $transform(aws.iam.Role, (role) => {
+      role.permissionsBoundary = $interpolate`arn:aws:iam::${accountId}:policy/${LAMBDA_BOUNDARY_POLICY}`;
+    });
 
     const { CLOUDFRONT_CLIENT_IP_INJECTION } = await import("./lib/client-ip");
 

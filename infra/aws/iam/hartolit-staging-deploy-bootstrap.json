@@ -1,0 +1,32 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CreateSstBuckets",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:PutBucketVersioning",
+        "s3:PutBucketNotification",
+        "s3:PutBucketPolicy"
+      ],
+      "Resource": ["arn:aws:s3:::sst-state-*", "arn:aws:s3:::sst-asset-*"]
+    },
+    {
+      "Sid": "CreateSstImageRepository",
+      "Effect": "Allow",
+      "Action": "ecr:CreateRepository",
+      "Resource": "arn:aws:ecr:eu-central-1:ACCOUNT_ID:repository/sst-asset"
+    },
+    {
+      "Sid": "WriteSstBootstrapParameters",
+      "Effect": "Allow",
+      "Action": "ssm:PutParameter",
+      "Resource": [
+        "arn:aws:ssm:eu-central-1:ACCOUNT_ID:parameter/sst/bootstrap",
+        "arn:aws:ssm:eu-central-1:ACCOUNT_ID:parameter/sst/bootstrap/*",
+        "arn:aws:ssm:eu-central-1:ACCOUNT_ID:parameter/sst/passphrase/hartolit-field-passport/staging"
+      ]
+    }
+  ]
+}

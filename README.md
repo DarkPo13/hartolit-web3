@@ -919,6 +919,15 @@ printf 'https://staging.example.invalid' | npx sst secret set SiteUrl --stage st
 
 The CloudFront address exists only after the first deploy. Deploy once with the placeholder `SiteUrl` (sign-in is refused because the Origin does not match), set `SiteUrl` to the printed `https://….cloudfront.net` and deploy again. Apply migrations from the same trusted machine with `DATABASE_URL` set for that one command (`npm run db:deploy`).
 
+**GitHub deploy role and permissions boundary (D82).** The GitHub OIDC role `hartolit-github-staging-deploy` gets only the policies in `infra/aws/iam/`, and every role SST creates carries the boundary `hartolit-staging-lambda-boundary` (`sst.config.ts` sets it; IAM refuses the role if the policy does not exist). An administrator, never the deploy role, does this once in the AWS console, preferably in an AWS account used only for staging:
+
+1. Check the role's trust policy: federated principal `token.actions.githubusercontent.com`, `StringEquals` on `token.actions.githubusercontent.com:aud` = `sts.amazonaws.com` and on `token.actions.githubusercontent.com:sub` = `repo:<owner>/<repo>:ref:refs/heads/master` (no `StringLike` wildcards).
+2. In each file of `infra/aws/iam/`, replace `ACCOUNT_ID` with the 12-digit account number in the console's editor only; the repository keeps the placeholder (`test:iam` refuses an account number).
+3. IAM → Policies → Create policy → JSON, once per file, named exactly as the file without `.json`: first `hartolit-staging-lambda-boundary`, then `hartolit-staging-deploy-guardrails`, `-functions`, `-web` and `-bootstrap`. The editor's policy validation must show no errors or security warnings.
+4. Attach the four `hartolit-staging-deploy-*` policies to the deploy role. Do not attach the boundary to any role as a permissions policy.
+5. Run the first deploy (only with the user's yes). Then detach `hartolit-staging-deploy-bootstrap`. In IAM → Roles, each `…-staging-Web…`/`stagi-WebRevalidation…` role must show the permissions boundary.
+6. An `AccessDenied` in the deploy log names one action: add exactly that one to the file in the repository, run `npm run test:iam`, and update the console policy as a new version.
+
 **After each deploy, on staging:** a direct request to the Lambda function URL (GET and POST) answers 403 from AWS; sign-in, TOTP and draft autosave POSTs work through CloudFront; sending `X-Hartolit-Client-Ip` or `X-Forwarded-For` yourself, also twice, never becomes the rate-limit key (the `rateLimit` row holds your real address); the Lambda log has no Better Auth "could not determine a client IP" warning; page headers match `next start` (D77); log groups keep 7 days (server, ISR) or 3 days (images). `npx sst remove --stage staging` deletes everything; the Lambda@Edge replicas take a while to go.
 
 ## Production Deployment Checklist

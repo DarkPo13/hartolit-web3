@@ -139,6 +139,7 @@ Append the day each call is made. The "why" is what a future reader cannot recon
 - **2026-11-16 — Staging is one SST Nextjs site with OAC edge signing and SST's ISR helpers kept (D79).** Why: SST's defaults would build with OpenNext 3.9.14, leave the function URLs public and cut requests at 20 s; the ISR helpers serve three prerendered routes and cost cents. Rejected: `disableIncrementalCache`/`disableTagCache` (would change how the manifest, apple icon and global error page are served, to save under a cent), reserved concurrency as a cost cap (new accounts often have too small a concurrency quota to reserve any), AWS WAF ($5 a month per web ACL, a quarter of the budget), a custom domain for staging (needs a domain decision; the two-phase `SiteUrl` works without one), and a custom Lambda@Edge signer that also hashes DELETE (deviates from the requested SST protection; left as an option).
 - **2026-11-16 — Reversals with a body are POST to an action path (D80).** Why: SST's signer hashes only POST/PUT/PATCH bodies, and a DELETE body has no defined meaning in HTTP. Rejected: a custom signer that also hashes DELETE (more infrastructure code to keep in sync with SST), an `action` field on the existing create POSTs (two meanings per route) and keeping DELETE as an alias (a second door). The user approved the app change.
 - **2026-11-16 — Password reset writes an outbox row and returns; a separate party sends (D81).** Why: on Lambda no post-response work is reliable (the buffered wrapper delays the answer, Node.js 24 does not wait after the response), and a durable row gives retries. Rejected: the streaming wrapper with `after()` (the email can be lost after the stream ends, and the D77 header check would have to be redone), Better Auth `backgroundTasks` (same waitUntil problem), a fixed response delay alone, storing the address or a readable link, and a scheduled poller on AWS (it would keep the free database awake). Kept: Better Auth's own request handling, rate limit and token rules.
+- **2026-11-17 — Bound every SST role with a console-made policy; the deploy role creates roles only inside it (D82).** Why: `iam:PutRolePolicy` cannot be limited by content, so without a boundary the GitHub role could write any inline policy into a function role and run code with it. Not created by SST, because the deploy role would then have to be able to rewrite it. Bootstrap rights sit in their own policy, detached after the first deploy; Denies repeat the Allow conditions so one later broad Allow cannot undo them.
 
 ---
 
@@ -1214,3 +1215,27 @@ The user asked to remove the account-enumeration risk in password-reset timing w
   - **Alternatives:** a direct asynchronous Lambda invoke has no idle cost but only two quick retries. A scheduled poller would wake the database every few minutes. A trusted machine running `npm run mail:outbox` from cron works but is outside AWS.
 - **Delivery guarantees:** at least once (a crash between sending and deleting can repeat an email); at most five attempts inside the link's hour; nothing is kept once sent, expired or given up. The relay to the mailbox provider (bounces, spam filtering) is outside the app and untested.
 - **Not verified:** hosted SMTP, any AWS worker, Lambda itself. The OpenNext buffered handler is exercised in a container (STATE).
+
+## 2026-11-17 - Permissions boundary for SST roles and the split GitHub deploy policies (D82)
+
+The user asked to close the privilege escalation found in the draft deploy policies (`iam:PutRolePolicy`, role creation, `iam:PassRole`) with a permissions boundary, without contacting AWS, deploying or committing.
+
+- **Built:** `infra/aws/iam/` (boundary, bootstrap, functions, web, guardrails; `ACCOUNT_ID` placeholders), the `$transform(aws.iam.Role, …)` in `sst.config.ts`, `test:iam` (in CI) and a new `test:sst` case. README "AWS staging" has the console order.
+- **What the boundary holds and why:**
+  - Logs: only this app's `/aws/lambda/...` groups in eu-central-1, plus `/aws/lambda/us-east-1.<edge function>` in every region, because Lambda@Edge replicas write where they run.
+  - The assets bucket (OpenNext's page cache under `_cache`, image reads), the revalidation queue and table: the exact actions SST 4.17.2 writes.
+  - `cloudfront:CreateInvalidation` on `distribution/*`: SST grants it on `*`, and the ID is unknown before creation.
+  - The edge signer imports only `node:crypto`, so it needs nothing beyond logs.
+- **Names:** SST cuts the app name when the resource name is long. The server function is `hartolit-field-pass-staging-WebServerEucentral1Function-…`, the ISR subscriber's function `s-WebRevalidationEventsSubscriber…` and its role `stagi-WebRevalidationEventsSubscriber…`. The patterns are therefore `hartolit-field-pa*-staging-Web*` plus the two subscriber prefixes; `test:iam` compares them with SST's own `naming.ts`.
+- **Rejected:**
+  - A boundary created by SST: the deploy role would have to be able to change it.
+  - Tag conditions (`aws:RequestTag/Project`): whether Pulumi sends the tags in each create call is not proven without AWS.
+  - Restricting object keys in the shared `sst-state-*` bucket: the key layout lives in the SST binary and could not be read reliably.
+  - `ssm:Overwrite` conditions: the bootstrap policy is detached instead.
+- **Remaining paths, not closed by IAM:**
+  - `iam:CreateRole` cannot limit the trust policy, so a role could trust another account. That account would get at most the boundary (staging cache, queue, table, logs).
+  - `lambda:AddPermission` cannot require `SourceArn`, so a push could let any CloudFront distribution call the function URL. That is no more than the public site allows.
+  - `distribution/*`, `cache-policy/*` and `key-value-store/*` cover every CloudFront resource in the account.
+  - `sst-state-*` and `sst-asset-*` are shared by every SST app in the account and region.
+  - Whoever can push to `master` controls everything up to these limits. A separate AWS account for staging keeps that away from anything else.
+- **Not verified:** any AWS call. The policy model in `test:iam` is ours, not IAM's; Access Analyzer validation in the console and the first deploy are the real checks. Pulumi may need extra read calls, and the SST binary may make more during bootstrap. A missing permission is refused (AccessDenied), which fails closed.

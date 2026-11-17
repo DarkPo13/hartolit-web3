@@ -24,6 +24,7 @@
     "test:capture": "node --test tests/capture-completion.test.mjs",
     "test:client-ip": "node --test tests/client-ip.test.mjs",
     "test:sst": "node --test tests/sst-config.test.mjs",
+    "test:iam": "node --test tests/aws-iam-policies.test.mjs",
     "test:i18n": "node --test tests/translations.test.mjs tests/help.test.mjs",
     "test:public-boundary": "node scripts/check-public-boundary.mjs",
     "db:setup": "node scripts/setup-local-auth.mjs",

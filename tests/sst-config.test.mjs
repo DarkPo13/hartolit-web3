@@ -14,14 +14,22 @@ const { CLOUDFRONT_CLIENT_IP_INJECTION } = await jiti.import("../lib/client-ip.t
 const { isPasswordResetAvailable } = await jiti.import("../lib/reset-email.ts");
 
 let created;
+const FICTIONAL_ACCOUNT = "111122223333";
 globalThis.$config = (config) => config;
 // Every `sst.aws.<Component>` the config touches is recorded, so a VPC, an Aurora cluster, a
-// container service or anything else added later shows up here. Pulumi's raw `aws` global is
-// not defined at all: a config that reached for `aws.ec2` or `aws.rds` would throw.
+// container service or anything else added later shows up here.
 globalThis.sst = {
   Secret: class { constructor(name) { this.value = `<secret ${name}>`; } },
   aws: new Proxy({}, { get: (_, type) => class { constructor(name, args) { created.push({ type, name, args }); this.url = "https://d0000000000000.cloudfront.net"; } } }),
 };
+// Pulumi's raw `aws` global offers only what the boundary transform (D82) reads: the IAM Role
+// class and the caller identity. A config that reached for `aws.ec2` or `aws.rds` would throw.
+class Role {}
+Role.__pulumiType = "aws:iam/role:Role";
+const pulumiAws = { iam: { Role }, getCallerIdentityOutput: () => ({ accountId: FICTIONAL_ACCOUNT }) };
+globalThis.aws = new Proxy(pulumiAws, { get: (target, key) => { if (key in target) return target[key]; throw new Error(`sst.config.ts used aws.${String(key)}`); } });
+globalThis.$transform = (resource, callback) => created.push({ type: "$transform", resource, callback });
+globalThis.$interpolate = (strings, ...values) => String.raw({ raw: strings }, ...values);
 const config = (await jiti.import("../sst.config.ts")).default;
 
 async function runIn(stage, files = [], env = {}) {
@@ -54,8 +62,8 @@ test("the app is pinned to SST 4.17.2 and the AWS provider 7.20.0 in eu-central-
 
 test("staging is one Next.js site with OAC, the CloudFront client IP and nothing that runs while idle", async () => {
   const { output, created } = await runIn("staging");
-  assert.deepEqual(created.map(item => item.type), ["Nextjs"], "the only component is the Next.js site: no VPC, Aurora, cluster or service");
-  const { name, args } = created[0];
+  assert.deepEqual(created.map(item => item.type), ["$transform", "Nextjs"], "the only component is the Next.js site: no VPC, Aurora, cluster or service");
+  const { name, args } = created[1];
   assert.equal(name, "Web");
   assert.deepEqual(output, { url: "https://d0000000000000.cloudfront.net" });
   assert.equal(args.openNextVersion, "4.1.16");
@@ -74,8 +82,27 @@ test("staging is one Next.js site with OAC, the CloudFront client IP and nothing
   assert.deepEqual(distribution, { priceClass: "PriceClass_100" });
 });
 
+test("every IAM role SST creates is bounded by the hand-made policy the deploy role is limited to (D82)", async () => {
+  const { created } = await runIn("staging");
+  const transforms = created.filter(item => item.type === "$transform");
+  assert.equal(transforms.length, 1);
+  // Registered before the site, so it reaches the server, image, ISR and Lambda@Edge roles.
+  assert.ok(created.indexOf(transforms[0]) < created.findIndex(item => item.type === "Nextjs"), "registered before any component");
+  assert.equal(transforms[0].resource.__pulumiType, "aws:iam/role:Role");
+  const expected = `arn:aws:iam::${FICTIONAL_ACCOUNT}:policy/hartolit-staging-lambda-boundary`;
+  const role = {}; transforms[0].callback(role, {}, "WebEdgeFunctionRole");
+  assert.deepEqual(role, { permissionsBoundary: expected });
+  const preset = { permissionsBoundary: "arn:aws:iam::aws:policy/AdministratorAccess" }; transforms[0].callback(preset, {}, "WebServerEucentral1Role");
+  assert.equal(preset.permissionsBoundary, expected, "a boundary set elsewhere is replaced");
+  // The deploy role's policies require exactly this boundary on every role it creates.
+  const deploy = fs.readFileSync("infra/aws/iam/hartolit-staging-deploy-functions.json", "utf8").replaceAll("ACCOUNT_ID", FICTIONAL_ACCOUNT);
+  assert.ok(fs.existsSync("infra/aws/iam/hartolit-staging-lambda-boundary.json"));
+  assert.ok(deploy.includes(`"iam:PermissionsBoundary": "${expected}"`));
+});
+
 test("variables: the client IP source for build and runtime, secrets only from SST, no stray public values", async () => {
-  const { created: [{ args }] } = await runIn("staging");
+  const { created } = await runIn("staging");
+  const { args } = created.find(item => item.type === "Nextjs");
   assert.deepEqual(args.environment, {
     HARTOLIT_CLIENT_IP_SOURCE: "cloudfront",
     DATABASE_URL: "<secret DatabaseUrl>",

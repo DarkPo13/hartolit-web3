@@ -90,6 +90,7 @@ jobs:
       - run: npm run test:i18n
       - run: npm run test:client-ip
       - run: npm run test:sst
+      - run: npm run test:iam
       - run: npm run test:reset
       - name: Build with isolated test-only auth configuration
         run: npm run build
