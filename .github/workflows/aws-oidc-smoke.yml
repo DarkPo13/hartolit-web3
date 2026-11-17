@@ -1,0 +1,68 @@
+name: AWS OIDC smoke
+
+# Proves only that GitHub's OIDC token can assume the staging deploy role.
+# Manual only: no push, pull_request or schedule trigger. It reads nothing from the
+# repository, runs one read-only AWS call (sts:GetCallerIdentity) and creates nothing.
+on:
+  workflow_dispatch:
+
+# Workflow-wide default: no token permissions at all.
+permissions: {}
+
+concurrency:
+  group: aws-oidc-smoke
+  cancel-in-progress: false
+
+jobs:
+  whoami:
+    # A dispatch from another branch runs that branch's copy of this file, so this line
+    # is not the access control: the role's trust policy (exact sub for master) is.
+    if: github.repository == 'DarkPo13/hartolit-web3' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+    env:
+      AWS_REGION: eu-central-1
+      EXPECTED_ROLE_NAME: hartolit-github-staging-deploy
+    steps:
+      # Prints the two subject formats GitHub may put into the token, built from public
+      # repository IDs. The token itself is never requested or printed here.
+      - name: Show which OIDC subject the trust policy must match
+        env:
+          OWNER: ${{ github.repository_owner }}
+          OWNER_ID: ${{ github.repository_owner_id }}
+          REPO_FULL: ${{ github.repository }}
+          REPO_ID: ${{ github.repository_id }}
+          REF: ${{ github.ref }}
+        run: |
+          repo_name="${REPO_FULL#*/}"
+          echo "Name format:      repo:${REPO_FULL}:ref:${REF}"
+          echo "Immutable format: repo:${OWNER}@${OWNER_ID}/${repo_name}@${REPO_ID}:ref:${REF}"
+
+      - name: Assume the staging deploy role through OIDC
+        # aws-actions/configure-aws-credentials v6.3.0, pinned to the tag's commit.
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: hartolit-oidc-smoke-${{ github.run_id }}
+          role-duration-seconds: 900
+          mask-aws-account-id: true
+          output-credentials: false
+          # Session policy: the session can do at most this, whatever the role allows.
+          # v6.3.0 passes it as Policy to AssumeRoleWithWebIdentity; its own credential
+          # check and the step below call only sts:GetCallerIdentity.
+          inline-session-policy: >-
+            {"Version":"2012-10-17","Statement":[{"Sid":"OnlyWhoAmI","Effect":"Allow","Action":"sts:GetCallerIdentity","Resource":"*"}]}
+
+      - name: Confirm the assumed identity
+        run: |
+          arn="$(aws sts get-caller-identity --query Arn --output text)"
+          case "$arn" in
+            arn:aws:sts::*:assumed-role/"${EXPECTED_ROLE_NAME}"/hartolit-oidc-smoke-*)
+              echo "OK: running as the role ${EXPECTED_ROLE_NAME}" ;;
+            *)
+              echo "Unexpected identity: the session is not the role ${EXPECTED_ROLE_NAME}" >&2
+              exit 1 ;;
+          esac
