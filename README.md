@@ -905,6 +905,8 @@ This is real-world utility for a population that genuinely needs decentralized t
 
 ## AWS staging (SST)
 
+> **Moving to Terraform (D83).** The replacement is in [`infra/terraform/`](infra/terraform/README.md) and has not been applied. Do not run `sst deploy` for the first staging deployment; this section stays until Terraform's parity is confirmed on real staging.
+
 `sst.config.ts` describes one stage, `staging`, in eu-central-1 (D79): the Next.js app on Lambda (Node.js 24, arm64, 1024 MB, 60 s) built by OpenNext 4.1.16, its own CloudFront distribution with origin access control and a Lambda@Edge body signer, the CloudFront client-IP function (D78), an S3 bucket for static files and SST's ISR helpers (a FIFO queue, a DynamoDB table and their functions). There is no VPC, NAT gateway, load balancer, container, database or warmer. SST 4.17.2 and the AWS provider 7.20.0 are pinned. Nothing has been deployed.
 
 **Where to deploy from.** A clean Linux checkout (CI, WSL or a container): OpenNext does not support Windows, and the config refuses to deploy when `.env`, `.env.local`, `.env.production` or `.env.production.local` exists or the shell sets a `NEXT_PUBLIC_*` variable it does not set itself, because `next build` would inline local values into the browser bundle. Use short-lived AWS credentials (IAM Identity Center), never root keys. `npx sst install` downloads the providers without contacting AWS; `npm run sst:typecheck` then checks the config against them.

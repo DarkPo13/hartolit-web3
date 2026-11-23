@@ -1,0 +1,2 @@
+# Terraform hashes these files into Lambda packages, so every machine needs the same bytes.
+infra/terraform/** text eol=lf

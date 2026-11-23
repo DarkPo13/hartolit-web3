@@ -106,7 +106,7 @@ Versions reflect `package.json` on 2026-10-04. "Pinned" means an exact version i
 | WalletConnect / Reown | Removed (D66); browser-injected wallets only. |
 | SMTP provider | Local Mailpit only; no hosted provider chosen. |
 | S3-compatible bucket + ClamAV | Local SeaweedFS + ClamAV only; no hosted provider chosen. |
-| Infrastructure | SST 4.17.2 (exact dev dependency) with the AWS provider 7.20.0, `sst.config.ts`, stage `staging` only (D79) | `sst.config.ts` is outside the main typecheck; `npx sst install` then `npm run sst:typecheck`. Deploy only from a clean Linux checkout. |
+| Infrastructure | Moving to Terraform 1.17.2 with AWS provider 6.73.0 in `infra/terraform/` (D83, not applied). SST 4.17.2 with AWS provider 7.20.0 and `sst.config.ts`, stage `staging` only (D79), stays until parity is proven | `npm run test:terraform` needs Docker and no AWS access. `sst.config.ts` is outside the main typecheck; `npx sst install` then `npm run sst:typecheck`. Deploy only from a clean Linux checkout. |
 | Hosting | Planned (user, 2026-11-13): AWS Lambda in eu-central-1 through OpenNext (D77), configured in `sst.config.ts` (D79); a local OpenNext build passed, no AWS resource exists. README still names Vercel and `dapp.hartolit-agro.com`. Nothing in the repository confirms a live deployment. |
 | Diia (Ukrainian qualified e-signature) | Deferred until after the core MVP. No API documentation is in this repository; do not reconstruct it. |
 | GitHub Actions | The `CI` workflow runs on every push. Job logs need repository-admin login. |
