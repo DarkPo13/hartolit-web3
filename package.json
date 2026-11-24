@@ -29,6 +29,7 @@
     "test:terraform:functions": "node --test tests/terraform-functions.test.mjs",
     "test:terraform:mutations": "node scripts/terraform-mutations.mjs",
     "test:workflows": "node --test tests/workflow-safety.test.mjs",
+    "test:deps": "node --test tests/dependency-overrides.test.mjs",
     "test:i18n": "node --test tests/translations.test.mjs tests/help.test.mjs",
     "test:public-boundary": "node scripts/check-public-boundary.mjs",
     "db:setup": "node scripts/setup-local-auth.mjs",
@@ -107,6 +108,7 @@
     "@coinbase/cdp-sdk": "1.49.2",
     "axios": "^1.20.0",
     "deepmerge-ts": "8.0.2",
+    "effect": "3.22.5",
     "mysql2": "3.24.4",
     "ws@^8.0.0": "^8.21.0"
   },

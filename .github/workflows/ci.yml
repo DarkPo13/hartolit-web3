@@ -92,6 +92,7 @@ jobs:
       - run: npm run test:sst
       - run: npm run test:iam
       - run: npm run test:reset
+      - run: npm run test:deps
       - name: Build with isolated test-only auth configuration
         run: npm run build
       - run: npm run db:deploy

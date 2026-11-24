@@ -11,7 +11,7 @@ Keep this file under about 250 lines. Source/config and exact pushed-commit CI o
 
 ## Current goal
 
-**Now (user, 2026-11-24):** before the Terraform bootstrap, the security fixes of D84 are done and the branch is pushed for CI only. **Stop here:** every AWS, IAM or GitHub-settings step needs a separate approval, in the order of `infra/terraform/README.md` ("Before the first `terraform apply`"). Open: the old role's attached policies (read in the console), the administrator identity (IAM Identity Center needs AWS Organizations, which would make this staging account the management account), branch protection and the two GitHub Environments.
+**Now (user, 2026-11-24):** before the Terraform bootstrap, the security fixes of D84 are done and the branch is pushed for CI only. **Stop here:** every AWS, IAM or GitHub-settings step needs a separate approval, in the order of `infra/terraform/README.md` ("Before the first `terraform apply`"). The CI `npm audit` failure (GHSA-7589-6fvf-x4pw in `effect` through Prisma 7.10) is fixed by a temporary override (D85), pushed to the same branch for CI. Prepared, not done: an IAM administrator with MFA and `aws login` (no access keys), the `master` ruleset (pull request, checks `web`/`contract`/`terraform`, no force push or deletion, 0 approvals) and Vercel "Only build production" for previews. Open: the old role's attached policies (read in the console), the administrator identity (IAM Identity Center needs AWS Organizations, which would make this staging account the management account), branch protection and the two GitHub Environments.
 
 **Before (user, 2026-11-23):** replace SST with Terraform before the first staging deploy (D83). The local implementation and its checks were done on branch `terraform-opennext`. Nothing was applied, no AWS or Neon call was made, and `sst.config.ts` stays until parity is confirmed on real staging. Staging and production use separate AWS accounts; independent approval is not configured; Aurora is undecided.
 
@@ -108,6 +108,8 @@ Real provider/profile compatibility, remote identity/account attestation, pin re
 No open row above is closed by this checkpoint; S9 is narrowed by the 2026-10-27 Testnet run. Public field scope is approved, but integrity does not prove agronomic correctness, legal recognition or entitlement to compensation. Readers/farmers need no wallet or account for the public QR verifier (D21/D29, D53).
 
 ## Validation
+
+**2026-11-24, D85 `effect` override:** locally `npm ci`, audit (prod, high) 0, `npm audit signatures`, `prisma validate`/`generate`, lint, typecheck, 20 unit suites and `test:deps` exit 0. In an isolated container with a fresh PostgreSQL 17.6 (no `.env*`): `migrate deploy` (40), `migrate status`, `migrate diff` (no difference), build, `security:probe` (149/149), `client-ip:smoke`, `feedback:smoke` and `publication:smoke` exit 0. Not run locally: drafts/evidence/review/auth/reset/retention/verifier smokes (CI runs them).
 
 **2026-11-24, D84, Windows, Docker, Node 24.18.0, no AWS access:** `test:terraform` exit 0 (42 runs; bootstrap 11 resources, only the plan role); `test:terraform:mutations` exit 0 (102 caught); `test:workflows` 6 of 6 with four negative controls exiting 1; `test:terraform:functions`, lint and typecheck exit 0. The first mutation run had one invalid mutation (`terraform fmt` had rewritten `if (` as `if(`); fixed and rerun. Not run: anything in AWS, the DB/HTTP smokes (no application code changed).
 
