@@ -84,8 +84,8 @@ function checkPlans(container) {
   pass(`real provider plan of staging site: ${created.length} resources, 5 bounded roles, nothing billed while idle`);
 
   const bootstrap = offlinePlan(container, "bootstrap", { stage: "staging", account_id: ACCOUNT, github_repository: "example-owner/example-repo" });
-  pass(`real provider plan of bootstrap: ${plannedResources(bootstrap).length} resources, no apply role`);
-  if (plannedResources(bootstrap).some((change) => change.address.includes('github["apply"]'))) fail("bootstrap planned an apply role by default");
+  if (plannedResources(bootstrap).some((change) => /github\["(apply|deploy)"\]|role_policy\.deploy/.test(change.address))) fail("bootstrap planned a deploy or apply role by default");
+  pass(`real provider plan of bootstrap: ${plannedResources(bootstrap).length} resources, only the plan role`);
   checkBoundaryCovers(site, bootstrap);
 
   const secrets = offlinePlan(container, "envs/staging/secrets", { account_id: ACCOUNT, database_url: SECRET_MARKER, better_auth_secret: `${SECRET_MARKER}-auth` });

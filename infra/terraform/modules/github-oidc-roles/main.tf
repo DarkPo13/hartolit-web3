@@ -1,8 +1,11 @@
 # Three GitHub roles with separate powers:
 # - tf-plan:    reads infrastructure and state; changes nothing but its own state lock.
 # - app-deploy: uploads application code and assets; no IAM and no function settings.
+#               The code it uploads runs as the server role, which can read the app's
+#               secrets, so it too exists only behind a protected GitHub Environment.
 # - tf-apply:   changes infrastructure; exists only behind a protected GitHub Environment.
-# A push to master can reach the first two. Neither can change IAM.
+# A push to master reaches only tf-plan. An environment's subject carries no branch, so
+# the environment itself must allow only master (an unknown one is created unprotected).
 
 module "names" {
   source = "../naming"
@@ -13,11 +16,13 @@ module "names" {
 }
 
 locals {
-  names             = module.names
-  oidc_provider_arn = "arn:aws:iam::${var.account_id}:oidc-provider/token.actions.githubusercontent.com"
-  master_subject    = "repo:${var.github_repository}:ref:refs/heads/master"
-  apply_environment = "${var.stage}-terraform-apply"
-  apply_subject     = "repo:${var.github_repository}:environment:${local.apply_environment}"
+  names              = module.names
+  oidc_provider_arn  = "arn:aws:iam::${var.account_id}:oidc-provider/token.actions.githubusercontent.com"
+  master_subject     = "repo:${var.github_repository}:ref:refs/heads/master"
+  apply_environment  = "${var.stage}-terraform-apply"
+  apply_subject      = "repo:${var.github_repository}:environment:${local.apply_environment}"
+  deploy_environment = "${var.stage}-app-deploy"
+  deploy_subject     = "repo:${var.github_repository}:environment:${local.deploy_environment}"
 
   role_names = {
     plan   = "hartolit-${var.stage}-tf-plan"
@@ -316,8 +321,15 @@ locals {
       {
         Sid      = "WriteOwnState"
         Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:PutObject"]
+        Resource = local.state_key_arn
+      },
+      {
+        # Terraform never deletes its state file, only the lock (a plain DeleteObject).
+        Sid      = "OwnStateLock"
+        Effect   = "Allow"
         Action   = ["s3:DeleteObject", "s3:GetObject", "s3:PutObject"]
-        Resource = [local.state_key_arn, "${local.state_key_arn}.tflock"]
+        Resource = "${local.state_key_arn}.tflock"
       },
       {
         Sid      = "LogGroups"
@@ -470,12 +482,12 @@ locals {
 
   all_subjects = {
     plan   = local.master_subject
-    deploy = local.master_subject
+    deploy = local.deploy_subject
     apply  = local.apply_subject
   }
   subjects = {
     for key, subject in local.all_subjects : key => subject
-    if key != "apply" || var.apply_environment_protected
+    if(key != "apply" || var.apply_environment_protected) && (key != "deploy" || var.deploy_environment_protected)
   }
 
   trust_policies = {
@@ -512,6 +524,8 @@ resource "aws_iam_role_policy" "plan" {
 }
 
 resource "aws_iam_role_policy" "deploy" {
+  count = var.deploy_environment_protected ? 1 : 0
+
   name   = "application-only"
   role   = aws_iam_role.github["deploy"].name
   policy = jsonencode(local.deploy_policy)

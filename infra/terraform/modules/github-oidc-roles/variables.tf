@@ -34,6 +34,16 @@ variable "lambda_boundary_arn" {
   }
 }
 
+variable "deploy_environment_protected" {
+  description = <<-EOT
+    Set to true only after the GitHub Environment `<stage>-app-deploy` exists, allows only
+    the master branch and requires a reviewer. Deployed code runs as the server role and
+    can read the server's secrets, so until then the deploy role is not created at all.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "apply_environment_protected" {
   description = <<-EOT
     Set to true only after the GitHub Environment `<stage>-terraform-apply` exists, allows

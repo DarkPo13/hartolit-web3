@@ -20,6 +20,12 @@ variable "github_repository" {
   default     = "DarkPo13/hartolit-web3"
 }
 
+variable "deploy_environment_protected" {
+  description = "True only after the GitHub deploy Environment allows master alone and requires a reviewer."
+  type        = bool
+  default     = false
+}
+
 variable "apply_environment_protected" {
   description = "True only after the GitHub apply Environment allows master alone and requires a reviewer."
   type        = bool

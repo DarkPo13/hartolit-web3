@@ -28,6 +28,7 @@
     "test:terraform": "node scripts/terraform-check.mjs",
     "test:terraform:functions": "node --test tests/terraform-functions.test.mjs",
     "test:terraform:mutations": "node scripts/terraform-mutations.mjs",
+    "test:workflows": "node --test tests/workflow-safety.test.mjs",
     "test:i18n": "node --test tests/translations.test.mjs tests/help.test.mjs",
     "test:public-boundary": "node scripts/check-public-boundary.mjs",
     "db:setup": "node scripts/setup-local-auth.mjs",

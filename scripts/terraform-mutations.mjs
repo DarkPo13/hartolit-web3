@@ -27,7 +27,7 @@ const BOUNDARY = "every_role_has_the_boundary";
 const LEAST = "roles_are_least_privilege";
 const SECRETS = "secrets_stay_out_of_lambda_settings";
 const IDLE = "nothing_is_billed_while_idle";
-const NO_IAM = "master_push_cannot_change_iam";
+const NO_IAM = "deploy_role_cannot_change_iam";
 const APPLY_BOUNDARY = "apply_role_cannot_leave_the_boundary";
 const APPLY_OPEN = "apply_role_cannot_open_lambda_or_read_secrets";
 const PLAN_ONLY = "plan_role_cannot_write_infrastructure_or_read_secrets";
@@ -79,16 +79,20 @@ const MUTATIONS = [
   site("any boundary accepted", "variables.tf", 'can(regex("^arn:aws:iam::[0-9]{12}:policy/hartolit-(staging|production)-tf-lambda-boundary$", var.permissions_boundary_arn))', 'var.permissions_boundary_arn != ""', "refuses_a_foreign_boundary"),
   site("production bucket can be force-destroyed", "variables.tf", '!var.force_destroy_assets || var.stage != "production"', "var.force_destroy_assets || !var.force_destroy_assets", "refuses_force_destroy_in_production"),
 
-  roles("master trust widened to any branch", 'master_subject    = "repo:${var.github_repository}:ref:refs/heads/master"', 'master_subject    = "repo:${var.github_repository}:ref:refs/heads/*"', "master_push_roles_are_bound_to_master"),
-  roles("trust loses the audience", '            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"\n', "", "master_push_roles_are_bound_to_master"),
-  roles("apply role exists without protection", 'if key != "apply" || var.apply_environment_protected', "if true", "apply_role_is_absent_by_default"),
+  roles("master trust widened to any branch", 'master_subject     = "repo:${var.github_repository}:ref:refs/heads/master"', 'master_subject     = "repo:${var.github_repository}:ref:refs/heads/*"', "plan_role_is_bound_to_master"),
+  roles("trust loses the audience", '            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"\n', "", "plan_role_is_bound_to_master"),
+  roles("apply role exists without protection", 'if(key != "apply" || var.apply_environment_protected)', "if true", "only_the_plan_role_exists_by_default"),
+  roles("deploy role exists without protection", '(key != "deploy" || var.deploy_environment_protected)', "true", "only_the_plan_role_exists_by_default"),
+  roles("deploy role trusts master instead of its environment", "deploy = local.deploy_subject", "deploy = local.master_subject", "deploy_role_exists_only_behind_its_environment"),
+  roles("apply may delete the state file", 'Action   = ["s3:GetObject", "s3:PutObject"]\n        Resource = local.state_key_arn', 'Action   = ["s3:DeleteObject", "s3:GetObject", "s3:PutObject"]\n        Resource = local.state_key_arn', "apply_state_access_is_minimal"),
+  roles("apply cannot release its lock", 'Action   = ["s3:DeleteObject", "s3:GetObject", "s3:PutObject"]\n        Resource = "${local.state_key_arn}.tflock"', 'Action   = ["s3:GetObject", "s3:PutObject"]\n        Resource = "${local.state_key_arn}.tflock"', "apply_state_access_is_minimal"),
   roles("deploy role can pass roles", 'Action   = ["lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:UpdateFunctionCode"]', 'Action   = ["iam:PassRole", "lambda:GetFunction", "lambda:GetFunctionConfiguration", "lambda:UpdateFunctionCode"]', NO_IAM),
   roles("deploy role loses its Deny", '"iam:*", "kms:*", "ssm:*", "sts:AssumeRole",', '"kms:*", "sts:AssumeRole",', NO_IAM),
   roles("deploy role can replace the signer", "Resource = local.deployed_functions", "Resource = concat(local.deployed_functions, local.edge_arns)", NO_IAM),
   roles("plan role can change a function", '"lambda:ListTags", "lambda:ListVersionsByFunction",\n        ]', '"lambda:ListTags", "lambda:ListVersionsByFunction", "lambda:UpdateFunctionCode",\n        ]', PLAN_ONLY),
   roles("secret parameters no longer denied", 'Action   = ["ssm:GetParameter*", "ssm:PutParameter", "ssm:DeleteParameter*", "ssm:LabelParameterVersion"]', 'Action   = ["ssm:LabelParameterVersion"]', PLAN_ONLY),
   roles("path reads no longer denied", 'Action   = "ssm:GetParametersByPath"\n      Resource = "*"', 'Action   = "ssm:GetParametersByPath"\n      Resource = "arn:aws:ssm:eu-central-1:111122223333:parameter/none"', PLAN_ONLY),
-  roles("apply role trusts a branch instead of its environment", 'apply_subject     = "repo:${var.github_repository}:environment:${local.apply_environment}"', 'apply_subject     = "repo:${var.github_repository}:ref:refs/heads/master"', "apply_role_exists_only_behind_its_environment"),
+  roles("apply role trusts a branch instead of its environment", 'apply_subject      = "repo:${var.github_repository}:environment:${local.apply_environment}"', 'apply_subject      = "repo:${var.github_repository}:ref:refs/heads/master"', "apply_role_exists_only_behind_its_environment"),
   roles("guardrails not attached", "functions  = jsonencode(local.apply_functions_policy)\n    web        = jsonencode(local.apply_web_policy)\n    guardrails = jsonencode(local.apply_guardrails_policy)", "functions  = jsonencode(local.apply_functions_policy)\n    web        = jsonencode(local.apply_web_policy)", "apply_role_exists_only_behind_its_environment"),
   roles("apply may create roles outside the boundary", 'Sid       = "DenyRolePowersOutsideBoundary"', 'Sid       = "DenyRolePowersDisabled"', APPLY_BOUNDARY),
   roles("apply Allow loses the boundary", 'Action    = ["iam:CreateRole", "iam:DeleteRolePolicy", "iam:PutRolePolicy"]\n        Resource  = local.role_pattern\n        Condition = { StringEquals = { "iam:PermissionsBoundary" = var.lambda_boundary_arn } }', 'Action    = ["iam:CreateRole", "iam:DeleteRolePolicy", "iam:PutRolePolicy"]\n        Resource  = local.role_pattern\n        Condition = { StringEquals = { "aws:RequestedRegion" = "us-east-1" } }', APPLY_BOUNDARY),
@@ -104,6 +108,10 @@ const MUTATIONS = [
 
   boot("state versioning off", 'status = "Enabled"\n  }\n}\n\nresource "aws_s3_bucket_server', 'status = "Suspended"\n  }\n}\n\nresource "aws_s3_bucket_server', "state_bucket_is_protected"),
   boot("state bucket can be public", "restrict_public_buckets = true", "restrict_public_buckets = false", "state_bucket_is_protected"),
+  boot("state bucket can be deleted", 'Action    = ["s3:DeleteBucket", "s3:DeleteObjectVersion"]', 'Action    = ["s3:DeleteObjectVersion"]', "state_history_is_kept_and_locks_release"),
+  boot("state history can be erased", 'Action    = ["s3:DeleteBucket", "s3:DeleteObjectVersion"]', 'Action    = ["s3:DeleteBucket"]', "state_history_is_kept_and_locks_release"),
+  boot("lock release denied", 'Action    = ["s3:DeleteBucket", "s3:DeleteObjectVersion"]', 'Action    = ["s3:DeleteBucket", "s3:DeleteObjectVersion", "s3:DeleteObject"]', "state_history_is_kept_and_locks_release"),
+  boot("lock markers kept forever", "expired_object_delete_marker = true", "expired_object_delete_marker = false", "state_history_is_kept_and_locks_release"),
   boot("state accepts plain HTTP", '"aws:SecureTransport" = "false"', '"aws:SecureTransport" = "true"', "state_bucket_is_protected"),
   boot("boundary allows all of S3", 'Sid      = "ReadAssetsAndPageCache"\n        Effect   = "Allow"\n        Action   = "s3:GetObject"', 'Sid      = "ReadAssetsAndPageCache"\n        Effect   = "Allow"\n        Action   = "s3:*"', "boundary_is_narrow"),
   boot("boundary allows IAM", 'Action   = "ssm:GetParameters"', 'Action   = ["ssm:GetParameters", "iam:PassRole"]', "boundary_is_narrow"),

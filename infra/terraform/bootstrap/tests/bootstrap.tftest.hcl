@@ -53,6 +53,35 @@ run "state_bucket_is_protected" {
   }
 }
 
+run "state_history_is_kept_and_locks_release" {
+  command = plan
+
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_s3_bucket_policy.state.policy).Statement :
+      statement.Effect == "Deny" && statement.Principal == "*" && try(statement.Condition, null) == null &&
+      contains(flatten([statement.Action]), "s3:DeleteBucket") && contains(flatten([statement.Action]), "s3:DeleteObjectVersion")
+    ])
+    error_message = "Nobody may delete the state bucket or erase earlier state versions."
+  }
+  assert {
+    condition = alltrue(flatten([
+      for statement in jsondecode(aws_s3_bucket_policy.state.policy).Statement : [
+        for action in flatten([statement.Action]) :
+        !contains(["s3:DeleteObject", "s3:Delete*", "s3:*", "*"], action)
+      ] if statement.Effect == "Deny" && try(statement.Condition, null) == null
+    ]))
+    error_message = "Terraform releases its lock with DeleteObject; no unconditional Deny may block it."
+  }
+  assert {
+    condition = (
+      one(one(aws_s3_bucket_lifecycle_configuration.state.rule).noncurrent_version_expiration).noncurrent_days == 90 &&
+      one(one(aws_s3_bucket_lifecycle_configuration.state.rule).expiration).expired_object_delete_marker == true
+    )
+    error_message = "Old versions expire after 90 days and leftover lock markers are cleaned."
+  }
+}
+
 run "boundary_is_narrow" {
   command = plan
 
@@ -83,12 +112,12 @@ run "boundary_is_narrow" {
   }
 }
 
-run "apply_role_stays_off_until_declared" {
+run "only_the_plan_role_by_default" {
   command = plan
 
   assert {
-    condition     = !contains(keys(module.github_roles.role_arns), "apply")
-    error_message = "Bootstrap must not create the apply role by default."
+    condition     = keys(module.github_roles.role_arns) == ["plan"]
+    error_message = "Bootstrap must create neither the deploy nor the apply role by default."
   }
 }
 

@@ -18,46 +18,68 @@ variables {
   lambda_boundary_arn = "arn:aws:iam::111122223333:policy/hartolit-staging-tf-lambda-boundary"
 }
 
-run "apply_role_is_absent_by_default" {
+run "only_the_plan_role_exists_by_default" {
   command = plan
 
   assert {
-    condition     = toset(keys(aws_iam_role.github)) == toset(["plan", "deploy"])
-    error_message = "Without a protected environment there must be no apply role."
+    condition     = toset(keys(aws_iam_role.github)) == toset(["plan"])
+    error_message = "Without protected environments only the read-only plan role may exist."
   }
   assert {
-    condition     = length(aws_iam_policy.apply) == 0 && length(aws_iam_role_policy_attachment.apply) == 0
-    error_message = "Without a protected environment there must be no apply policies."
+    condition     = length(aws_iam_role_policy.deploy) == 0 && length(aws_iam_policy.apply) == 0 && length(aws_iam_role_policy_attachment.apply) == 0
+    error_message = "Without protected environments there must be no deploy or apply policies."
   }
 }
 
-run "master_push_roles_are_bound_to_master" {
+run "plan_role_is_bound_to_master" {
   command = plan
 
   assert {
-    condition = alltrue([
-      for key in ["plan", "deploy"] :
-      jsondecode(aws_iam_role.github[key].assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:example-owner/example-repo:ref:refs/heads/master" &&
-      jsondecode(aws_iam_role.github[key].assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:aud"] == "sts.amazonaws.com" &&
-      jsondecode(aws_iam_role.github[key].assume_role_policy).Statement[0].Action == "sts:AssumeRoleWithWebIdentity"
-    ])
-    error_message = "Plan and deploy must trust exactly this repository's master branch."
+    condition = (
+      jsondecode(aws_iam_role.github["plan"].assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:example-owner/example-repo:ref:refs/heads/master" &&
+      jsondecode(aws_iam_role.github["plan"].assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:aud"] == "sts.amazonaws.com" &&
+      jsondecode(aws_iam_role.github["plan"].assume_role_policy).Statement[0].Action == "sts:AssumeRoleWithWebIdentity"
+    )
+    error_message = "The plan role must trust exactly this repository's master branch."
   }
   assert {
-    condition = alltrue([
-      for key in ["plan", "deploy"] :
-      !strcontains(aws_iam_role.github[key].assume_role_policy, "StringLike") && !strcontains(aws_iam_role.github[key].assume_role_policy, "*")
-    ])
+    condition     = !strcontains(aws_iam_role.github["plan"].assume_role_policy, "StringLike") && !strcontains(aws_iam_role.github["plan"].assume_role_policy, "*")
     error_message = "A trust policy must not use wildcards."
   }
 }
 
-run "master_push_cannot_change_iam" {
+run "deploy_role_exists_only_behind_its_environment" {
   command = plan
+  variables {
+    deploy_environment_protected = true
+  }
+
+  assert {
+    condition = (
+      jsondecode(aws_iam_role.github["deploy"].assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:sub"] == "repo:example-owner/example-repo:environment:staging-app-deploy" &&
+      jsondecode(aws_iam_role.github["deploy"].assume_role_policy).Statement[0].Condition.StringEquals["token.actions.githubusercontent.com:aud"] == "sts.amazonaws.com"
+    )
+    error_message = "Deployed code can read the server's secrets, so the deploy role must trust only its protected environment."
+  }
+  assert {
+    condition     = !strcontains(aws_iam_role.github["deploy"].assume_role_policy, "StringLike") && !strcontains(aws_iam_role.github["deploy"].assume_role_policy, "*")
+    error_message = "A trust policy must not use wildcards."
+  }
+  assert {
+    condition     = length(aws_iam_role_policy.deploy) == 1 && !contains(keys(aws_iam_role.github), "apply")
+    error_message = "Protecting the deploy environment must not create the apply role."
+  }
+}
+
+run "deploy_role_cannot_change_iam" {
+  command = plan
+  variables {
+    deploy_environment_protected = true
+  }
 
   assert {
     condition = length([
-      for statement in jsondecode(aws_iam_role_policy.deploy.policy).Statement : statement
+      for statement in jsondecode(aws_iam_role_policy.deploy[0].policy).Statement : statement
       if statement.Effect == "Allow" && length([for action in flatten([statement.Action]) : action if startswith(action, "iam:")]) > 0
     ]) == 0
     error_message = "The deploy role must have no IAM Allow."
@@ -71,14 +93,14 @@ run "master_push_cannot_change_iam" {
   }
   assert {
     condition = anytrue([
-      for statement in jsondecode(aws_iam_role_policy.deploy.policy).Statement :
+      for statement in jsondecode(aws_iam_role_policy.deploy[0].policy).Statement :
       statement.Effect == "Deny" && contains(flatten([statement.Action]), "iam:*") && contains(flatten([statement.Action]), "lambda:UpdateFunctionConfiguration") && contains(flatten([statement.Action]), "ssm:*") && statement.Resource == "*"
     ])
     error_message = "The deploy role must explicitly refuse IAM, function settings and SSM."
   }
   assert {
     condition = length([
-      for statement in jsondecode(aws_iam_role_policy.deploy.policy).Statement : statement
+      for statement in jsondecode(aws_iam_role_policy.deploy[0].policy).Statement : statement
       if statement.Effect == "Allow" && contains(flatten([statement.Action]), "lambda:UpdateFunctionCode") && contains(flatten([statement.Resource]), "arn:aws:lambda:us-east-1:111122223333:function:hartolit-field-passport-staging-WebEdgeFn-signer")
     ]) == 0
     error_message = "The deploy role must not replace the Lambda@Edge signer."
@@ -130,6 +152,30 @@ run "apply_role_exists_only_behind_its_environment" {
   assert {
     condition     = alltrue([for policy in aws_iam_policy.apply : length(jsonencode(jsondecode(policy.policy))) <= 6144])
     error_message = "A managed policy is limited to 6,144 characters."
+  }
+}
+
+run "apply_state_access_is_minimal" {
+  command = plan
+  variables {
+    apply_environment_protected = true
+  }
+
+  assert {
+    condition = alltrue([
+      for statement in jsondecode(aws_iam_policy.apply["web"].policy).Statement :
+      !contains(flatten([statement.Action]), "s3:DeleteObject")
+      if contains(flatten([statement.Resource]), "arn:aws:s3:::hartolit-terraform-state-staging-111122223333/staging/site/terraform.tfstate")
+    ])
+    error_message = "Terraform never deletes its state file, so the apply role must not either."
+  }
+  assert {
+    condition = anytrue([
+      for statement in jsondecode(aws_iam_policy.apply["web"].policy).Statement :
+      statement.Effect == "Allow" && contains(flatten([statement.Action]), "s3:DeleteObject") &&
+      flatten([statement.Resource]) == ["arn:aws:s3:::hartolit-terraform-state-staging-111122223333/staging/site/terraform.tfstate.tflock"]
+    ])
+    error_message = "The apply role must still be able to release its own lock."
   }
 }
 

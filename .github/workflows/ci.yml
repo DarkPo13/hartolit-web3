@@ -162,6 +162,7 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: npm run test:workflows
       - run: npm run test:terraform:functions
       - run: npm run test:terraform
       - run: npm run test:terraform:mutations

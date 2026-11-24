@@ -165,6 +165,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "state" {
       noncurrent_days = 90
     }
 
+    # Each released lock leaves a delete marker; remove it once nothing is behind it.
+    expiration {
+      expired_object_delete_marker = true
+    }
+
     abort_incomplete_multipart_upload {
       days_after_initiation = 1
     }
@@ -177,14 +182,26 @@ resource "aws_s3_bucket_policy" "state" {
   bucket = aws_s3_bucket.state.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid       = "DenyInsecureTransport"
-      Effect    = "Deny"
-      Principal = "*"
-      Action    = "s3:*"
-      Resource  = [local.names.state_bucket_arn, "${local.names.state_bucket_arn}/*"]
-      Condition = { Bool = { "aws:SecureTransport" = "false" } }
-    }]
+    Statement = [
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource  = [local.names.state_bucket_arn, "${local.names.state_bucket_arn}/*"]
+        Condition = { Bool = { "aws:SecureTransport" = "false" } }
+      },
+      {
+        # Every earlier state stays recoverable. Old versions go only through the 90-day
+        # Lifecycle rule, which bucket policies do not restrict. Terraform releases its
+        # lock with a plain DeleteObject, which stays allowed.
+        Sid       = "DenyErasingStateHistory"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = ["s3:DeleteBucket", "s3:DeleteObjectVersion"]
+        Resource  = [local.names.state_bucket_arn, "${local.names.state_bucket_arn}/*"]
+      },
+    ]
   })
 
   depends_on = [aws_s3_bucket_public_access_block.state]
@@ -201,12 +218,13 @@ resource "aws_iam_policy" "lambda_boundary" {
 module "github_roles" {
   source = "../modules/github-oidc-roles"
 
-  stage                       = var.stage
-  account_id                  = var.account_id
-  region                      = var.region
-  github_repository           = var.github_repository
-  lambda_boundary_arn         = local.boundary_arn
-  apply_environment_protected = var.apply_environment_protected
+  stage                        = var.stage
+  account_id                   = var.account_id
+  region                       = var.region
+  github_repository            = var.github_repository
+  lambda_boundary_arn          = local.boundary_arn
+  apply_environment_protected  = var.apply_environment_protected
+  deploy_environment_protected = var.deploy_environment_protected
 
   depends_on = [aws_iam_policy.lambda_boundary]
 }
