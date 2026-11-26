@@ -1,0 +1,11 @@
+# The first bootstrap run uses local state, because the bucket does not exist yet.
+# Afterwards copy this file to backend.tf and move the state into the bucket:
+#   terraform init -migrate-state -backend-config=bucket=<output state_bucket>
+terraform {
+  backend "s3" {
+    key          = "staging/bootstrap/terraform.tfstate"
+    region       = "eu-central-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}

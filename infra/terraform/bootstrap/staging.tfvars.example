@@ -1,0 +1,5 @@
+# Copy to staging.tfvars (gitignored). The account number below is AWS's documentation example.
+stage      = "staging"
+account_id = "111122223333"
+# Leave false until the GitHub Environment allows only master and requires a reviewer.
+apply_environment_protected = false

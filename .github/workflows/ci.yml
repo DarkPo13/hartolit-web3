@@ -92,6 +92,7 @@ jobs:
       - run: npm run test:sst
       - run: npm run test:iam
       - run: npm run test:reset
+      - run: npm run test:deps
       - name: Build with isolated test-only auth configuration
         run: npm run build
       - run: npm run db:deploy
@@ -149,6 +150,23 @@ jobs:
           npm run retention:smoke
           npm run client-ip:smoke
       - run: npm audit --omit=dev --audit-level=high
+
+  # No AWS credentials and no id-token permission: Terraform runs against mocks, offline.
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run test:workflows
+      - run: npm run test:terraform:functions
+      - run: npm run test:terraform
+      - run: npm run test:terraform:mutations
 
   contract:
     runs-on: ubuntu-latest

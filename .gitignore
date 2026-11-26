@@ -38,6 +38,22 @@ yarn-error.log*
 /.open-next/
 sst-env.d.ts
 
+# Terraform: state, plans, variable values and local builds never enter Git.
+# `.terraform.lock.hcl` and `*.tfvars.example` are committed on purpose.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+infra/terraform/**/.build/
+
 # TypeScript
 *.tsbuildinfo
 /generated/prisma/
